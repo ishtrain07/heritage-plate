@@ -14,8 +14,13 @@ Convert household measures to grams with typical home-kitchen sizes:
 1 cup flour = 120 g, 1 cup raw rice = 185 g, 1 bowl/katori raw lentils = 100 g, 1 katori flour = 100 g,
 1 tbsp oil/ghee/butter = 13 g, 1 tbsp soy/fish sauce = 16 g, 1 tsp = 5 g, 1 handful = 30 g,
 1 medium potato = 150 g, 1 medium onion = 110 g, 1 medium tomato = 120 g, 1 egg = 50 g,
-1 clove garlic = 4 g, "a little" fat = 10 g.
-Use RAW weights for grains, pasta, noodles and lentils. Ignore water.
+1 clove garlic = 4 g, "a little" fat = 10 g, 1 egg white = 33 g, 1 slice bread = 30 g,
+1 handful nuts = 25 g, 1 ml milk/curd/yogurt = 1 g, 1 glass = 200 ml, "spoon" with no tsp/tbsp = 10 g,
+"half" = half of the measure that follows.
+Breads: 1 roti/chapati/phulka = 30 g whole wheat flour; 1 paratha = 40 g whole wheat flour + 5 g ghee.
+Use RAW weights for grains, pasta, noodles and lentils: 1 bowl/katori COOKED rice = 60 g raw rice;
+1 katori cooked dal = 35 g raw dal. Ignore water.
+If an ingredient isn't in the list, keep its own name; never substitute a different food (almonds are not cashews).
 Reply with JSON only:
 {{"name": str, "servings": int, "ingredients": [{{"item": str, "grams": number}}]}}"""
 

@@ -38,7 +38,7 @@ class Recipe(BaseModel):
     servings: int = Field(ge=1, le=20)
     meal: Literal["breakfast", "main", "dessert"] | None = None
     ingredients: list[Ingredient] = Field(min_length=1, max_length=40)
-    source_text: str = Field(default="", max_length=1000)
+    source_text: str = Field(default="", max_length=2000)
     method: list[str] = Field(default_factory=list, max_length=12)
 
     def build(self) -> dict:
@@ -199,7 +199,7 @@ async def demo(family_id: str):
 def parse(body: ParseIn, request: Request):
     _rate_limit(request)
     recipe, trace = _guard(engine.parse_recipe, body.text, body.servings, body.cuisine)
-    if not recipe["ingredients"]:
+    if not any(i["matched"] for i in recipe["ingredients"]):
         raise HTTPException(status_code=422, detail="Couldn't find any ingredients. Try listing them with amounts.")
     return {"recipe": recipe, "trace": trace}
 

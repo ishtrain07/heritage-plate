@@ -146,3 +146,14 @@ def test_protein_sides_go_on_main_meals_one_each(client):
         for m in d["meals"]:
             assert m["name"].count(" + ") <= 1, m["name"]
             assert " + " not in m["name"] or m["slot"] in ("lunch", "dinner"), m["name"]
+
+
+@pytest.mark.parametrize("text,kept,banned", [
+    ("no eggplant", {"egg"}, {"eggplant"}),
+    ("no coconut milk", {"whole milk", "yogurt"}, {"coconut milk"}),
+    ("shellfish allergy", {"salmon", "fish"}, {"shrimp"}),
+    ("nut allergy", set(), {"almonds", "peanuts", "walnuts"}),
+])
+def test_dislikes_match_whole_words_and_groups(text, kept, banned):
+    avoid, _ = dietitian.avoid_items(text)
+    assert banned <= avoid and not (kept & avoid)

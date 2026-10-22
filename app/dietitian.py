@@ -9,17 +9,18 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from functools import lru_cache
 from pathlib import Path
 
 from . import engine, llm, nutrition, prompts
 
 DAYS = engine.DAYS
-MEAT = {"bacon", "chicken", "goat meat", "ground beef", "lamb", "pork"}
-FISH = {"cod", "fish", "salmon", "shrimp", "fish sauce", "oyster sauce", "kimchi"}
-EGG = {"egg", "egg noodles"}
+MEAT = {"bacon", "chicken", "chicken breast", "goat meat", "ground beef", "lamb", "pork"}
+FISH = {"cod", "fish", "salmon", "shrimp", "tuna", "fish sauce", "oyster sauce", "kimchi"}
+EGG = {"egg", "egg white", "egg noodles", "mayonnaise"}
 DAIRY = {"cheddar cheese", "heavy cream", "khoa", "mozzarella cheese", "paneer", "parmesan cheese", "queso fresco",
-         "sour cream", "whole milk", "yogurt", "butter", "ghee"}
+         "sour cream", "whole milk", "yogurt", "butter", "ghee", "cottage cheese", "buttermilk", "sweetened condensed milk"}
 EXCLUDES = {
     "non_veg": set(),
     "pescatarian": MEAT,
@@ -66,16 +67,18 @@ DIET_WORDS = {"non_veg": (), "pescatarian": ("meat",), "eggetarian": ("meat", "f
               "vegetarian": ("meat", "fish", "egg"), "vegan": ("meat", "fish", "egg", "dairy")}
 # Allergy and avoid words that stand for a group of foods.
 GROUPS = {
-    ("peanut", "groundnut"): {"peanuts", "groundnut oil"},
-    ("nut",): {"peanuts", "cashews", "groundnut oil"},
+    ("peanut", "peanuts", "groundnut"): {"peanuts", "groundnut oil", "peanut butter", "mixed nuts"},
+    ("nut", "nuts", "tree nut", "tree nuts"): {"peanuts", "cashews", "groundnut oil", "almonds", "walnuts", "pistachios",
+                                                "mixed nuts", "peanut butter"},
     ("dairy", "lactose", "milk"): DAIRY,
-    ("seafood", "shellfish", "fish"): FISH,
+    ("seafood", "fish"): FISH,
+    ("shellfish", "prawn", "prawns"): {"shrimp", "oyster sauce"},
     ("gluten", "wheat"): {"whole wheat flour", "all-purpose flour", "white bread", "whole wheat bread", "pasta",
                           "couscous", "bulgur", "semolina", "egg noodles", "flour tortilla", "pita bread", "barley",
                           "soy sauce"},
     ("egg",): EGG,
     ("soy",): {"soy sauce", "tofu", "soybeans", "miso"},
-    ("sesame",): {"sesame oil", "tahini"},
+    ("sesame",): {"sesame oil", "tahini", "sesame seeds"},
     ("meat",): MEAT,
 }
 
@@ -95,10 +98,16 @@ def allowed(items: list[str], diet: str, avoid: set[str]) -> bool:
 
 def avoid_items(dislikes: str) -> tuple[set[str], list[str]]:
     """Foods to keep out, from names ("mushrooms") and group words ("nut allergy"). Also returns words not understood."""
-    text = (dislikes or "").lower()
+    text = nutrition.normalize(dislikes or "")
     avoid = {food.name for food, _ in nutrition.find_mentions(text)}
+    # Blank out the foods already named, so "coconut milk" or "eggplant" don't also trigger "milk" or "egg".
+    rest = text
+    index = nutrition._alias_index()
+    for alias, name in index.items():
+        if name in avoid:
+            rest = re.sub(rf"\b{re.escape(alias)}\b", " ", rest)
     for words, foods in GROUPS.items():
-        if any(w in text for w in words):
+        if any(re.search(rf"\b{re.escape(w)}\b", rest) for w in words):
             avoid |= foods
     unknown = []
     if text.strip() and not avoid:

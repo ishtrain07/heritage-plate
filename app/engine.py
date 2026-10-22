@@ -136,7 +136,7 @@ def build_recipe(name: str, servings: int, ingredients: list[dict], source_text:
         "servings": servings,
         "meal": meal if meal in ("breakfast", "main", "dessert") else _meal_type(name, ingredients),
         "ingredients": ingredients,
-        "source_text": source_text[:1000],
+        "source_text": source_text[:2000],
         "method": clean_steps(method),
         "nutrition": nutrition.per_serving(ingredients, servings),
         "sources": nutrition.sources_for(ingredients),
@@ -145,21 +145,81 @@ def build_recipe(name: str, servings: int, ingredients: list[dict], source_text:
 
 # ---------- parse ----------
 
-def _mock_parse(text: str) -> dict:
-    """Find known foods in the text and assume a typical family-size amount of each.
+# Demo-mode quantity reading (live mode: Nemotron Nano with the PARSE prompt's conversions).
+UNIT_G = {"g": 1, "gm": 1, "gms": 1, "gram": 1, "grams": 1, "kg": 1000, "ml": 1, "l": 1000, "litre": 1000, "liter": 1000,
+          "tbsp": 15, "tablespoon": 15, "tablespoons": 15, "tsp": 5, "teaspoon": 5, "teaspoons": 5,
+          "spoon": 10, "spoons": 10, "cup": 150, "cups": 150, "katori": 100, "katoris": 100, "bowl": 100, "bowls": 100,
+          "handful": 30, "handfuls": 30, "pinch": 1, "glass": 200, "glasses": 200}
+PIECE_G = {"egg": 50, "egg white": 33, "onion": 110, "tomato": 120, "potato": 150, "banana": 100, "apple": 150,
+           "garlic": 4, "green chili": 5, "carrot": 60, "orange": 150, "white bread": 30, "whole wheat bread": 30,
+           "flour tortilla": 45, "corn tortilla": 25, "plantain": 180, "dates": 8}
+BREADS = {"roti": 30, "rotis": 30, "chapati": 30, "chapatis": 30, "phulka": 25, "phulkas": 25, "paratha": 40, "parathas": 40}
+WORD_NUM = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "half": 0.5, "ek": 1, "do": 2, "teen": 3}
 
-    Live mode does real quantity reading with Nemotron Nano; this only keeps the
-    demo usable without an API key.
+
+def _segment_grams(segment: str, food: nutrition.Food, pos: int) -> float:
+    """Grams for one food from the amount written in its part of the recipe ("2 eggs", "half katori dal",
+    "chicken 300g", "200 ml milk"). Segments are split on commas, so each usually holds one food."""
+    before = nutrition.normalize(segment)[:pos].split()[-4:]
+    nums = re.findall(r"(\d+(?:\.\d+)?)\s*([a-z]+)?", segment.lower())
+    if nums:
+        value, unit = nums[0]
+        if unit in UNIT_G:
+            return float(value) * UNIT_G[unit]
+        unit = next((w for w in before if w in UNIT_G), None)
+        if unit:
+            return float(value) * UNIT_G[unit]
+        return float(value) * PIECE_G.get(food.name, food.default_g / 4)
+    word = next((w for w in reversed(before) if w in WORD_NUM), None)
+    num = WORD_NUM[word] if word else None
+    unit = next((w for w in reversed(before) if w in UNIT_G), None)
+    # "half" as the number already halves; "thoda"/"little" halve the usual amount.
+    half = 0.5 if word != "half" and any(w in ("half", "thoda", "little") for w in before) else 1
+    if unit:
+        return (num or 1) * UNIT_G[unit] * half
+    if num is not None:
+        return num * PIECE_G.get(food.name, food.default_g / 4) if word != "half" else food.default_g * 0.5
+    return food.default_g * half
+
+
+def _mock_parse(text: str) -> dict:
+    """Demo-mode recipe reader: known foods with their written amounts, unknown items kept as "not counted".
+
+    Live mode does the real reading with Nemotron Nano; this keeps the demo honest without an API key.
     """
+    lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()] or ["My recipe"]
+    first = lines[0]
+    if ":" in first:
+        name, rest = first.split(":", 1)
+        body = "\n".join([rest, *lines[1:]])
+    elif len(lines) > 1:
+        name, body = first, "\n".join(lines[1:])
+    else:
+        name, body = "My recipe", first
     ingredients = []
-    norm = nutrition.normalize(text)
-    for food, pos in nutrition.find_mentions(text):
-        window = norm[max(0, pos - 12) : pos]
-        factor = 0.5 if re.search(r"\b(half|thoda|little)\s*$", window) else 1.0
-        ingredients.append({"item": food.name, "grams": food.default_g * factor})
-    first_line = text.strip().splitlines()[0] if text.strip() else "My recipe"
-    name = first_line.split(":")[0].strip()[:60] or "My recipe"
-    return {"name": name, "servings": 4, "ingredients": ingredients}
+    for seg in re.split(r"[,;\n]|\band\b|\baur\b|\by\b", body):
+        seg = seg.strip(" .")
+        if not seg or re.match(r"(serves|for \d+|makes)\b", seg.lower()):
+            continue
+        norm = nutrition.normalize(seg)
+        bread = next((w for w in BREADS if re.search(rf"\b{w}\b", norm)), None)
+        if bread:  # "8 rotis" -> atta (+ fat for parathas)
+            count = next((float(n) for n in re.findall(r"\d+(?:\.\d+)?", seg)), None) or 4
+            ingredients.append({"item": "whole wheat flour", "grams": count * BREADS[bread]})
+            if "paratha" in bread:
+                ingredients.append({"item": "ghee", "grams": count * 5})
+            continue
+        found = nutrition.find_mentions(seg)
+        if not found:
+            words = [w for w in norm.split() if w not in UNIT_G and w not in WORD_NUM and not w.isdigit()]
+            if words and len(words) <= 4:
+                ingredients.append({"item": " ".join(words)[:40], "grams": 50})  # shown as "not counted"
+            continue
+        for food, pos in found:
+            ingredients.append({"item": food.name, "grams": max(1.0, _segment_grams(seg, food, pos))})
+    servings = re.search(r"serves\s*(\d+)|for\s*(\d+)\s*(people|persons)", text.lower())
+    serves = int(next(g for g in servings.groups() if g and g.isdigit())) if servings else 4
+    return {"name": name.strip()[:60] or "My recipe", "servings": serves, "ingredients": ingredients}
 
 
 def parse_recipe(text: str, servings: int | None, cuisine: str) -> tuple[dict, list[dict]]:

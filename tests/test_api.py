@@ -266,3 +266,13 @@ def test_suggest_a_dish_respects_diet_and_comes_back_cookable(client):
     names = {i["item"] for i in out["ingredients"]}
     assert out["suggested"] and "tofu" in names and out["method"] and out["nutrition"]["kcal"] > 0
     assert not names & {"yogurt", "paneer", "egg", "chicken"}
+
+
+def test_demo_parse_reads_amounts_and_keeps_unknowns_as_not_counted(client):
+    text = "Trail mix: 30g almonds, 6 eggs, chicken 300g, 200 ml milk, 4 rotis, half katori moong dal, goji berries"
+    r = client.post("/api/parse", json={"text": text}).json()["recipe"]
+    grams = {i["item"]: i["grams"] for i in r["ingredients"]}
+    assert r["name"] == "Trail mix"
+    assert grams["almonds"] == 30 and grams["egg"] == 300 and grams["chicken"] == 300 and grams["whole milk"] == 200
+    assert grams["whole wheat flour"] == 120 and grams["moong dal"] == 50
+    assert "goji berries" in r["nutrition"]["uncounted"]

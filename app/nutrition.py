@@ -36,10 +36,11 @@ class Food:
 
 # Quantity, unit and preparation words that can surround an ingredient name.
 FILLER = frozenset(
-    ["a", "an", "the", "of", "some", "few", "little", "bit", "half", "whole", "fresh", "chopped", "sliced", "diced", "minced", "grated", "boiled", "raw", "dry", "dried", "big", "small", "medium", "large", "cup", "cups", "katori", "katoris", "bowl", "bowls", "tbsp", "tsp", "tablespoon", "tablespoons", "teaspoon", "teaspoons", "spoon", "spoons", "g", "gm", "gms", "gram", "grams", "kg", "ml", "l", "litre", "liter", "handful", "handfuls", "pinch", "bunch", "bunches", "piece", "pieces", "clove", "cloves", "can", "cans", "packet", "pack", "slice", "slices", "sheet", "sheets", "stick", "sticks", "to", "taste", "as", "needed"]
+    ["a", "an", "the", "of", "some", "few", "little", "bit", "half", "whole", "fresh", "chopped", "sliced", "diced", "minced", "grated", "boiled", "raw", "dry", "dried", "big", "small", "medium", "large", "cup", "cups", "katori", "katoris", "bowl", "bowls", "tbsp", "tsp", "tablespoon", "tablespoons", "teaspoon", "teaspoons", "spoon", "spoons", "g", "gm", "gms", "gram", "grams", "kg", "ml", "l", "litre", "liter", "handful", "handfuls", "pinch", "bunch", "bunches", "piece", "pieces", "clove", "cloves", "can", "cans", "packet", "pack", "slice", "slices", "sheet", "sheets", "stick", "sticks", "to", "taste", "as", "needed", "thin", "thick", "thinly", "finely", "roughly", "peeled", "cubed", "hard", "soft", "beaten", "whisked"]
 )
 # Colour/variety words that don't change the food much ("red onion" is still onion).
-SAFE_ADJECTIVES = {"red", "white", "yellow", "purple", "baby", "ripe", "organic", "frozen", "plain", "unsalted", "salted", "lean", "skinless", "boneless"}
+SAFE_ADJECTIVES = {"red", "white", "yellow", "purple", "baby", "ripe", "organic", "frozen", "plain", "unsalted", "salted", "lean", "skinless", "boneless",
+                   "sea", "rock", "pink", "himalayan", "dark", "toned", "multigrain"}
 
 
 def normalize(text: str) -> str:
@@ -113,9 +114,18 @@ def match(item: str) -> Food | None:
             if len(candidate) >= 2 and candidate[0] in SAFE_ADJECTIVES and " ".join(candidate[1:]) in index:
                 return foods()[index[" ".join(candidate[1:])]]
         if words[0] not in FILLER:
-            return None
+            break
         words.pop(0)
+    # Last try: plurals the table doesn't list ("chicken thighs", "onions sliced").
+    if words and words[-1].endswith("s") and len(words[-1]) > 3:
+        return match(" ".join([*words[:-1], words[-1][:-2] if words[-1].endswith("es") and words[-1][:-2] + "es" != words[-1][:-1] else words[-1][:-1]]))
     return None
+
+
+# A food name followed by one of these words is a different food ("rice flour", "chicken stock",
+# "rice vinegar"); when the pair isn't in the table, the mention is skipped rather than miscounted.
+BLOCK_NEXT = {"flour", "butter", "milk", "cheese", "stock", "broth", "cube", "cubes", "water", "sauce", "vinegar",
+              "paper", "wrapper", "wrappers", "starch", "leaves", "pickle", "achar", "noodles", "chips", "cake"}
 
 
 def find_mentions(text: str) -> list[tuple[Food, int]]:
@@ -132,6 +142,9 @@ def find_mentions(text: str) -> list[tuple[Food, int]]:
         for m in pattern.finditer(norm):
             start, end = m.span()
             if any(start < e and s < end for s, e in taken):
+                continue
+            nxt = norm[end:].split(" ", 2)
+            if len(nxt) > 1 and nxt[1] in BLOCK_NEXT:
                 continue
             taken.append((start, end))
             name = index[alias]

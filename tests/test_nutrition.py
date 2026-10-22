@@ -1,3 +1,5 @@
+import pytest
+
 from app import nutrition
 
 
@@ -52,10 +54,25 @@ def test_unit_words_inside_names_still_match():
     assert nutrition.match("1 cup gram flour").name == "gram flour"
     assert nutrition.match("green gram").name == "mung beans"
     assert nutrition.match("salt to taste").name == "salt"
-    assert nutrition.match("peanut butter") is None
+    assert nutrition.match("peanut butter").name == "peanut butter"  # its own food now, never butter
 
 
 def test_cooked_foods_are_not_counted_as_raw():
     # The table holds raw weights; cooked rice would be ~3x overstated, so leave it uncounted.
     assert nutrition.match("cooked white rice") is None
     assert nutrition.match("green chillies").name == "green chili"
+
+
+@pytest.mark.parametrize("name,food", [
+    ("almonds", "almonds"), ("badam", "almonds"), ("akhrot", "walnuts"), ("kishmish", "raisins"), ("chia seeds", "chia seeds"),
+    ("urad dal", "urad dal"), ("egg whites", "egg white"), ("sabudana", "tapioca pearls"), ("cottage cheese", "cottage cheese"),
+    ("paneer", "paneer"), ("chicken breast", "chicken breast"), ("condensed milk", "sweetened condensed milk"),
+    ("sea salt", "salt"), ("chicken thighs", "chicken"), ("hard boiled eggs", "egg"), ("corn flour", "cornstarch"),
+])
+def test_common_foods_are_counted(name, food):
+    assert nutrition.match(name).name == food
+
+
+def test_compound_names_are_not_counted_as_their_parts():
+    found = {f.name for f, _ in nutrition.find_mentions("chicken stock, rice vinegar, rice flour, peanut butter")}
+    assert found == {"vinegar", "rice flour", "peanut butter"}  # rice vinegar is vinegar; no chicken, rice or butter
