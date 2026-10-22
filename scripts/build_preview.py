@@ -28,7 +28,7 @@ from fastapi.testclient import TestClient
 from app import engine, nutrition
 from app.main import app
 
-CONDITIONS = ("diabetes", "bp", "cholesterol")
+CONDITIONS = ("diabetes", "bp", "cholesterol", "everyday")
 
 
 def precompute() -> dict:

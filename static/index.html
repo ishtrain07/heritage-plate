@@ -3,18 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Keep the family's food. Fix the numbers. Heritage Plate makes your family recipes lighter for diabetes, blood pressure or cholesterol.">
+  <meta name="description" content="Say your family's recipe the way it's cooked at home. Heritage Plate gives it back lighter, with amounts, steps and a week of meals.">
   <meta name="theme-color" content="#f7f1e7" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#16110d" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
-  <title>Heritage Plate: keep the family's food, fix the numbers</title>
+  <title>Heritage Plate: your family's recipes, made lighter</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="/static/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <a class="skip" href="#start">Skip to the app</a>
+  <a class="skip" href="#main">Skip to the app</a>
 
   <header class="top">
     <div class="wrap top-inner">
@@ -28,7 +28,6 @@
         <span>Heritage Plate</span>
       </a>
       <div class="top-end">
-        <span id="mode" class="badge" role="status">Checking…</span>
         <button id="themeToggle" class="theme-btn" type="button" data-mode="system" aria-label="Colour theme: system. Switch theme">
           <svg class="ic-system" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor"/></svg>
           <svg class="ic-light" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -39,178 +38,186 @@
   </header>
 
   <main id="main">
-    <section class="hero" aria-labelledby="heroTitle">
-      <div class="wrap hero-grid">
-        <div class="hero-copy">
-          <p class="eyebrow">For families cooking for a parent</p>
-          <h1 id="heroTitle">Keep the family's food.<br><span class="accent">Fix the numbers.</span></h1>
-          <p class="lede">Your family recipes, made lighter for diabetes, blood pressure or cholesterol, so they still taste like home.</p>
-          <ul class="hero-facts" aria-label="What you get">
-            <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Any cuisine</li>
-            <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>A note in their language</li>
-            <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Numbers from food tables</li>
-          </ul>
-        </div>
-        <figure class="hero-card" aria-label="Example result: Mum's aloo paratha has 62 grams of sugar-raising carbs per serving before and 47 grams after, 25 percent less.">
-          <div aria-hidden="true">
-            <div class="hc-top"><span class="hc-kicker">Example · Breakfast</span><span class="tag tag-win">25% less</span></div>
-            <p class="hc-name">Mum's aloo paratha</p>
-            <p class="nums"><span class="nums-was">62</span><span class="nums-arrow">→</span><span class="nums-now">47<span class="nums-unit">g</span></span></p>
-            <p class="nums-label">sugar-raising carbs per serving</p>
-            <div class="cmp">
-              <div class="cmp-row"><span>Before</span><span class="cmp-bar"><span style="width:100%"></span></span><span class="cmp-v">62 g</span></div>
-              <div class="cmp-row is-now"><span>Now</span><span class="cmp-bar"><span style="width:76%"></span></span><span class="cmp-v">47 g</span></div>
+    <div id="flowView">
+      <div class="wrap"><div id="resume"></div></div>
+      <section class="hero" aria-labelledby="heroTitle">
+        <div class="wrap hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Family recipes, made healthier</p>
+            <h1 id="heroTitle">Your family's recipes.<br><span class="accent">Made lighter, still home.</span></h1>
+            <p class="lede">Say Mum's recipe the way she says it. We give it back lighter, with amounts, steps and a week of meals. Built for families cooking for a parent with diabetes, blood pressure or cholesterol.</p>
+            <div class="cta-row">
+              <button id="heroSay" class="btn btn-primary btn-cta" type="button">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1a7 7 0 0 0 6-6.9h-2Z" fill="currentColor"/></svg>
+                <span>Say a recipe</span>
+              </button>
+              <button id="heroType" class="btn btn-outline btn-cta" type="button">Type or paste one</button>
             </div>
-            <p class="hc-swap"><span class="tick">✓</span><span>Half the potato swapped for cauliflower. Same paratha, same Sunday.</span></p>
+            <a id="heroSample" class="text-link" href="#samples">No recipe handy? Try a sample family <span aria-hidden="true">↓</span></a>
+            <p class="trust">Numbers from food tables, not guesses <span aria-hidden="true">·</span> Any cuisine <span aria-hidden="true">·</span> Free</p>
           </div>
-        </figure>
-      </div>
-    </section>
-
-    <nav class="wrap steps" aria-label="Your progress">
-      <ol>
-        <li><button type="button" class="step-pill" data-goto="1"><span class="step-n" aria-hidden="true">1</span><span>Family</span></button></li>
-        <li><button type="button" class="step-pill" data-goto="2"><span class="step-n" aria-hidden="true">2</span><span>Lighter</span></button></li>
-        <li><button type="button" class="step-pill" data-goto="3"><span class="step-n" aria-hidden="true">3</span><span>Week</span></button></li>
-      </ol>
-    </nav>
-
-    <div class="wrap flow">
-      <!-- Step 1: pick a family -->
-      <section id="start" class="step-sec" aria-labelledby="s1" tabindex="-1">
-        <p class="eyebrow">Step 1 of 3</p>
-        <h2 id="s1" class="sec-title" tabindex="-1">Pick a family to try</h2>
-        <div id="families" class="families">
-          <div class="family skeleton" aria-hidden="true"></div>
-          <div class="family skeleton" aria-hidden="true"></div>
-          <div class="family skeleton" aria-hidden="true"></div>
-          <div class="family skeleton" aria-hidden="true"></div>
+          <figure class="hero-card" aria-label="Example result: Mum's aloo paratha has 62 grams of sugar-raising carbs per serving before and 47 grams after, 25 percent less.">
+            <div aria-hidden="true">
+              <div class="hc-top"><span class="hc-kicker">Example · Breakfast</span><span class="tag tag-win">25% less</span></div>
+              <p class="hc-name">Mum's aloo paratha</p>
+              <p class="nums"><span class="nums-was">62</span><span class="nums-arrow">→</span><span class="nums-now">47<span class="nums-unit">g</span></span></p>
+              <p class="nums-label">sugar-raising carbs per serving</p>
+              <div class="cmp">
+                <div class="cmp-row"><span>Before</span><span class="cmp-bar"><span style="width:100%"></span></span><span class="cmp-v">62 g</span></div>
+                <div class="cmp-row is-now"><span>Now</span><span class="cmp-bar"><span style="width:76%"></span></span><span class="cmp-v">47 g</span></div>
+              </div>
+              <p class="hc-swap"><span class="tick">✓</span><span>Half the potato swapped for cauliflower. Same paratha, same Sunday.</span></p>
+            </div>
+          </figure>
         </div>
-        <button id="startOwn" class="btn-link start-own" type="button" aria-pressed="false">Or use your own recipes <span aria-hidden="true">→</span></button>
+      </section>
 
-        <section class="helps" aria-labelledby="whyTitle">
-          <h2 id="whyTitle" class="helps-title">Why this helps</h2>
-          <p class="helps-problem">When a parent is told to change their diet, families are usually handed a generic Western diet sheet. Home food starts to feel off-limits, the plan doesn't stick, and someone ends up cooking two meals.</p>
-          <ul class="helps-points">
-            <li>
-              <span class="helps-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M4 11h16a8 8 0 0 1-16 0Z"/><path d="M9 7c0-1.5 1-2 1-3.5M13 7c0-1.5 1-2 1-3.5"/></svg></span>
-              <span><b>Swap, don't ban</b><span class="helps-text">Keeps your family's own dishes and makes them lighter.</span></span>
-            </li>
-            <li>
-              <span class="helps-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M3 7l6 6 4-4 8 8"/><path d="M15 17h6v-6"/></svg></span>
-              <span><b>See the real change</b><span class="helps-text">Before and after for the one number that matters: sugar-raising carbs, salt or saturated fat.</span></span>
-            </li>
-            <li>
-              <span class="helps-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4M8 14h3M8 17h6"/></svg></span>
-              <span><b>Plan the week</b><span class="helps-text">Meals, a shopping list and a note for them in their own language.</span></span>
-            </li>
-          </ul>
-          <details id="whyMore" class="helps-more">
-            <summary>Where the numbers come from, and who it's for</summary>
-            <div class="helps-more-body">
-              <p><b>Numbers from food tables, not AI.</b> They come from published tables (India's IFCT 2017 and USDA), and every dish shows its sources. NVIDIA Nemotron models do the cooking ideas: reading recipes, suggesting swaps and planning the week.</p>
-              <p><b>For families cooking</b> South Asian, East or Southeast Asian, Continental, Middle Eastern or Latin American food for a parent with type 2 diabetes, high blood pressure or high cholesterol.</p>
-              <p><b>Not medical advice.</b> Check changes with their doctor.</p>
+      <div class="wrap flow">
+        <!-- Sample families -->
+        <section id="samples" class="samples" aria-labelledby="samplesTitle" tabindex="-1">
+          <h2 id="samplesTitle" class="row-title">Try a sample family</h2>
+          <p class="row-sub">Tap one to see their dishes made lighter.</p>
+          <div id="families" class="families">
+            <div class="family skeleton" aria-hidden="true"></div>
+            <div class="family skeleton" aria-hidden="true"></div>
+            <div class="family skeleton" aria-hidden="true"></div>
+            <div class="family skeleton" aria-hidden="true"></div>
+          </div>
+        </section>
+
+        <!-- Lighter recipe cards -->
+        <section id="dishes" class="step-sec reveal" aria-labelledby="dishesTitle" hidden>
+          <h2 id="dishesTitle" class="sec-title" tabindex="-1">Your lighter recipes</h2>
+          <p id="dishesSub" class="sec-sub"><span id="dishesWho"></span><label class="goal-inline"><span>Lighter for</span> <select id="goalSelect"></select></label></p>
+          <div id="summary"></div>
+          <p id="adaptProgress" class="progress-line" role="status" aria-live="polite" hidden></p>
+          <div id="adaptBar" class="action-inline" hidden>
+            <button id="adaptAll" class="btn btn-quiet" type="button" disabled>Make every dish lighter</button>
+          </div>
+          <div id="cookbook" class="dish-list"></div>
+        </section>
+
+        <!-- Composer: first-class recipe entry -->
+        <section id="composer" class="composer reveal" aria-labelledby="composerTitle" hidden>
+          <div class="composer-head">
+            <h2 id="composerTitle" class="sec-title" tabindex="-1">Tell us the recipe</h2>
+            <button id="composerClose" class="btn-link" type="button">Cancel</button>
+          </div>
+
+          <div class="mic-wrap">
+            <button id="mic" class="mic" type="button" aria-pressed="false" aria-describedby="micExample">
+              <span class="mic-circle" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1a7 7 0 0 0 6-6.9h-2Z" fill="currentColor"/></svg>
+              </span>
+              <span class="mic-label">Tap and say it the way she says it</span>
+            </button>
+            <p id="micExample" class="mic-example"></p>
+            <p id="micHint" class="mic-hint" role="status" aria-live="polite"></p>
+          </div>
+
+          <label class="sr-only" for="recipeText">The recipe: dish name, then what goes in</label>
+          <textarea id="recipeText" rows="5" maxlength="2000" placeholder="Or type or paste it here: dish name, then what goes in. Home measures are fine."></textarea>
+
+          <div class="composer-row">
+            <div class="stepper" role="group" aria-labelledby="servesLabel">
+              <span id="servesLabel" class="stepper-label">Serves</span>
+              <button type="button" class="stepper-btn" data-step="-1" aria-label="One fewer serving">−</button>
+              <input id="servings" type="number" min="1" max="20" value="4" inputmode="numeric" aria-labelledby="servesLabel">
+              <button type="button" class="stepper-btn" data-step="1" aria-label="One more serving">+</button>
+            </div>
+          </div>
+
+          <fieldset class="goal">
+            <legend class="goal-legend">Make it lighter for</legend>
+            <div class="seg">
+              <label><input type="radio" name="condition" value="everyday" checked><span>Everyday lighter</span></label>
+              <label><input type="radio" name="condition" value="diabetes"><span>Diabetes</span></label>
+              <label><input type="radio" name="condition" value="bp"><span>Blood pressure</span></label>
+              <label><input type="radio" name="condition" value="cholesterol"><span>Cholesterol</span></label>
+            </div>
+            <p id="focusHint" class="focus-hint"></p>
+          </fieldset>
+
+          <details id="style" class="style">
+            <summary><span id="styleSummary">Cooking style: South Asian</span><span class="style-change-wrap" aria-hidden="true"> · <span class="style-change">Change</span></span></summary>
+            <div class="fields">
+              <label class="field">
+                <span class="field-label">Your family's cooking</span>
+                <select id="cuisine"></select>
+              </label>
+              <label class="field">
+                <span class="field-label">Language you'll speak in</span>
+                <select id="speechLang"></select>
+              </label>
             </div>
           </details>
+
+          <div class="composer-go">
+            <button id="parse" class="btn btn-primary btn-wide" type="button">Make it lighter</button>
+          </div>
+          <p id="parseMsg" class="msg" role="status" aria-live="polite"></p>
         </section>
-      </section>
 
-      <!-- Step 2: make the dishes lighter -->
-      <section id="stepDishes" class="step-sec reveal" aria-labelledby="s2" hidden>
-        <p class="eyebrow">Step 2 of 3</p>
-        <h2 id="s2" class="sec-title" tabindex="-1">Make the dishes lighter</h2>
-
-        <fieldset class="seg">
-          <legend class="sr-only">Health focus</legend>
-          <label><input type="radio" name="condition" value="diabetes" checked><span>Diabetes</span></label>
-          <label><input type="radio" name="condition" value="bp"><span>Blood pressure</span></label>
-          <label><input type="radio" name="condition" value="cholesterol"><span>Cholesterol</span></label>
-        </fieldset>
-        <p id="focusHint" class="focus-hint"></p>
-
-        <details id="about" class="about">
-          <summary><span id="aboutSummary">About them</span><span class="about-edit" aria-hidden="true">Edit</span></summary>
-          <div class="fields">
-            <label class="field">
-              <span class="field-label">What you call them</span>
-              <input id="parentName" type="text" maxlength="20" autocomplete="off" placeholder="Mum, Dad, Nani, Lola…">
-            </label>
-            <label class="field">
-              <span class="field-label">Their language</span>
-              <select id="language"></select>
-            </label>
-            <label class="field">
-              <span class="field-label">Your family's cooking</span>
-              <select id="cuisine"></select>
-            </label>
-          </div>
-        </details>
-
-        <div id="adaptBar" class="action-bar" hidden>
-          <button id="adaptAll" class="btn btn-primary btn-wide" type="button" disabled>Make every dish lighter</button>
+        <div id="dishActions" class="dish-actions" hidden>
+          <button id="addAnother" class="btn btn-outline" type="button"><span aria-hidden="true">+</span> Add another dish</button>
+          <button id="plan" class="btn btn-primary" type="button" disabled>Plan our week</button>
         </div>
-        <p id="adaptProgress" class="progress-line" role="status" aria-live="polite" hidden></p>
-        <div id="summary"></div>
-        <div id="cookbook" class="dish-list"></div>
 
-        <details id="addBox" class="add">
-          <summary><span class="add-plus" aria-hidden="true">+</span> Add a family recipe</summary>
-          <div class="add-body">
-            <label class="field-label" for="recipeText">Dish name, then what goes in. Home measures are fine.</label>
-            <textarea id="recipeText" rows="4" maxlength="2000"></textarea>
-            <div class="add-row">
-              <button id="mic" class="btn btn-quiet mic" type="button" aria-pressed="false" hidden>
-                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1a7 7 0 0 0 6-6.9h-2Z" fill="currentColor"/></svg>
-                <span class="mic-label">Speak it</span>
-              </button>
-              <div class="stepper" role="group" aria-labelledby="servesLabel">
-                <span id="servesLabel" class="stepper-label">Serves</span>
-                <button type="button" class="stepper-btn" data-step="-1" aria-label="One fewer serving">−</button>
-                <input id="servings" type="number" min="1" max="20" value="4" inputmode="numeric" aria-labelledby="servesLabel">
-                <button type="button" class="stepper-btn" data-step="1" aria-label="One more serving">+</button>
-              </div>
-              <button id="parse" class="btn btn-primary" type="button">Add recipe</button>
+        <!-- The week -->
+        <section id="week" class="step-sec reveal" aria-labelledby="weekTitle" hidden>
+          <h2 id="weekTitle" class="sec-title" tabindex="-1">Your week</h2>
+          <div id="planOut"></div>
+          <div id="readyBar" class="ready-bar" hidden>
+            <p class="ready-text"><span class="tick" aria-hidden="true">✓</span> Your cookbook is ready</p>
+            <div class="ready-btns">
+              <button type="button" class="btn btn-quiet btn-small" data-act="open-cookbook">See it</button>
+              <button type="button" class="btn btn-primary btn-small" data-act="print">Print or save PDF</button>
+              <button type="button" class="btn btn-quiet btn-small share-btn" data-act="share">Share</button>
             </div>
-            <p id="micHint" class="hint" hidden></p>
-            <p id="parseMsg" class="msg" role="status" aria-live="polite"></p>
           </div>
-        </details>
-      </section>
-
-      <!-- Step 3: the week -->
-      <section id="stepWeek" class="step-sec reveal" aria-labelledby="s3" hidden>
-        <p class="eyebrow">Step 3 of 3</p>
-        <h2 id="s3" class="sec-title" tabindex="-1">Plan the week</h2>
-        <p class="sec-sub">7 days of meals, a shopping list and a note for <span class="parent-word">Mum or Dad</span>.</p>
-        <div class="action-bar">
-          <button id="plan" class="btn btn-primary btn-wide" type="button" disabled>Plan our week</button>
-        </div>
-        <div id="planOut"></div>
-      </section>
+        </section>
+      </div>
     </div>
+
+    <!-- The family cookbook: its own screen, and the only thing that prints -->
+    <section id="cookbookView" class="cb-view" aria-labelledby="cbTitle"></section>
   </main>
 
   <footer class="foot">
-    <div class="wrap">
-      <details class="fold">
-        <summary>How we work out the numbers</summary>
-        <ul class="fold-list">
-          <li><b>From food tables, not AI.</b> Every number is computed from published tables (IFCT 2017 and USDA SR28). Each dish shows its sources.</li>
-          <li><b>AI suggests the cooking.</b> NVIDIA Nemotron reads your recipe, suggests swaps that keep the dish familiar, and plans the week.</li>
-          <li><b>Close estimates.</b> Home measures like "1 katori" become estimated grams, so treat numbers as a guide.</li>
-          <li><b>Honest about gaps.</b> If an ingredient isn't in our tables we say so and don't count it, and we don't claim a "% less".</li>
-        </ul>
-      </details>
-      <details class="fold" id="hood">
-        <summary>Under the hood: which AI model did what</summary>
+    <div class="wrap foot-inner">
+      <button id="howOpen" class="btn-link" type="button" aria-haspopup="dialog">How it works</button>
+      <p class="disclaimer"><b>Not medical advice.</b> Check changes with their doctor.</p>
+    </div>
+  </footer>
+
+  <dialog id="how" class="how" aria-labelledby="howTitle">
+    <div class="how-inner">
+      <div class="how-head">
+        <h2 id="howTitle">How it works</h2>
+        <button id="howClose" class="how-x" type="button" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <ol class="how-rows">
+        <li><span class="how-n" aria-hidden="true">1</span><span><b>Reads your recipe</b><span class="how-model">NVIDIA Nemotron Nano</span></span></li>
+        <li><span class="how-n" aria-hidden="true">2</span><span><b>Suggests lighter swaps and writes the steps</b><span class="how-model">Nemotron Super</span></span></li>
+        <li><span class="how-n" aria-hidden="true">3</span><span><b>Plans the week and writes the note</b><span class="how-model">Nemotron Ultra</span></span></li>
+      </ol>
+      <p class="how-numbers">Numbers are computed in code from IFCT 2017 and USDA tables, never by the AI.</p>
+      <div class="how-why">
+        <h3>Why this helps</h3>
+        <p>When a parent is told to change their diet, families are often handed a generic diet sheet. Home food starts to feel off-limits and someone ends up cooking two meals. We keep your family's own dishes and make them lighter: swap, don't ban.</p>
+        <p>Home measures like "1 katori" become estimated grams, so treat numbers as a close guide. If an ingredient isn't in our tables we say so, don't count it, and don't claim a "% less". "Good to know" notes come from a short checked list with their source linked.</p>
+      </div>
+      <details class="sub how-tech">
+        <summary>Technical details</summary>
+        <p id="howMode" class="how-mode"></p>
         <div class="tiers" id="tiers"></div>
         <h3 class="hood-sub">This session</h3>
         <ol id="trace" class="trace"><li class="muted">Nothing yet.</li></ol>
       </details>
-      <p class="disclaimer"><b>Not medical advice.</b> Check changes with their doctor, especially if they take insulin or blood-pressure medicine.</p>
     </div>
-  </footer>
+  </dialog>
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>

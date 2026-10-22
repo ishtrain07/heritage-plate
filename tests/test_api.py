@@ -232,3 +232,12 @@ def test_planning_another_week_gives_a_different_week(client):
     weeks = [client.post("/api/plan", json={"recipes": recipes, "condition": "diabetes", "language": "Punjabi", "week": w}).json()["plan"]["days"]
              for w in (1, 2)]
     assert weeks[0] != weeks[1]
+
+
+def test_ask_no_onion_or_garlic_leaves_both_out_without_odd_swaps(client):
+    dish = client.get("/api/demo/gill").json()["recipes"][1]  # rajma: onion + garlic
+    body = {"recipe": dish, "condition": "diabetes", "cuisine": "south_asian", "request": "No onion or garlic"}
+    out = client.post("/api/adapt", json=body).json()["recipe"]
+    names = {i["item"] for i in out["ingredients"]}
+    assert not names & {"onion", "garlic", "zucchini"}
+    assert [c["what"] for c in out["changes"][:2]] == ["Left out the onion", "Left out the garlic"]

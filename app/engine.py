@@ -305,29 +305,39 @@ def _mock_adapt(recipe: dict, condition: str) -> dict:
 AVOID_WORDS = ("hate", "dislike", "don't like", "dont like", "doesn't like", "doesnt like", "no ", "without",
                "avoid", "allerg", "can't eat", "cant eat", "skip", "instead of")
 SWAP_VEG = ("zucchini", "green beans", "mushrooms", "bell pepper")
+AROMATICS = {"onion", "garlic", "ginger", "green chili", "spring onion", "lemongrass"}
 
 
 def _mock_request(data: dict, request: str) -> dict:
-    """Demo-mode stand-in for "Ask about this dish": drop a disliked ingredient for a similar vegetable.
+    """Demo-mode stand-in for "Ask about this dish": leave ingredients out or tone down chilli.
 
     Live mode lets Nemotron Super handle any request.
     """
     lower = request.lower()
     ings = {i["item"]: float(i["grams"]) for i in data["ingredients"]}
     named = [food.name for food, _ in nutrition.find_mentions(request) if food.name in ings]
+    changes = list(data["changes"])
+    asked: list[dict] = []
     if named and any(w in lower for w in AVOID_WORDS):
-        item = named[0]
-        grams = ings.pop(item)
-        alt = next((v for v in SWAP_VEG if v not in ings and v != item), None)
-        if alt and nutrition.match(item) and nutrition.match(item).category == "vegetable":
-            ings[alt] = grams
-            change = {"what": f"No {item}: used {alt} instead", "why": "As you asked; it keeps the plate just as full."}
-        else:
-            change = {"what": f"Left out the {item}", "why": "As you asked."}
-        changes = [change] + [c for c in data["changes"] if item not in c["what"]]
-        return {**data, "ingredients": [{"item": k, "grams": v} for k, v in ings.items()], "changes": changes[:5]}
-    note = {"what": f"Noted: \u201c{request[:80]}\u201d", "why": "Demo mode only handles leaving an ingredient out; the live AI handles any request."}
-    return {**data, "changes": [note] + data["changes"][:4]}
+        for item in named:
+            grams = ings.pop(item)
+            food = nutrition.match(item)
+            alt = next((v for v in SWAP_VEG if v not in ings), None)
+            if alt and food and food.category == "vegetable" and item not in AROMATICS:
+                ings[alt] = grams
+                asked.append({"what": f"No {item}: used {alt} instead", "why": "As you asked; it keeps the plate just as full."})
+            else:
+                asked.append({"what": f"Left out the {item}", "why": "As you asked."})
+            changes = [c for c in changes if item not in c["what"]]
+    elif "spic" in lower or "chil" in lower or "mild" in lower:
+        hot = [k for k in ings if k in ("green chili", "chili powder", "spices")]
+        for k in hot:
+            ings[k] *= 0.5
+        asked.append({"what": "Halved the chilli" if hot else "Kept it mild",
+                      "why": "Add more at the table for anyone who wants heat."})
+    else:
+        asked.append({"what": f"Noted: \u201c{request[:80]}\u201d", "why": "Adjust to taste; the lighter changes below still apply."})
+    return {**data, "ingredients": [{"item": k, "grams": v} for k, v in ings.items()], "changes": (asked + changes)[:5]}
 
 
 def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "") -> tuple[dict, list[dict]]:
