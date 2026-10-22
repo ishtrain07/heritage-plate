@@ -210,3 +210,18 @@ def test_emerging_research_never_outranks_established_facts():
     ings = [{"item": "onion", "grams": 500}, {"item": "carrot", "grams": 50}]
     facts = engine.facts_for(ings, "everyday")
     assert [f["id"] for f in facts] == ["beta-carotene", "polyphenols"]
+
+
+def test_ask_about_this_dish_drops_a_disliked_vegetable(client):
+    dish = client.get("/api/demo/gill").json()["recipes"][0]  # aloo paratha: mock adds cauliflower
+    body = {"recipe": dish, "condition": "diabetes", "cuisine": "south_asian", "request": "Mum hates cauliflower"}
+    out = client.post("/api/adapt", json=body).json()["recipe"]
+    names = {i["item"] for i in out["ingredients"]}
+    assert "cauliflower" not in names and out["request"] == "Mum hates cauliflower"
+    assert "cauliflower" in out["changes"][0]["what"]
+
+
+def test_ask_rejects_overlong_requests(client):
+    dish = client.get("/api/demo/gill").json()["recipes"][0]
+    body = {"recipe": dish, "condition": "diabetes", "cuisine": "south_asian", "request": "x" * 201}
+    assert client.post("/api/adapt", json=body).status_code == 422

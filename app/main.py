@@ -64,6 +64,8 @@ class AdaptIn(BaseModel):
     recipe: Recipe
     condition: Condition = "diabetes"
     cuisine: Cuisine = "other"
+    # "Ask about this dish": a family preference to honour, e.g. "Dad hates cauliflower".
+    request: str = Field(default="", max_length=200)
 
 
 class PlanIn(BaseModel):
@@ -174,7 +176,7 @@ def parse(body: ParseIn, request: Request):
 @app.post("/api/adapt")
 def adapt(body: AdaptIn, request: Request):
     _rate_limit(request)
-    adapted, trace = _guard(engine.adapt_recipe, body.recipe.build(), body.condition, body.cuisine)
+    adapted, trace = _guard(engine.adapt_recipe, body.recipe.build(), body.condition, body.cuisine, body.request.strip())
     return {"recipe": adapted, "trace": trace}
 
 

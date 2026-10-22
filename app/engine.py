@@ -302,16 +302,49 @@ def _mock_adapt(recipe: dict, condition: str) -> dict:
     }
 
 
-def adapt_recipe(recipe: dict, condition: str, cuisine: str) -> tuple[dict, list[dict]]:
+AVOID_WORDS = ("hate", "dislike", "don't like", "dont like", "doesn't like", "doesnt like", "no ", "without",
+               "avoid", "allerg", "can't eat", "cant eat", "skip", "instead of")
+SWAP_VEG = ("zucchini", "green beans", "mushrooms", "bell pepper")
+
+
+def _mock_request(data: dict, request: str) -> dict:
+    """Demo-mode stand-in for "Ask about this dish": drop a disliked ingredient for a similar vegetable.
+
+    Live mode lets Nemotron Super handle any request.
+    """
+    lower = request.lower()
+    ings = {i["item"]: float(i["grams"]) for i in data["ingredients"]}
+    named = [food.name for food, _ in nutrition.find_mentions(request) if food.name in ings]
+    if named and any(w in lower for w in AVOID_WORDS):
+        item = named[0]
+        grams = ings.pop(item)
+        alt = next((v for v in SWAP_VEG if v not in ings and v != item), None)
+        if alt and nutrition.match(item) and nutrition.match(item).category == "vegetable":
+            ings[alt] = grams
+            change = {"what": f"No {item}: used {alt} instead", "why": "As you asked; it keeps the plate just as full."}
+        else:
+            change = {"what": f"Left out the {item}", "why": "As you asked."}
+        changes = [change] + [c for c in data["changes"] if item not in c["what"]]
+        return {**data, "ingredients": [{"item": k, "grams": v} for k, v in ings.items()], "changes": changes[:5]}
+    note = {"what": f"Noted: \u201c{request[:80]}\u201d", "why": "Demo mode only handles leaving an ingredient out; the live AI handles any request."}
+    return {**data, "changes": [note] + data["changes"][:4]}
+
+
+def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "") -> tuple[dict, list[dict]]:
     # Recompute the "before" numbers server-side; never trust client nutrition.
     before = nutrition.per_serving(recipe["ingredients"], recipe["servings"])
     if llm.is_live():
         system = prompts.ADAPT.format(condition=CONDITIONS[condition], cuisine=CUISINES[cuisine],
                                       names=", ".join(nutrition.canonical_names()))
-        user = json.dumps({k: recipe[k] for k in ("name", "servings", "ingredients", "source_text", "method")})
+        payload = {k: recipe[k] for k in ("name", "servings", "ingredients", "source_text", "method")}
+        if request:
+            payload["request"] = request
+        user = json.dumps(payload)
         data, trace = llm.chat_json("super", system, user, step="Adapt dish", max_tokens=2500)
     else:
         data, trace = _mock_adapt({**recipe, "nutrition": before}, condition), _mock_trace("Adapt dish", "super")
+        if request:
+            data = _mock_request(data, request)
 
     ingredients = normalize_ingredients(data.get("ingredients"))
     if not ingredients:  # unusable reply: keep the dish and don't show changes that weren't applied
@@ -334,6 +367,7 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str) -> tuple[dict, list
         "method": clean_steps(data.get("method")) or recipe.get("method") or [],
         "portion_tip": str(data.get("portion_tip") or "")[:200],
         "facts": facts_for(ingredients, condition),
+        "request": request,
         "original": {"ingredients": recipe["ingredients"], "nutrition": before},
         "delta": {k: round(after[k] - before[k], 1) for k in ("net_carbs_g", "sat_fat_g", "fat_g", "sodium_mg", "kcal")},
         "focus": FOCUS_KEY[condition],
