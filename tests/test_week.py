@@ -137,3 +137,12 @@ def test_one_family_dish_is_not_repeated_all_week(client):
     dish = client.get("/api/demo/gill").json()["recipes"][1]
     w = client.post("/api/week", json={"recipes": [dish], "profile": {"diet": "vegetarian"}}).json()["week"]
     assert sum(m["source"] == "family" for d in w["days"] for m in d["meals"]) <= 3
+
+
+def test_protein_sides_go_on_main_meals_one_each(client):
+    recipes = client.get("/api/demo/gill").json()["recipes"][:3]
+    w = client.post("/api/week", json={"recipes": recipes, "profile": PROFILE}).json()["week"]
+    for d in w["days"]:
+        for m in d["meals"]:
+            assert m["name"].count(" + ") <= 1, m["name"]
+            assert " + " not in m["name"] or m["slot"] in ("lunch", "dinner"), m["name"]

@@ -305,15 +305,19 @@ def _top_up_protein(days: list[dict], recipes: list[dict], aim: float | None, di
     added = 0
     for day in days:
         for _ in range(2):  # at most two sides a day
-            meals = [m for m in day["meals"] if m["dish_id"] is None and m["slot"] != "breakfast"]
+            # One side per main meal; snacks and breakfasts stay as they are.
+            meals = [m for m in day["meals"] if m["dish_id"] is None and m["slot"] in ("lunch", "dinner") and not m.get("topped")]
             protein = sum(_meal_nutrition(m, recipes)["protein_g"] for m in day["meals"])
             if not sides or not meals or protein >= 0.85 * aim:
                 break
-            item, grams, label = sides[added % len(sides)] if len(sides) > 1 else sides[0]
             meal = min(meals, key=lambda m: _meal_nutrition(m, recipes)["protein_g"])
+            have = {i["item"] for i in meal["ingredients"]}
+            fresh = [x for x in sides if x[0] not in have] or sides
+            item, grams, label = fresh[added % len(fresh)]
             meal["ingredients"] = [*meal["ingredients"], {"item": item, "grams": grams}]
             meal["name"] = f"{meal['name']} + {label}"
             meal["how"] = (meal.get("how") or "") + f" Add {label} on the side for protein."
+            meal["topped"] = True
             added += 1
     return added
 
