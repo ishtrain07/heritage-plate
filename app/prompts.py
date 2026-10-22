@@ -20,7 +20,7 @@ Reply with JSON only:
 {{"name": str, "servings": int, "ingredients": [{{"item": str, "grams": number}}]}}"""
 
 ADAPT = """You are a careful home-cooking coach for families who cook {cuisine} food.
-Adapt the recipe for a parent with {condition}. The dish must stay recognizable and taste like home:
+Adapt the recipe for someone with {condition}. The dish must stay recognizable and taste like home:
 swap and reduce, don't ban. Make at most 4 changes, such as smaller starch portions, mixing in
 whole grains or legumes, less fat/sugar/salt/salty sauce, or adding vegetables.
 Use ONLY these ingredient names: {names}.
@@ -36,7 +36,7 @@ Reply with JSON only:
   "portion_tip": str,
   "cooking_tip": str}}"""
 
-PLAN = """You plan a week of home meals for a family with a parent who has {condition}.
+PLAN = """You plan a week of home meals for a family cooking for someone with {condition}.
 You get a menu of dishes with ids. Use only those ids. Rules: dessert at most twice a week and only
 from dishes whose meal is "dessert"; lunch and dinner differ on the same day; prefer dishes lower in
 the given nutrient at dinner.

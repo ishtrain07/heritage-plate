@@ -181,3 +181,24 @@ def test_demo_dishes_have_a_method_that_survives_adapt(client):
     assert dish["method"] and all(isinstance(s, str) for s in dish["method"])
     out = client.post("/api/adapt", json={"recipe": dish, "condition": "diabetes", "cuisine": "south_asian"}).json()["recipe"]
     assert out["method"] == dish["method"] and out["portion_tip"]
+
+
+def test_everyday_goal_focuses_on_calories(client):
+    dish = client.get("/api/demo/rossi").json()["recipes"][0]
+    out = client.post("/api/adapt", json={"recipe": dish, "condition": "everyday", "cuisine": "continental"}).json()["recipe"]
+    assert out["focus"] == "kcal" and out["delta"]["kcal"] < 0 and out["changes"]
+
+
+def test_plan_without_a_parent_has_no_note_and_varied_breakfasts(client):
+    recipes = client.get("/api/demo/gill").json()["recipes"]
+    plan = client.post("/api/plan", json={"recipes": recipes, "condition": "everyday", "language": ""}).json()["plan"]
+    assert plan["message_for_parent"] == "" and plan["language"] == ""
+    assert len({d["breakfast"] for d in plan["days"]}) > 1
+
+
+def test_adapted_dish_gets_sourced_facts_for_its_ingredients(client):
+    dish = client.get("/api/demo/gill").json()["recipes"][1]  # rajma chawal
+    out = client.post("/api/adapt", json={"recipe": dish, "condition": "bp", "cuisine": "south_asian"}).json()["recipe"]
+    assert out["facts"] and out["facts"][0]["id"] == "potassium"
+    names = {i["item"] for i in out["ingredients"]}
+    assert all(f["item"] in names and f["url"].startswith("https://") for f in out["facts"])

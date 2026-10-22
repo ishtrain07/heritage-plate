@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 import re
+from functools import lru_cache
+from pathlib import Path
 
 from . import llm, nutrition, prompts
 
@@ -16,6 +18,8 @@ CONDITIONS = {
     "diabetes": "type 2 diabetes (focus: carbohydrates that raise blood sugar)",
     "bp": "high blood pressure (focus: sodium from salt and salty sauces)",
     "cholesterol": "high cholesterol (focus: saturated fat from ghee, butter, cream, cheese and fatty meat)",
+    "everyday": "no specific condition; the goal is everyday healthier eating (focus: fewer calories from fat, "
+                "sugar and refined starch, less salt, more vegetables)",
 }
 CUISINES = {
     "south_asian": "South Asian (Indian, Pakistani, Bangladeshi, Sri Lankan)",
@@ -31,12 +35,41 @@ LANGUAGES = (
     "Mandarin", "Cantonese", "Korean", "Japanese", "Tagalog", "Vietnamese", "Thai",
     "Arabic", "Farsi", "Spanish", "Portuguese", "Italian", "French", "Polish",
 )
-FOCUS_KEY = {"diabetes": "net_carbs_g", "bp": "sodium_mg", "cholesterol": "sat_fat_g"}
+FOCUS_KEY = {"diabetes": "net_carbs_g", "bp": "sodium_mg", "cholesterol": "sat_fat_g", "everyday": "kcal"}
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 BREAKFAST_HINTS = ("paratha", "poha", "upma", "idli", "dosa", "oats", "oatmeal", "chilla", "cheela", "thepla",
                    "congee", "jook", "porridge", "omelette", "omelet", "pancake", "silog", "huevos", "chilaquiles", "toast")
 DESSERT_HINTS = ("kheer", "halwa", "ladoo", "laddu", "barfi", "payasam", "gulab", "jalebi", "flan", "cake",
                  "pudding", "tiramisu", "mochi", "leche", "churro", "baklava", "biko", "pie", "cookie")
+
+
+@lru_cache
+def _facts() -> list[dict]:
+    return json.loads((Path(__file__).resolve().parent.parent / "data" / "facts.json").read_text(encoding="utf-8"))
+
+
+def facts_for(ingredients: list[dict], condition: str, limit: int = 2) -> list[dict]:
+    """Up to `limit` checked, sourced facts about ingredients in the dish; never written by the AI.
+
+    Facts relevant to the goal come first, then the most-used ingredient; one fact per ingredient.
+    """
+    by_weight = sorted(ingredients, key=lambda i: -i["grams"])
+    ranked = []
+    for fact in _facts():
+        hit = next((i["item"] for i in by_weight if i["item"] in fact["items"]), None)
+        if hit:
+            weight = next(i["grams"] for i in by_weight if i["item"] == hit)
+            ranked.append((condition not in fact["goals"], -weight, fact, hit))
+    out, used = [], set()
+    for _, _, fact, item in sorted(ranked, key=lambda r: r[:2]):
+        if item in used:
+            continue
+        used.add(item)
+        out.append({"id": fact["id"], "item": item, "text": fact["text"].format(item=item.capitalize()),
+                    "source": fact["source"], "url": fact["url"]})
+        if len(out) == limit:
+            break
+    return out
 
 
 def _mock_trace(step: str, tier: str) -> dict:
@@ -176,6 +209,7 @@ MOCK_PORTION_TIPS = {
     "diabetes": "Half the plate vegetables, a quarter this dish's starch, a quarter protein.",
     "bp": "Serve the usual portion; taste before adding any salt or sauce at the table.",
     "cholesterol": "Serve with a big salad or vegetables, and keep cheese and cream as toppings, not fillings.",
+    "everyday": "Serve the usual portion with a side of vegetables or salad filling half the plate.",
 }
 
 
@@ -218,7 +252,16 @@ def _mock_adapt(recipe: dict, condition: str) -> dict:
             if ings.get(sweet):
                 scale(sweet, 0.4)
                 changes.append({"what": f"Use 60% less {sweet}", "why": "Every sweetener (sugar, jaggery, honey) raises blood sugar."})
-    if condition == "bp":
+    if condition == "everyday":
+        for item, (_keep, (veg, ratio), _what, _why) in STARCH_SWAPS.items():
+            if ings.get(item) and not is_dessert:
+                add(veg, scale(item, 0.8) * ratio)
+                changes.append({"what": f"Use a fifth less {item} and add {veg}", "why": "Same full plate, fewer calories."})
+        for sweet in SWEETS:
+            if ings.get(sweet):
+                scale(sweet, 0.7)
+                changes.append({"what": f"Use 30% less {sweet}", "why": "Most desserts taste just as good a little less sweet."})
+    if condition in ("bp", "everyday"):
         for item, (keep, what, why) in SALTY.items():
             if ings.get(item):
                 scale(item, keep)
@@ -241,7 +284,7 @@ def _mock_adapt(recipe: dict, condition: str) -> dict:
             if ings.get(cheese):
                 scale(cheese, 0.7)
                 changes.append({"what": f"Use 30% less {cheese}", "why": "Cheese is a big source of saturated fat."})
-    fat_factor = {"diabetes": 0.7, "bp": 0.75, "cholesterol": 0.5}[condition]
+    fat_factor = {"diabetes": 0.7, "bp": 0.75, "cholesterol": 0.5, "everyday": 0.7}[condition]
     fats = [f for f in ("ghee", "butter", "coconut oil", "vegetable oil", "olive oil", "mustard oil", "groundnut oil", "canola oil") if ings.get(f)]
     for fat in fats:
         scale(fat, fat_factor)
@@ -289,6 +332,7 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str) -> tuple[dict, list
         "cooking_tip": str(data.get("cooking_tip") or "")[:240],
         "method": clean_steps(data.get("method")) or recipe.get("method") or [],
         "portion_tip": str(data.get("portion_tip") or "")[:200],
+        "facts": facts_for(ingredients, condition),
         "original": {"ingredients": recipe["ingredients"], "nutrition": before},
         "delta": {k: round(after[k] - before[k], 1) for k in ("net_carbs_g", "sat_fat_g", "fat_g", "sodium_mg", "kcal")},
         "focus": FOCUS_KEY[condition],
@@ -303,7 +347,12 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str) -> tuple[dict, list
 def _mock_schedule(recipes: list[dict], focus: str = "net_carbs_g") -> list[dict]:
     ids = {m: [i for i, r in enumerate(recipes) if r["meal"] == m] for m in ("breakfast", "main", "dessert")}
     mains = ids["main"] or [i for i, r in enumerate(recipes) if r["meal"] != "dessert"] or list(range(len(recipes)))
-    breakfasts = ids["breakfast"] or mains
+    # With fewer than 3 breakfast dishes, mix in the lightest mains so the week isn't one breakfast on repeat.
+    lightest = sorted(mains, key=lambda i: recipes[i]["nutrition"][focus])
+    breakfasts = ids["breakfast"] + [i for i in lightest if i not in ids["breakfast"]][: max(0, 3 - len(ids["breakfast"]))]
+    breakfasts = breakfasts or mains
+    if len(ids["breakfast"]) == 1 and len(breakfasts) > 1:  # keep the real breakfast every other day
+        breakfasts = [b for pair in zip([ids["breakfast"][0]] * (len(breakfasts) - 1), breakfasts[1:], strict=True) for b in pair]
     # Dinner rotates from the dish lowest in the condition's focus nutrient.
     dinners = sorted(mains, key=lambda i: recipes[i]["nutrition"][focus])
     days = []
@@ -369,11 +418,13 @@ def shopping_list(recipes: list[dict], days: list[dict]) -> list[dict]:
 
 
 FALLBACK_MESSAGES = {
+    "everyday": "All your favourite dishes are still on the menu, just a little lighter, with more vegetables and less oil, salt and sugar. Enjoy every meal.",
     "diabetes": "We kept your favourite dishes on the menu. They're just lighter now, with smaller starch portions and more vegetables. Eat slowly, take a short walk after dinner, and enjoy your treat on the weekend.",
     "bp": "Your favourite dishes are all still here, just with less salt and lighter sauces. Taste before adding salt, use lemon and herbs for flavour, and drink water through the day.",
     "cholesterol": "Your favourite dishes are still on the menu, with less ghee, butter, cream and fatty meat. Small changes every day add up. Keep walking and enjoy your food.",
 }
 FALLBACK_TIPS = {
+    "everyday": ["Fill half the plate with vegetables first.", "Measure oil with a spoon, don't pour.", "Taste before adding salt."],
     "diabetes": ["Measure rice, noodles and roti with the same bowl every time.", "Walk 10 minutes after the biggest meal.", "Keep roasted chickpeas or nuts for snacks."],
     "bp": ["Taste first, then salt.", "Check labels on sauces and stock cubes for sodium.", "Add herbs, garlic, lemon and vinegar for flavour."],
     "cholesterol": ["Measure oil with a spoon, don't pour.", "Choose lean cuts and trim visible fat.", "Add a bowl of beans or lentils a few times a week."],
@@ -381,8 +432,11 @@ FALLBACK_TIPS = {
 
 
 def make_plan(recipes: list[dict], condition: str, language: str) -> tuple[dict, list[dict]]:
+    """language "" means there's no one to write a note to: the plan comes back without one."""
     days, message, tips = None, "", []
-    message_language = language
+    wants_note = bool(language)
+    language = language or "English"
+    message_language = language if wants_note else ""
     if llm.is_live():
         system = prompts.PLAN.format(condition=CONDITIONS[condition], language=language)
         focus = FOCUS_KEY[condition]
@@ -398,7 +452,9 @@ def make_plan(recipes: list[dict], condition: str, language: str) -> tuple[dict,
         trace = _mock_trace("Plan the week", "ultra")
     if days is None:
         days = _mock_schedule(recipes, FOCUS_KEY[condition])
-    if not message:
+    if not wants_note:
+        message = ""
+    elif not message:
         message = FALLBACK_MESSAGES[condition]
         if language != "English":
             message_language = f"English (written in {language} when live)"

@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("heritage_plate")
 app = FastAPI(title="Heritage Plate", version="0.2.0")
 
-Condition = Literal["diabetes", "bp", "cholesterol"]
+Condition = Literal["diabetes", "bp", "cholesterol", "everyday"]
 Cuisine = Literal["south_asian", "east_asian", "southeast_asian", "continental", "middle_eastern", "latin_american", "other"]
 
 
@@ -49,7 +49,7 @@ class Recipe(BaseModel):
 
 
 def _language(value: str) -> str:
-    if value not in engine.LANGUAGES:
+    if value and value not in engine.LANGUAGES:  # "" = no note
         raise ValueError(f"language must be one of {', '.join(engine.LANGUAGES)}")
     return value
 
