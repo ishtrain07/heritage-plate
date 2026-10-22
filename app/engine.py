@@ -59,9 +59,10 @@ def facts_for(ingredients: list[dict], condition: str, limit: int = 2) -> list[d
         hit = next((i["item"] for i in by_weight if i["item"] in fact["items"]), None)
         if hit:
             weight = next(i["grams"] for i in by_weight if i["item"] == hit)
-            ranked.append((condition not in fact["goals"], -weight, fact, hit))
+            # Goal-relevant first, then established facts (tier 1) before emerging research (tier 2).
+            ranked.append((condition not in fact["goals"], fact.get("tier", 1), -weight, fact, hit))
     out, used = [], set()
-    for _, _, fact, item in sorted(ranked, key=lambda r: r[:2]):
+    for *_, fact, item in sorted(ranked, key=lambda r: r[:3]):
         if item in used:
             continue
         used.add(item)

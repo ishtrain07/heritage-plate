@@ -202,3 +202,11 @@ def test_adapted_dish_gets_sourced_facts_for_its_ingredients(client):
     assert out["facts"] and out["facts"][0]["id"] == "potassium"
     names = {i["item"] for i in out["ingredients"]}
     assert all(f["item"] in names and f["url"].startswith("https://") for f in out["facts"])
+
+
+def test_emerging_research_never_outranks_established_facts():
+    from app import engine
+
+    ings = [{"item": "onion", "grams": 500}, {"item": "carrot", "grams": 50}]
+    facts = engine.facts_for(ings, "everyday")
+    assert [f["id"] for f in facts] == ["beta-carotene", "polyphenols"]
