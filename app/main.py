@@ -72,6 +72,7 @@ class PlanIn(BaseModel):
     recipes: list[Recipe] = Field(min_length=1, max_length=30)
     condition: Condition = "diabetes"
     language: str = "English"
+    week: int = Field(default=1, ge=1, le=520)  # returning users plan again; each week number gets a fresh rotation
 
     @field_validator("language")
     @classmethod
@@ -184,7 +185,7 @@ def adapt(body: AdaptIn, request: Request):
 def plan(body: PlanIn, request: Request):
     _rate_limit(request)
     recipes = [r.build() for r in body.recipes]
-    result, trace = _guard(engine.make_plan, recipes, body.condition, body.language)
+    result, trace = _guard(engine.make_plan, recipes, body.condition, body.language, body.week)
     return {"plan": result, "trace": trace}
 
 

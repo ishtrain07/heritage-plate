@@ -225,3 +225,10 @@ def test_ask_rejects_overlong_requests(client):
     dish = client.get("/api/demo/gill").json()["recipes"][0]
     body = {"recipe": dish, "condition": "diabetes", "cuisine": "south_asian", "request": "x" * 201}
     assert client.post("/api/adapt", json=body).status_code == 422
+
+
+def test_planning_another_week_gives_a_different_week(client):
+    recipes = client.get("/api/demo/gill").json()["recipes"]
+    weeks = [client.post("/api/plan", json={"recipes": recipes, "condition": "diabetes", "language": "Punjabi", "week": w}).json()["plan"]["days"]
+             for w in (1, 2)]
+    assert weeks[0] != weeks[1]

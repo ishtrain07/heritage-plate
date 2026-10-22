@@ -379,7 +379,7 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "") 
 
 # ---------- plan ----------
 
-def _mock_schedule(recipes: list[dict], focus: str = "net_carbs_g") -> list[dict]:
+def _mock_schedule(recipes: list[dict], focus: str = "net_carbs_g", week: int = 1) -> list[dict]:
     ids = {m: [i for i, r in enumerate(recipes) if r["meal"] == m] for m in ("breakfast", "main", "dessert")}
     mains = ids["main"] or [i for i, r in enumerate(recipes) if r["meal"] != "dessert"] or list(range(len(recipes)))
     # With fewer than 3 breakfast dishes, mix in the lightest mains so the week isn't one breakfast on repeat.
@@ -391,13 +391,14 @@ def _mock_schedule(recipes: list[dict], focus: str = "net_carbs_g") -> list[dict
     # Dinner rotates from the dish lowest in the condition's focus nutrient.
     dinners = sorted(mains, key=lambda i: recipes[i]["nutrition"][focus])
     days = []
+    shift = week - 1  # later weeks start the rotation further along
     for d, day in enumerate(DAYS):
-        lunch = mains[d % len(mains)]
-        dinner = dinners[d % len(dinners)]
+        lunch = mains[(d + shift) % len(mains)]
+        dinner = dinners[(d + 2 * shift) % len(dinners)]
         if dinner == lunch and len(mains) > 1:
-            dinner = dinners[(d + 1) % len(dinners)]
+            dinner = dinners[(d + 2 * shift + 1) % len(dinners)]
         dessert = ids["dessert"][0] if ids["dessert"] and day in ("Sat", "Sun") else None
-        days.append({"day": day, "breakfast": breakfasts[d % len(breakfasts)], "lunch": lunch, "dinner": dinner, "dessert": dessert})
+        days.append({"day": day, "breakfast": breakfasts[(d + shift) % len(breakfasts)], "lunch": lunch, "dinner": dinner, "dessert": dessert})
     return days
 
 
@@ -466,7 +467,7 @@ FALLBACK_TIPS = {
 }
 
 
-def make_plan(recipes: list[dict], condition: str, language: str) -> tuple[dict, list[dict]]:
+def make_plan(recipes: list[dict], condition: str, language: str, week: int = 1) -> tuple[dict, list[dict]]:
     """language "" means there's no one to write a note to: the plan comes back without one."""
     days, message, tips = None, "", []
     wants_note = bool(language)
@@ -474,6 +475,8 @@ def make_plan(recipes: list[dict], condition: str, language: str) -> tuple[dict,
     message_language = language if wants_note else ""
     if llm.is_live():
         system = prompts.PLAN.format(condition=CONDITIONS[condition], language=language)
+        if week > 1:
+            system += f"\nThis is week {week} of using the same dishes: change the order from a typical week so it feels fresh."
         focus = FOCUS_KEY[condition]
         menu = [{"id": i, "name": r["name"], "meal": r["meal"], focus: r["nutrition"][focus]} for i, r in enumerate(recipes)]
         data, trace = llm.chat_json("ultra", system, json.dumps(menu), step="Plan the week", max_tokens=8000)
@@ -486,7 +489,7 @@ def make_plan(recipes: list[dict], condition: str, language: str) -> tuple[dict,
     else:
         trace = _mock_trace("Plan the week", "ultra")
     if days is None:
-        days = _mock_schedule(recipes, FOCUS_KEY[condition])
+        days = _mock_schedule(recipes, FOCUS_KEY[condition], week)
     if not wants_note:
         message = ""
     elif not message:
