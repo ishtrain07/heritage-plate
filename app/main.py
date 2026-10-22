@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
-from . import engine, llm, nutrition
+from . import dietitian, engine, llm, nutrition
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("heritage_plate")
@@ -73,6 +73,32 @@ class PlanIn(BaseModel):
     condition: Condition = "diabetes"
     language: str = "English"
     week: int = Field(default=1, ge=1, le=520)  # returning users plan again; each week number gets a fresh rotation
+
+    @field_validator("language")
+    @classmethod
+    def _check_language(cls, value: str) -> str:
+        return _language(value)
+
+
+class Profile(BaseModel):
+    diet: Literal["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan"] = "non_veg"
+    conditions: list[Literal["diabetes", "bp", "cholesterol"]] = Field(default_factory=list, max_length=3)
+    goal: Literal["maintain", "lose_weight", "belly_fat", "steady_sugar", "build_muscle"] = "maintain"
+    dislikes: str = Field(default="", max_length=200)
+    sex: Literal["female", "male"] | None = None
+    age: int | None = Field(default=None, ge=1, le=120)
+    height_cm: float | None = Field(default=None, ge=80, le=250)
+    weight_kg: float | None = Field(default=None, ge=25, le=350)
+    activity: Literal["sedentary", "light", "moderate", "active"] = "light"
+    snacks: bool = True
+
+
+class WeekIn(BaseModel):
+    recipes: list[Recipe] = Field(default_factory=list, max_length=30)
+    profile: Profile = Field(default_factory=Profile)
+    language: str = ""
+    week: int = Field(default=1, ge=1, le=520)
+    household: int = Field(default=1, ge=1, le=12)
 
     @field_validator("language")
     @classmethod
@@ -187,6 +213,15 @@ def plan(body: PlanIn, request: Request):
     recipes = [r.build() for r in body.recipes]
     result, trace = _guard(engine.make_plan, recipes, body.condition, body.language, body.week)
     return {"plan": result, "trace": trace}
+
+
+@app.post("/api/week")
+def week(body: WeekIn, request: Request):
+    """Personal dietitian week: calorie target from the profile, meals around the family's dishes."""
+    _rate_limit(request)
+    recipes = [r.build() for r in body.recipes]
+    result, trace = _guard(dietitian.plan_week, recipes, body.profile.model_dump(), body.language, body.week, body.household)
+    return {"week": result, "trace": trace}
 
 
 @app.get("/")

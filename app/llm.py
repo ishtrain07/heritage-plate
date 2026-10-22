@@ -133,7 +133,27 @@ def _create(model: str, messages: list[dict], max_tokens: int, no_think: bool, t
         return _client().chat.completions.create(**kwargs)
 
 
+def flush_traces() -> None:
+    """Send queued LangSmith traces now: serverless hosts may freeze the process right after a response."""
+    if not tracing_enabled():
+        return
+    try:
+        from langsmith.run_trees import get_cached_client
+
+        get_cached_client().flush()
+    except Exception:  # noqa: BLE001, S110 - tracing must never break a request
+        pass
+
+
 def chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int = 2000) -> tuple[dict, dict]:
+    """Call a Nemotron tier and parse a JSON object from the reply (see _chat_json)."""
+    try:
+        return _chat_json(tier, system, user, step=step, max_tokens=max_tokens)
+    finally:
+        flush_traces()
+
+
+def _chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int = 2000) -> tuple[dict, dict]:
     """Call a Nemotron tier and parse a JSON object from the reply.
 
     Returns (data, trace). Ultra falls back to Super if its call fails, so a
