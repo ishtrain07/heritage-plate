@@ -241,3 +241,11 @@ def test_ask_no_onion_or_garlic_leaves_both_out_without_odd_swaps(client):
     names = {i["item"] for i in out["ingredients"]}
     assert not names & {"onion", "garlic", "zucchini"}
     assert [c["what"] for c in out["changes"][:2]] == ["Left out the onion", "Left out the garlic"]
+
+
+def test_ask_keeps_foods_mentioned_before_the_avoid_word(client):
+    dish = client.get("/api/demo/gill").json()["recipes"][0]  # aloo paratha has potato and ghee
+    body = {"recipe": dish, "condition": "diabetes", "cuisine": "south_asian", "request": "Mum loves potato, no ghee"}
+    out = client.post("/api/adapt", json=body).json()["recipe"]
+    names = {i["item"] for i in out["ingredients"]}
+    assert "potato" in names and "ghee" not in names

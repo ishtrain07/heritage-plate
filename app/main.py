@@ -90,6 +90,9 @@ class Profile(BaseModel):
     height_cm: float | None = Field(default=None, ge=80, le=250)
     weight_kg: float | None = Field(default=None, ge=25, le=350)
     activity: Literal["sedentary", "light", "moderate", "active"] = "light"
+    # Optional: Asian BMI cut-offs apply to these backgrounds.
+    ethnicity: Literal["south_asian", "east_asian", "southeast_asian", "other"] | None = None
+    pregnant: bool = False  # pregnant or breastfeeding: no calorie cut
     snacks: bool = True
 
 
@@ -131,7 +134,7 @@ def _client_id(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def _rate_limit(request: Request) -> None:
+def _rate_limit(request: Request, cost: int = 1) -> None:
     now = time.monotonic()
     with _hits_lock:
         if len(_hits) > MAX_CLIENTS:  # drop idle clients so memory stays bounded
@@ -140,9 +143,9 @@ def _rate_limit(request: Request) -> None:
         hits = _hits[_client_id(request)]
         while hits and now - hits[0] > RATE_WINDOW_S:
             hits.popleft()
-        if len(hits) >= RATE_LIMIT:
+        if len(hits) + cost > RATE_LIMIT:
             raise HTTPException(status_code=429, detail="Too many requests. Please wait a few minutes.")
-        hits.append(now)
+        hits.extend([now] * cost)
 
 
 def _guard(fn, *args):
@@ -218,7 +221,7 @@ def plan(body: PlanIn, request: Request):
 @app.post("/api/week")
 def week(body: WeekIn, request: Request):
     """Personal dietitian week: calorie target from the profile, meals around the family's dishes."""
-    _rate_limit(request)
+    _rate_limit(request, cost=8)  # one week plan is a long Ultra call, about the cost of 8 dish adaptations
     recipes = [r.build() for r in body.recipes]
     result, trace = _guard(dietitian.plan_week, recipes, body.profile.model_dump(), body.language, body.week, body.household)
     return {"week": result, "trace": trace}

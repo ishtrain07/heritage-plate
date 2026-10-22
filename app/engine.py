@@ -315,10 +315,14 @@ def _mock_request(data: dict, request: str) -> dict:
     """
     lower = request.lower()
     ings = {i["item"]: float(i["grams"]) for i in data["ingredients"]}
-    named = [food.name for food, _ in nutrition.find_mentions(request) if food.name in ings]
+    # Only foods named after an avoid word count: "Dad loves chicken, no ghee" keeps the chicken.
+    avoid_at = re.search(r"\b(" + "|".join(re.escape(nutrition.normalize(w)) + (r"\b" if len(w.strip()) <= 3 else "")
+                                          for w in AVOID_WORDS) + r")", nutrition.normalize(request))
+    first = avoid_at.start() if avoid_at else -1
+    named = [food.name for food, pos in nutrition.find_mentions(request) if food.name in ings and first != -1 and pos >= first]
     changes = list(data["changes"])
     asked: list[dict] = []
-    if named and any(w in lower for w in AVOID_WORDS):
+    if named:
         for item in named:
             grams = ings.pop(item)
             food = nutrition.match(item)

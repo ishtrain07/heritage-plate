@@ -145,15 +145,17 @@ def flush_traces() -> None:
         pass
 
 
-def chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int = 2000) -> tuple[dict, dict]:
+def chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int = 2000,
+              fallback: bool = True) -> tuple[dict, dict]:
     """Call a Nemotron tier and parse a JSON object from the reply (see _chat_json)."""
     try:
-        return _chat_json(tier, system, user, step=step, max_tokens=max_tokens)
+        return _chat_json(tier, system, user, step=step, max_tokens=max_tokens, fallback=fallback)
     finally:
         flush_traces()
 
 
-def _chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int = 2000) -> tuple[dict, dict]:
+def _chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int = 2000,
+               fallback: bool = True) -> tuple[dict, dict]:
     """Call a Nemotron tier and parse a JSON object from the reply.
 
     Returns (data, trace). Ultra falls back to Super if its call fails, so a
@@ -170,7 +172,7 @@ def _chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int 
         return data, {**trace, "cached": True, "ms": 0}
 
     started_all = time.perf_counter()
-    tiers = [tier, "super"] if tier == "ultra" else [tier]
+    tiers = [tier, "super"] if tier == "ultra" and fallback else [tier]
     last_error: Exception | None = None
     for current in tiers:
         model = MODELS[current]
