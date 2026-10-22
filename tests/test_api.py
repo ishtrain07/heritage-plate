@@ -249,3 +249,20 @@ def test_ask_keeps_foods_mentioned_before_the_avoid_word(client):
     out = client.post("/api/adapt", json=body).json()["recipe"]
     names = {i["item"] for i in out["ingredients"]}
     assert "potato" in names and "ghee" not in names
+
+
+def test_adapt_for_several_conditions_applies_each(client):
+    dish = client.get("/api/demo/gill").json()["recipes"][1]  # rajma: rice, oil, salt
+    body = {"recipe": dish, "condition": "diabetes", "also": ["bp"], "cuisine": "south_asian"}
+    out = client.post("/api/adapt", json=body).json()["recipe"]
+    whats = " ".join(c["what"] for c in out["changes"])
+    assert out["conditions"] == ["diabetes", "bp"] and "rice" in whats and "salt" in whats
+    assert sum("less ghee" in c["what"] for c in out["changes"]) == 1
+
+
+def test_suggest_a_dish_respects_diet_and_comes_back_cookable(client):
+    body = {"wish": "a high-protein dinner with tofu", "conditions": ["diabetes"], "diet": "vegan", "servings": 2}
+    out = client.post("/api/suggest", json=body).json()["recipe"]
+    names = {i["item"] for i in out["ingredients"]}
+    assert out["suggested"] and "tofu" in names and out["method"] and out["nutrition"]["kcal"] > 0
+    assert not names & {"yogurt", "paneer", "egg", "chicken"}

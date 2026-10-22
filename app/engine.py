@@ -85,7 +85,7 @@ def normalize_ingredients(raw: object) -> list[dict]:
         if not isinstance(ing, dict):
             continue
         name = str(ing.get("item", "")).strip()[:60]
-        if not name:
+        if not name or name.lower() in ("water", "ice", "hot water", "cold water"):  # no nutrition; not "uncounted"
             continue
         try:
             grams = max(0.0, min(float(ing.get("grams") or 0), 5000.0))
@@ -214,7 +214,27 @@ MOCK_PORTION_TIPS = {
 }
 
 
-def _mock_adapt(recipe: dict, condition: str) -> dict:
+FAT_FACTOR = {"diabetes": 0.7, "bp": 0.75, "cholesterol": 0.5, "everyday": 0.7}
+
+
+def condition_text(conditions: list[str]) -> str:
+    """One condition, or several joined ("type 2 diabetes ... and high blood pressure ...")."""
+    return " and ".join(CONDITIONS[c] for c in conditions)
+
+
+def _mock_adapt_all(recipe: dict, conditions: list[str]) -> dict:
+    """Apply each condition's rules in turn; fat is cut once, by the strictest factor."""
+    fat = min(FAT_FACTOR[c] for c in conditions)
+    data = _mock_adapt(recipe, conditions[0], fat)
+    for c in conditions[1:]:
+        more = _mock_adapt({**recipe, "ingredients": data["ingredients"]}, c, 1.0)
+        seen = {x["what"] for x in data["changes"]}
+        data = {**data, "ingredients": more["ingredients"],
+                "changes": data["changes"] + [x for x in more["changes"] if x["what"] not in seen and "less ghee" not in x["what"]]}
+    return data
+
+
+def _mock_adapt(recipe: dict, condition: str, fat_factor: float | None = None) -> dict:
     ings = {i["item"]: float(i["grams"]) for i in recipe["ingredients"]}
     changes: list[dict] = []
     is_dessert = recipe.get("meal") == "dessert"
@@ -285,11 +305,11 @@ def _mock_adapt(recipe: dict, condition: str) -> dict:
             if ings.get(cheese):
                 scale(cheese, 0.7)
                 changes.append({"what": f"Use 30% less {cheese}", "why": "Cheese is a big source of saturated fat."})
-    fat_factor = {"diabetes": 0.7, "bp": 0.75, "cholesterol": 0.5, "everyday": 0.7}[condition]
+    fat_factor = fat_factor or FAT_FACTOR[condition]
     fats = [f for f in ("ghee", "butter", "coconut oil", "vegetable oil", "olive oil", "mustard oil", "groundnut oil", "canola oil") if ings.get(f)]
     for fat in fats:
         scale(fat, fat_factor)
-    if fats:
+    if fats and fat_factor < 1:
         changes.append({"what": f"Use {round((1 - fat_factor) * 100)}% less ghee, butter or oil", "why": "Measure with a spoon; add the flavourful fat at the end."})
 
     return {
@@ -344,11 +364,13 @@ def _mock_request(data: dict, request: str) -> dict:
     return {**data, "ingredients": [{"item": k, "grams": v} for k, v in ings.items()], "changes": (asked + changes)[:5]}
 
 
-def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "") -> tuple[dict, list[dict]]:
+def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "", also: list[str] | None = None) -> tuple[dict, list[dict]]:
+    """Adapt a dish for one condition, or several (`also`): the first one sets the headline number."""
+    conditions = [condition, *[c for c in (also or []) if c != condition and c != "everyday"]][:3]
     # Recompute the "before" numbers server-side; never trust client nutrition.
     before = nutrition.per_serving(recipe["ingredients"], recipe["servings"])
     if llm.is_live():
-        system = prompts.ADAPT.format(condition=CONDITIONS[condition], cuisine=CUISINES[cuisine],
+        system = prompts.ADAPT.format(condition=condition_text(conditions), cuisine=CUISINES[cuisine],
                                       names=", ".join(nutrition.canonical_names()))
         payload = {k: recipe[k] for k in ("name", "servings", "ingredients", "source_text", "method")}
         if request:
@@ -356,7 +378,7 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "") 
         user = json.dumps(payload)
         data, trace = llm.chat_json("super", system, user, step="Adapt dish", max_tokens=2500)
     else:
-        data, trace = _mock_adapt({**recipe, "nutrition": before}, condition), _mock_trace("Adapt dish", "super")
+        data, trace = _mock_adapt_all({**recipe, "nutrition": before}, conditions), _mock_trace("Adapt dish", "super")
         if request:
             data = _mock_request(data, request)
 
@@ -387,8 +409,65 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "") 
         "focus": FOCUS_KEY[condition],
         "comparable": not new_unknowns,
         "condition": condition,
+        "conditions": conditions,
     }
     return adapted, [trace]
+
+
+# ---------- suggest a new dish ----------
+
+def _mock_suggest(wish: str, diet: str, avoid: set[str], servings: int) -> dict:
+    """Demo mode: the library meal that best matches the wish, scaled to the family."""
+    from . import dietitian
+
+    wanted = {f.name for f, _ in nutrition.find_mentions(wish)}
+    lower = wish.lower()
+    slot = "breakfast" if "breakfast" in lower else "snack" if "snack" in lower else "lunch"
+    pool = [m for m in dietitian.meal_library() if slot in m["slots"]
+            and dietitian.allowed([i["item"] for i in m["ingredients"]], diet, avoid)] or dietitian.meal_library()
+    best = max(pool, key=lambda m: len(wanted & {i["item"] for i in m["ingredients"]}))
+    return {"name": best["name"], "meal": "breakfast" if slot == "breakfast" else "main",
+            "ingredients": [{"item": i["item"], "grams": i["grams"] * servings} for i in best["ingredients"]],
+            "method": [best["how"]], "portion_tip": "One portion per person, with a side of salad or vegetables.",
+            "why": "Built from everyday ingredients with plenty of vegetables and pulses."}
+
+
+def suggest_dish(wish: str, conditions: list[str], cuisine: str, diet: str, dislikes: str, servings: int) -> tuple[dict, list[dict]]:
+    """A new dish written for the person (Nemotron Super); nutrition from the food tables, diet rules enforced."""
+    from . import dietitian
+
+    avoid, _ = dietitian.avoid_items(dislikes)
+    conditions = conditions or ["everyday"]
+    if llm.is_live():
+        system = prompts.SUGGEST.format(cuisine=CUISINES[cuisine], condition=condition_text(conditions),
+                                        diet=dietitian.DIET_LABELS.get(diet, diet), avoid=dislikes or "nothing",
+                                        names=", ".join(nutrition.canonical_names()), servings=servings)
+        data, trace = llm.chat_json("super", system, wish, step="Suggest a dish", max_tokens=2500)
+    else:
+        data, trace = _mock_suggest(wish, diet, avoid, servings), _mock_trace("Suggest a dish", "super")
+    ingredients = normalize_ingredients(data.get("ingredients"))
+    if not ingredients or not dietitian.allowed([i["item"] for i in ingredients], diet, avoid):
+        raise llm.LLMError("Suggest a dish: the suggestion didn't fit the diet; try rephrasing")
+    meal = data.get("meal") if data.get("meal") in ("breakfast", "main", "dessert") else None
+    recipe = build_recipe(str(data.get("name") or "Suggested dish"), servings, ingredients, wish, meal, data.get("method"))
+    condition = conditions[0]
+    zero = dict.fromkeys(("net_carbs_g", "sat_fat_g", "fat_g", "sodium_mg", "kcal"), 0.0)
+    return {
+        **recipe,
+        "suggested": True,
+        "why": str(data.get("why") or "")[:240],
+        "changes": [],
+        "cooking_tip": "",
+        "portion_tip": str(data.get("portion_tip") or "")[:200],
+        "facts": facts_for(ingredients, condition),
+        "request": "",
+        "original": {"ingredients": ingredients, "nutrition": recipe["nutrition"]},
+        "delta": zero,
+        "focus": FOCUS_KEY[condition],
+        "comparable": True,
+        "condition": condition,
+        "conditions": conditions,
+    }, [trace]
 
 
 # ---------- plan ----------

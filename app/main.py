@@ -66,6 +66,7 @@ class AdaptIn(BaseModel):
     cuisine: Cuisine = "other"
     # "Ask about this dish": a family preference to honour, e.g. "Dad hates cauliflower".
     request: str = Field(default="", max_length=200)
+    also: list[Condition] = Field(default_factory=list, max_length=3)  # more health issues besides `condition`
 
 
 class PlanIn(BaseModel):
@@ -206,7 +207,7 @@ def parse(body: ParseIn, request: Request):
 @app.post("/api/adapt")
 def adapt(body: AdaptIn, request: Request):
     _rate_limit(request)
-    adapted, trace = _guard(engine.adapt_recipe, body.recipe.build(), body.condition, body.cuisine, body.request.strip())
+    adapted, trace = _guard(engine.adapt_recipe, body.recipe.build(), body.condition, body.cuisine, body.request.strip(), body.also)
     return {"recipe": adapted, "trace": trace}
 
 
@@ -216,6 +217,24 @@ def plan(body: PlanIn, request: Request):
     recipes = [r.build() for r in body.recipes]
     result, trace = _guard(engine.make_plan, recipes, body.condition, body.language, body.week)
     return {"plan": result, "trace": trace}
+
+
+class SuggestIn(BaseModel):
+    wish: str = Field(min_length=3, max_length=300)  # e.g. "a high-protein dinner with spinach"
+    conditions: list[Condition] = Field(default_factory=list, max_length=4)
+    cuisine: Cuisine = "other"
+    diet: Literal["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan"] = "non_veg"
+    dislikes: str = Field(default="", max_length=200)
+    servings: int = Field(default=4, ge=1, le=12)
+
+
+@app.post("/api/suggest")
+def suggest(body: SuggestIn, request: Request):
+    """Ask the AI to invent a dish for them; returns it in the same shape as an adapted recipe."""
+    _rate_limit(request, cost=2)
+    recipe, trace = _guard(engine.suggest_dish, body.wish.strip(), body.conditions, body.cuisine, body.diet,
+                           body.dislikes, body.servings)
+    return {"recipe": recipe, "trace": trace}
 
 
 @app.post("/api/week")
