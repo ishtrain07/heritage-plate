@@ -276,3 +276,12 @@ def test_demo_parse_reads_amounts_and_keeps_unknowns_as_not_counted(client):
     assert grams["almonds"] == 30 and grams["egg"] == 300 and grams["chicken"] == 300 and grams["whole milk"] == 200
     assert grams["whole wheat flour"] == 120 and grams["moong dal"] == 50
     assert "goji berries" in r["nutrition"]["uncounted"]
+
+
+def test_stacked_asks_are_all_applied(client):
+    dish = client.get("/api/demo/gill").json()["recipes"][0]  # aloo paratha: ghee + green chili
+    body = {"recipe": dish, "condition": "diabetes", "cuisine": "south_asian", "request": "no ghee; Less spicy"}
+    out = client.post("/api/adapt", json=body).json()["recipe"]
+    grams = {i["item"]: i["grams"] for i in out["ingredients"]}
+    assert "ghee" not in grams and grams["green chili"] < 10
+    assert [c["what"] for c in out["changes"][:2]] == ["Left out the ghee", "Halved the chilli"]

@@ -389,6 +389,19 @@ AROMATICS = {"onion", "garlic", "ginger", "green chili", "spring onion", "lemong
 
 
 def _mock_request(data: dict, request: str) -> dict:
+    """Stacked asks ("no ghee; less spicy") are handled one after another."""
+    parts = [p.strip() for p in request.split(";") if p.strip()]
+    if len(parts) > 1:
+        asked: list[dict] = []
+        for part in parts:
+            data = _mock_request_one(data, part)
+            asked.append(data["changes"][0])
+        rest = [c for c in data["changes"] if c not in asked]
+        return {**data, "changes": (asked + rest)[:5]}
+    return _mock_request_one(data, request)
+
+
+def _mock_request_one(data: dict, request: str) -> dict:
     """Demo-mode stand-in for "Ask about this dish": leave ingredients out or tone down chilli.
 
     Live mode lets Nemotron Super handle any request.

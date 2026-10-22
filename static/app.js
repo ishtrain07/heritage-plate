@@ -172,7 +172,7 @@ function conds() { return [state.condition, ...state.also.filter((c) => c !== st
 function condKey() { return conds().join("+"); }
 function adaptedKey(a) { return a ? a.condKey || a.condition : ""; }
 function cleanConds(list) {
-  const ok = (Array.isArray(list) ? list : []).filter((c, i, arr) => c in CONDITIONS && arr.indexOf(c) === i);
+  const ok = (Array.isArray(list) ? list : []).filter((c, i, arr) => Object.hasOwn(CONDITIONS, c) && arr.indexOf(c) === i);
   if (!ok.length || ok.includes("everyday") && ok[0] === "everyday") return ["everyday"];
   return ok.filter((c) => c !== "everyday").slice(0, 4);
 }
@@ -237,12 +237,25 @@ function announce(text) {
 }
 
 let toastTimer;
-function toast(text) {
+// `action` = {label, run}: adds a button (e.g. Undo). Toasts with a button stay longer, and while hovered or focused.
+function toast(text, action = null) {
   const t = $("toast");
-  t.textContent = text;
+  t.textContent = "";
+  const msg = document.createElement("span");
+  msg.textContent = text;
+  t.appendChild(msg);
+  const hide = () => { t.hidden = true; t.textContent = ""; };
+  if (action) {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "toast-btn"; b.textContent = action.label;
+    b.addEventListener("click", () => { clearTimeout(toastTimer); hide(); action.run(); });
+    t.appendChild(b);
+  }
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+  const wait = action ? 8000 : 2600;
+  const arm = () => { clearTimeout(toastTimer); toastTimer = setTimeout(() => { if (!t.matches(":hover, :focus-within")) hide(); else arm(); }, wait); };
+  arm();
 }
 
 function reduceMotion() { return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); }
@@ -253,6 +266,18 @@ function scrollToEl(el) {
 function readableError(detail, status) {
   if (status === 429) return "Lots of requests right now. Please wait a few minutes and try again.";
   if (Array.isArray(detail)) {
+    // Too-long text (pasted past the box limit) gets plain words, not validator jargon.
+    const long = detail.find((d) => d && typeof d === "object" && (d.type === "string_too_long" || /at most \d+ characters?/i.test(String(d.msg || ""))));
+    if (long) {
+      const field = Array.isArray(long.loc) ? long.loc.filter((x) => typeof x === "string").pop() : "";
+      const max = Number(long.ctx?.max_length) || Number((String(long.msg || "").match(/at most (\d+)/) || [])[1]) || 0;
+      const limit = max ? max.toLocaleString("en-US") : "";
+      if (field === "text" || field === "source_text") return `That recipe is too long; keep it under ${limit || "2,000"} characters.`;
+      if (field === "request") return `That ask is too long; keep it under ${limit || "200"} characters.`;
+      if (field === "wish") return `That's a bit long; keep it under ${limit || "300"} characters.`;
+      if (field === "dislikes") return `The foods to avoid are too long; keep them under ${limit || "200"} characters.`;
+      return `Something you typed is too long${limit ? `; keep it under ${limit} characters` : ""}.`;
+    }
     const parts = detail.map((d) => {
       if (!d || typeof d !== "object") return String(d);
       const field = Array.isArray(d.loc) ? d.loc.filter((x) => x !== "body" && typeof x === "string").pop() : "";
@@ -321,15 +346,23 @@ function ticker(el, html) {
   return () => clearInterval(t);
 }
 
+// The button's own label is kept once, so overlapping runs (e.g. switching family mid-batch)
+// always put back the real label, never another run's spinner. Only the last run to finish restores it.
 async function busy(btn, label, fn) {
-  const old = btn.innerHTML;
+  btn.dataset.label ??= btn.innerHTML;
+  btn.dataset.runs = String(num(btn.dataset.runs) + 1);
   btn.disabled = true;
   btn.setAttribute("aria-busy", "true");
   btn.innerHTML = `<span class="spinner" aria-hidden="true"></span><span>${esc(label)}</span>`;
   try { return await fn(); } finally {
-    btn.removeAttribute("aria-busy");
-    btn.innerHTML = old;
-    btn.disabled = false;
+    const left = Math.max(0, num(btn.dataset.runs) - 1);
+    btn.dataset.runs = String(left);
+    if (!left) {
+      btn.removeAttribute("aria-busy");
+      btn.innerHTML = btn.dataset.label;
+      delete btn.dataset.label; // labels can change between runs (e.g. "Update and make it lighter")
+      btn.disabled = false;
+    }
     refreshButtons();
   }
 }
@@ -389,13 +422,53 @@ function saveBook() {
   } catch { /* storage blocked or full: the cookbook lasts for this visit */ }
 }
 
+// A saved cookbook may be old, edited or corrupt: keep only what the app and the API can use.
+const isObj = (x) => Boolean(x) && typeof x === "object" && !Array.isArray(x);
+function goodIngredients(list) {
+  return Array.isArray(list) && list.length > 0 && list.length <= 40
+    && list.every((g) => isObj(g) && typeof g.item === "string" && g.item.trim() && g.item.length <= 60
+      && typeof g.grams !== "boolean" && Number.isFinite(Number(g.grams)) && Number(g.grams) > 0 && Number(g.grams) <= 5000);
+}
+// Matches the /api Recipe model, so a restored dish never comes back as a 422.
+function goodRecipe(r) {
+  return isObj(r) && typeof r.name === "string" && r.name.trim() && r.name.length <= 80
+    && Number.isInteger(Number(r.servings)) && Number(r.servings) >= 1 && Number(r.servings) <= 20
+    && (r.meal === undefined || r.meal === null || ["breakfast", "main", "dessert"].includes(r.meal))
+    && (r.source_text === undefined || (typeof r.source_text === "string" && r.source_text.length <= 2000))
+    && (r.method === undefined || (Array.isArray(r.method) && r.method.every((s) => typeof s === "string")))
+    && goodIngredients(r.ingredients);
+}
+function cleanAdapted(a) {
+  if (!goodRecipe(a)) return null;
+  for (const k of ["changes", "facts", "sources", "method", "conditions"]) if (k in a && !Array.isArray(a[k])) return null;
+  if (a.original !== undefined && a.original !== null && !(isObj(a.original) && goodIngredients(a.original.ingredients))) return null;
+  if (a.nutrition !== undefined && !isObj(a.nutrition)) return null;
+  if ((a.changes || []).some((c) => !isObj(c))) return null;
+  if (a.condition !== undefined && !Object.hasOwn(CONDITIONS, a.condition)) return null;
+  const asks = Array.isArray(a.asks) ? a.asks.filter((s) => typeof s === "string" && s.trim()).map((s) => s.slice(0, 200)) : undefined;
+  return { ...a, asks };
+}
 function readBook() {
   try {
     const d = JSON.parse(window.localStorage.getItem(BOOK_KEY) || "null");
-    if (d && d.v === 1 && Array.isArray(d.recipes)) {
-      d.recipes = d.recipes.filter((r) => r && r.id && r.base && r.base.name && Array.isArray(r.base.ingredients));
-      // Plans from the old /api/plan shape (one dish name per slot) are dropped; the dishes stay.
-      if (d.plan && !(Array.isArray(d.plan.days) && d.plan.days.every((x) => x && Array.isArray(x.meals)))) d.plan = null;
+    if (isObj(d) && d.v === 1 && Array.isArray(d.recipes)) {
+      d.recipes = d.recipes
+        .filter((r) => isObj(r) && (typeof r.id === "string" || typeof r.id === "number") && String(r.id) && goodRecipe(r.base))
+        .map((r) => ({ ...r, adapted: cleanAdapted(r.adapted) }));
+      if (!Object.hasOwn(CONDITIONS, d.condition)) d.condition = "everyday";
+      if (!Array.isArray(d.also)) d.also = [];
+      if (!isObj(d.family)) d.family = null;
+      if (!isObj(d.profile)) d.profile = null;
+      // Plans from the old /api/plan shape (one dish name per slot) or with broken meals are dropped; the dishes stay.
+      if (d.plan) {
+        const days = isObj(d.plan) && Array.isArray(d.plan.days)
+          ? d.plan.days.filter((x) => isObj(x) && Array.isArray(x.meals) && x.meals.every((m) => isObj(m) && typeof m.slot === "string"))
+          : [];
+        d.plan = days.length ? { ...d.plan, days } : null;
+        if (d.plan && d.plan.shopping_list !== undefined && !Array.isArray(d.plan.shopping_list)) d.plan.shopping_list = [];
+        if (d.plan && d.plan.notes !== undefined && !Array.isArray(d.plan.notes)) d.plan.notes = [];
+        if (d.plan && d.plan.tips !== undefined && !Array.isArray(d.plan.tips)) d.plan.tips = [];
+      }
       if (d.recipes.length || d.plan || d.profile) return d;
     }
   } catch { /* ignore */ }
@@ -406,17 +479,36 @@ function clearBook() {
   try { window.localStorage.removeItem(BOOK_KEY); } catch { /* ignore */ }
 }
 
+// Returns false (and starts fresh, with a message) if the saved cookbook can't be opened.
 function restoreBook(d) {
+  const keep = {
+    condition: state.condition, also: state.also, cuisine: state.cuisine, language: state.language, parentName: state.parentName,
+    family: state.family, recipes: state.recipes, plan: state.plan, week: state.week, profile: state.profile,
+    profileSet: state.profileSet, household: state.household,
+  };
+  try {
+    restoreBookUnsafe(d);
+    return true;
+  } catch {
+    Object.assign(state, keep, { planStale: false, planError: false, saved: null });
+    clearBook();
+    try { fillSelects(); renderResume(); renderFamilies(); renderCookbook(); renderPlan(); } catch { /* keep the toast */ }
+    toast("Couldn't open the saved cookbook, so we started fresh.");
+    return false;
+  }
+}
+
+function restoreBookUnsafe(d) {
   state.adaptRun += 1;
   const cs = cleanConds([d.condition, ...(Array.isArray(d.also) ? d.also : [])]);
   state.condition = cs[0]; state.also = cs.slice(1);
   state.cuisine = typeof d.cuisine === "string" ? d.cuisine : state.cuisine;
   state.language = typeof d.language === "string" ? d.language : "English";
   state.parentName = String(d.parentName || "").slice(0, 20);
-  state.family = d.family && d.family.id ? d.family : null;
+  state.family = d.family && typeof d.family.id === "string" && d.family.id ? { id: d.family.id, family: String(d.family.family || ""), parent: String(d.family.parent || "") } : null;
   state.recipes = d.recipes.slice(0, MAX_DISHES).map((r) => ({
     id: String(r.id), base: r.base, adapted: r.adapted && (r.origin === "suggested" || adaptedKey(r.adapted) === condKey()) ? r.adapted : null,
-    status: "idle", error: "", open: null, origin: r.origin || "own",
+    status: "idle", error: "", open: null, origin: typeof r.origin === "string" && r.origin ? r.origin : "own",
   }));
   state.plan = d.plan || null;
   state.planStale = false; state.planError = false;
@@ -599,7 +691,7 @@ async function loadFamily(id, btn) {
     if (state.planCtrl) { const c = state.planCtrl; state.planCtrl = null; state.planning = false; c.abort(); }
     stopListening();
     state.family = { id: fam.id, family: fam.family, parent: fam.parent };
-    state.condition = fam.condition in CONDITIONS ? fam.condition : "diabetes"; state.also = [];
+    state.condition = Object.hasOwn(CONDITIONS, fam.condition) ? fam.condition : "diabetes"; state.also = [];
     state.cuisine = fam.cuisine;
     state.language = fam.language;
     state.parentName = String(fam.parent || "").split(",")[0].trim().slice(0, 20);
@@ -761,17 +853,39 @@ function sourcesBlock(r) {
     <p class="small-print">Worked out by our code from food tables, using raw weights. Not by the AI.</p>`;
 }
 
+// Asks stack: each one is sent with the earlier ones, always against the original recipe,
+// so "no ghee" then "less spicy" keeps the ghee out. They live on the adapted version, so Undo
+// and a change of health focus bring back the matching list.
+const ASK_MAX = 200; // the /api/adapt request limit
+function askList(e) {
+  const a = e.adapted;
+  if (!a) return [];
+  if (Array.isArray(a.asks)) return a.asks;
+  const legacy = String(a.request || "").trim();
+  return legacy ? [legacy] : [];
+}
+// Keep the most recent asks that fit in one request.
+function fitAsks(list) {
+  const out = list.map((s) => String(s || "").trim().slice(0, ASK_MAX)).filter(Boolean);
+  while (out.length > 1 && out.join("; ").length > ASK_MAX) out.shift();
+  return out;
+}
+
 function askedLine(e) {
   const r = e.adapted;
-  const q = String(r?.request || "").trim();
-  if (!q) return "";
+  const asks = askList(e);
+  if (!asks.length) return "";
   const first = (r.changes || [])[0];
   const answer = first ? `${first.what}${first.why ? `. ${first.why}` : ""}` : "Done.";
+  const dis = e.asking ? " disabled" : "";
   return `
-    <div class="asked" role="status">
-      <p class="asked-q"><span class="asked-k">You asked:</span> “${esc(q)}”</p>
+    <div class="asked">
+      <p class="asked-q"><span class="asked-k">You asked${asks.length > 1 ? ` for all ${asks.length}` : ""}:</span></p>
+      <ul class="ask-pills" aria-label="Your asks for this dish">
+        ${asks.map((a, i) => `<li class="ask-pill"><span>${esc(a)}</span><button type="button" class="ask-x" data-ask-remove="${esc(e.id)}" data-i="${i}" aria-label="Drop “${esc(a)}”"${dis}><span aria-hidden="true">×</span></button></li>`).join("")}
+      </ul>
       <p class="asked-a"><span aria-hidden="true">→</span> ${esc(answer)}</p>
-      ${e.prev ? `<button type="button" class="btn-link" data-ask-undo="${esc(e.id)}">Undo</button>` : ""}
+      ${e.prev ? `<button type="button" class="btn-link" data-ask-undo="${esc(e.id)}"${dis}>Undo</button>` : ""}
     </div>`;
 }
 
@@ -794,30 +908,62 @@ function askBox(e) {
 
 async function askDish(id, text) {
   const e = findEntry(id);
-  const request = String(text || "").trim().slice(0, 200);
+  const request = String(text || "").trim().slice(0, ASK_MAX);
   if (!e || !e.adapted || e.asking) return;
   if (!request) { document.getElementById(`ask-${id}`)?.focus(); return; }
+  // Asking the same thing again doesn't add it twice; it moves to the end (most recent).
+  const earlier = askList(e).filter((a) => a.toLowerCase() !== request.toLowerCase());
+  await runAsks(e, [...earlier, request], request);
+}
+
+function dropAsk(id, index) {
+  const e = findEntry(id);
+  if (!e || !e.adapted || e.asking) return;
+  const list = askList(e).filter((_, i) => i !== index);
+  runAsks(e, list, "");
+}
+
+// Re-make the dish from its original with these asks. `draft` stays in the box while it runs.
+async function runAsks(e, list, draft) {
+  const id = e.id;
+  const asks = fitAsks(list);
+  const request = asks.join("; ");
   const [condition, ...also] = conds();
   const key = condKey();
-  const token = {};
-  e.req = token; e.asking = true; e.askError = ""; e.askDraft = request; e.open = true;
-  renderCard(id);
-  const stale = () => findEntry(id) !== e || (e.origin !== "suggested" && condKey() !== key) || e.req !== token;
-  try {
-    // A suggested dish is asked about as its own base.
-    const { recipe } = await api("/api/adapt", { recipe: baseFields(e.base), condition, also, cuisine: state.cuisine, request });
-    if (stale()) return;
-    // A server that doesn't echo the request didn't act on it (e.g. the static preview): don't pretend it did.
-    if (!String(recipe.request || "").trim()) throw new Error("Couldn't change this dish for that request here. Please try again in the full app.");
+  const done = (next, note) => {
     e.prev = e.adapted;
-    e.adapted = { ...recipe, condition, condKey: key, id: e.id, request: String(recipe.request) };
-    e.asking = false; e.askDraft = "";
+    e.adapted = next;
+    e.asking = false; e.askDraft = ""; e.askError = "";
     markCookbookChanged();
     renderCard(id);
     renderPlanStale();
     saveBook();
-    document.querySelector(`[data-card="${CSS.escape(id)}"] .asked`)?.scrollIntoView({ block: "nearest", behavior: reduceMotion() ? "auto" : "smooth" });
-    announce(`Updated ${e.adapted.name}.`);
+    const card = document.querySelector(`[data-card="${CSS.escape(id)}"]`);
+    (card?.querySelector(".asked") || card)?.scrollIntoView({ block: "nearest", behavior: reduceMotion() ? "auto" : "smooth" });
+    if (!card?.contains(document.activeElement)) card?.querySelector("h3")?.focus({ preventScroll: true });
+    announce(note);
+  };
+  // A suggested dish with no asks left goes back to the dish as it was suggested; no call needed.
+  if (!asks.length && e.origin === "suggested") {
+    done({ ...e.base, condition: e.adapted.condition, condKey: e.adapted.condKey, id: e.id, asks: [] }, `Back to ${e.base.name} as suggested.`);
+    return;
+  }
+  const token = {};
+  e.req = token; e.asking = true; e.askError = ""; e.askDraft = draft; e.open = true;
+  renderCard(id);
+  const stale = () => findEntry(id) !== e || (e.origin !== "suggested" && condKey() !== key) || e.req !== token;
+  try {
+    // Always from the original (a suggested dish is its own original), with every ask so far.
+    const body = { recipe: baseFields(e.base), condition, also, cuisine: state.cuisine };
+    if (request) body.request = request;
+    const { recipe } = await api("/api/adapt", body);
+    if (stale()) return;
+    // A server that doesn't echo the request didn't act on it (e.g. the static preview): don't pretend it did.
+    if (request && !String(recipe.request || "").trim()) throw new Error("Couldn't change this dish for that request here. Please try again in the full app.");
+    const next = { ...recipe, condition, condKey: key, id: e.id, request, asks };
+    const dropped = list.length - asks.length;
+    done(next, `Updated ${recipe.name}.${dropped > 0 ? ` To keep it short, we dropped your oldest ask${dropped === 1 ? "" : "s"}.` : ""}`);
+    if (dropped > 0) toast(`Kept your latest ${asks.length} asks; the oldest ${dropped === 1 ? "one was" : `${dropped} were`} too long to send too.`);
   } catch (err) {
     if (stale()) return;
     e.asking = false; e.askError = err.message;
@@ -836,7 +982,7 @@ function dishCard(e, index) {
   const open = e.open === null || e.open === undefined ? index === 0 : e.open;
   const fromSuggest = e.origin === "suggested";
   const plainSuggested = adapted && Boolean(r.suggested); // as suggested, not yet changed by an ask
-  const condList = (Array.isArray(r.conditions) && r.conditions.length ? r.conditions : [r.condition]).filter((x) => x in CONDITIONS);
+  const condList = (Array.isArray(r.conditions) && r.conditions.length ? r.conditions : [r.condition]).filter((x) => Object.hasOwn(CONDITIONS, x));
   const condTags = adapted && condList.length
     ? `<p class="cond-tags"><span class="sr-only">For: </span>${condList.map((x) => `<span class="cond-tag">${esc(CONDITIONS[x].short)}</span>`).join("")}</p>` : "";
 
@@ -1818,7 +1964,8 @@ function focusLine(r) {
 }
 
 function cookbookHTML() {
-  const plan = state.plan && !state.planStale ? state.plan : state.plan;
+  const plan = state.plan;
+  const stale = Boolean(plan && state.planStale);
   const shareWord = navigator.share ? "Share" : "Copy as text";
   const note = plan && hasNote(plan);
   const dishes = state.recipes.map((e) => {
@@ -1854,6 +2001,7 @@ function cookbookHTML() {
   const week = plan ? `
     <section class="cb-sec cb-week-sec">
       <h3>This week's meals</h3>
+      ${stale ? `<p class="msg warn cb-stale">Your dishes changed since this week was planned. Go back and tap “Update my week” to include them.</p>` : ""}
       <p class="cb-target">${esc(targetLine(plan))} · ${esc(profileWords(plan).join(" · "))}</p>
       ${bodyLine(plan.target?.body) ? `<p class="cb-legend">${esc(bodyLine(plan.target.body))}</p>` : ""}
       <table class="cb-week">
@@ -1908,6 +2056,7 @@ function cookbookText() {
   });
   if (plan) {
     L.push("== This week ==", `${targetLine(plan)} · ${profileWords(plan).join(" · ")}`);
+    if (state.planStale) L.push("Note: your dishes changed since this week was planned. Update the week to include them.");
     if (bodyLine(plan.target?.body)) L.push(bodyLine(plan.target.body));
     (plan.days || []).forEach((d) => L.push(`${DAY_NAMES[d.day] || d.day} (${kcal(d.totals?.kcal)} kcal): ${(d.meals || []).map((m) => `${SLOT_NAMES[m.slot] || m.slot} ${m.name}${m.source === "family" ? " (family dish)" : ""}`).join(" · ")}`));
     (plan.notes || []).forEach((x) => L.push(`Note: ${x}`));
@@ -1974,7 +2123,7 @@ $("resume").addEventListener("click", (e) => {
     $("heroSay").focus({ preventScroll: true });
     return;
   }
-  restoreBook(d);
+  if (!restoreBook(d)) { $("heroSay").focus({ preventScroll: true }); return; }
   if (b.dataset.resume === "add") { openComposer({ mode: "type" }); return; }
   if (state.recipes.some((x) => !x.adapted)) {
     // Something changed since last time (e.g. a dish never finished): make it lighter first.
@@ -2019,10 +2168,12 @@ $("cookbook").addEventListener("input", (e) => {
 $("cookbook").addEventListener("click", (e) => {
   const chip = e.target.closest("[data-chip]");
   if (chip) { askDish(chip.closest("form[data-ask]").dataset.ask, chip.dataset.chip); return; }
+  const x = e.target.closest("[data-ask-remove]");
+  if (x) { dropAsk(x.dataset.askRemove, Number(x.dataset.i)); return; }
   const undo = e.target.closest("[data-ask-undo]");
   if (undo) {
     const entry = findEntry(undo.dataset.askUndo);
-    if (entry && entry.prev) {
+    if (entry && entry.prev && !entry.asking) {
       entry.adapted = entry.prev; entry.prev = null;
       markCookbookChanged(); renderCard(entry.id); renderPlanStale(); saveBook();
       document.querySelector(`[data-card="${CSS.escape(entry.id)}"] h3`)?.focus({ preventScroll: true });
@@ -2035,17 +2186,50 @@ $("cookbook").addEventListener("click", (e) => {
   const ed = e.target.closest("[data-edit]");
   if (ed) { openComposer({ mode: "type", editId: ed.dataset.edit }); return; }
   const rm = e.target.closest("[data-remove]");
-  if (rm) {
-    const entry = findEntry(rm.dataset.remove);
-    state.recipes = state.recipes.filter((x) => x.id !== rm.dataset.remove);
-    markCookbookChanged();
-    renderCookbook(); renderPlan();
-    saveBook();
-    if (state.recipes.length) $("dishesTitle").focus({ preventScroll: true });
-    else $("heroSay").focus();
-    if (entry) announce(`Removed ${entry.base.name}.`);
-  }
+  if (rm) removeDish(rm.dataset.remove);
 });
+
+// Remove is one tap, so it can be undone from the toast: the dish comes back in the same place.
+function removeDish(id) {
+  const entry = findEntry(id);
+  if (!entry) return;
+  const index = state.recipes.indexOf(entry);
+  const family = state.family?.id || null;
+  state.recipes = state.recipes.filter((x) => x !== entry);
+  // The dish open in "Edit the recipe" is gone, so the editor closes rather than making a new dish.
+  if (state.editingId === id) {
+    stopListening();
+    state.composerOpen = false; state.editingId = null;
+    $("recipeText").value = "";
+    $("parseMsg").className = "msg"; $("parseMsg").textContent = "";
+  }
+  markCookbookChanged();
+  renderCookbook(); renderPlan();
+  saveBook();
+  if (state.recipes.length) $("dishesTitle").focus({ preventScroll: true });
+  else $("heroSay").focus();
+  const name = current(entry).name;
+  announce(`Removed ${name}. Undo is in the message at the bottom of the screen.`);
+  toast(`Removed ${name}.`, {
+    label: "Undo",
+    run: () => {
+      // Too late if a sample family's dishes were swapped out, the dish is back, or the cookbook is full.
+      if (findEntry(id) || state.recipes.length >= MAX_DISHES) return;
+      if (entry.origin !== "own" && entry.origin !== "suggested" && (state.family?.id || null) !== family) return;
+      if (entry.adapted && entry.origin !== "suggested" && adaptedKey(entry.adapted) !== condKey()) { entry.adapted = null; entry.prev = null; }
+      entry.status = "idle"; entry.error = ""; entry.req = null; entry.asking = false;
+      state.recipes.splice(Math.min(index, state.recipes.length), 0, entry);
+      state.saved = null;
+      markCookbookChanged();
+      renderResume(); renderCookbook(); renderPlan();
+      saveBook();
+      const card = document.querySelector(`[data-card="${CSS.escape(id)}"]`);
+      if (card) { scrollToEl(card); card.querySelector("h3")?.focus({ preventScroll: true }); }
+      announce(`${name} is back.`);
+      if (!entry.adapted) adaptOne(id);
+    },
+  });
+}
 
 $("adaptAll").addEventListener("click", (e) => adaptAll(e.currentTarget));
 $("plan").addEventListener("click", () => { if (state.profileSet) makePlan(); else openIntake(); });
@@ -2157,6 +2341,8 @@ document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape" || $("how").open) return;
   if (document.body.classList.contains("cb-open")) closeCookbook();
   else if (state.planning) cancelPlan();
+  else if (state.composerOpen) closeComposer();   // same as Cancel
+  else if (state.intakeOpen) closeIntake();       // same as Not now
 });
 
 // ---------- theme ----------
