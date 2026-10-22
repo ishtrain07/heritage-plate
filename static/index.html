@@ -52,8 +52,10 @@
                 <span>Say a recipe</span>
               </button>
               <button id="heroType" class="btn btn-outline btn-cta" type="button">Type or paste one</button>
+              <button id="heroSuggest" class="btn btn-quiet btn-cta" type="button">Suggest a dish for me</button>
             </div>
             <a id="heroSample" class="text-link" href="#samples">No recipe handy? Try a sample family <span aria-hidden="true">↓</span></a>
+            <p class="hero-week">Just want a healthy week of meals? <button id="heroWeek" class="btn-link" type="button">Plan my week</button></p>
             <p class="trust">Numbers from food tables, not guesses <span aria-hidden="true">·</span> Any cuisine <span aria-hidden="true">·</span> Free</p>
           </div>
           <figure class="hero-card" aria-label="Example result: Mum's aloo paratha has 62 grams of sugar-raising carbs per serving before and 47 grams after, 25 percent less.">
@@ -88,7 +90,7 @@
         <!-- Lighter recipe cards -->
         <section id="dishes" class="step-sec reveal" aria-labelledby="dishesTitle" hidden>
           <h2 id="dishesTitle" class="sec-title" tabindex="-1">Your lighter recipes</h2>
-          <p id="dishesSub" class="sec-sub"><span id="dishesWho"></span><label class="goal-inline"><span>Lighter for</span> <select id="goalSelect"></select></label></p>
+          <div id="dishesSub" class="sec-sub"><span id="dishesWho"></span><fieldset class="goal-inline"><legend>Lighter for</legend><div id="goalChips" class="pick pick-sm"></div></fieldset></div>
           <div id="summary"></div>
           <p id="adaptProgress" class="progress-line" role="status" aria-live="polite" hidden></p>
           <div id="adaptBar" class="action-inline" hidden>
@@ -115,7 +117,7 @@
             <p id="micHint" class="mic-hint" role="status" aria-live="polite"></p>
           </div>
 
-          <label class="sr-only" for="recipeText">The recipe: dish name, then what goes in</label>
+          <label id="recipeTextLabel" class="sr-only" for="recipeText">The recipe: dish name, then what goes in</label>
           <textarea id="recipeText" rows="5" maxlength="2000" placeholder="Or type or paste it here: dish name, then what goes in. Home measures are fine."></textarea>
 
           <div class="composer-row">
@@ -128,12 +130,12 @@
           </div>
 
           <fieldset class="goal">
-            <legend class="goal-legend">Make it lighter for</legend>
+            <legend id="goalLegend" class="goal-legend">Make it lighter for <span class="opt">pick any</span></legend>
             <div class="seg">
-              <label><input type="radio" name="condition" value="everyday" checked><span>Everyday lighter</span></label>
-              <label><input type="radio" name="condition" value="diabetes"><span>Diabetes</span></label>
-              <label><input type="radio" name="condition" value="bp"><span>Blood pressure</span></label>
-              <label><input type="radio" name="condition" value="cholesterol"><span>Cholesterol</span></label>
+              <label><input type="checkbox" name="condition" value="everyday" checked><span>Everyday lighter</span></label>
+              <label><input type="checkbox" name="condition" value="diabetes"><span>Diabetes</span></label>
+              <label><input type="checkbox" name="condition" value="bp"><span>Blood pressure</span></label>
+              <label><input type="checkbox" name="condition" value="cholesterol"><span>Cholesterol</span></label>
             </div>
             <p id="focusHint" class="focus-hint"></p>
           </fieldset>
@@ -155,13 +157,121 @@
           <div class="composer-go">
             <button id="parse" class="btn btn-primary btn-wide" type="button">Make it lighter</button>
           </div>
+          <p class="composer-skip">No recipe right now? <button id="composerSkip" class="btn-link" type="button">Plan a week of meals instead</button></p>
           <p id="parseMsg" class="msg" role="status" aria-live="polite"></p>
         </section>
 
         <div id="dishActions" class="dish-actions" hidden>
           <button id="addAnother" class="btn btn-outline" type="button"><span aria-hidden="true">+</span> Add another dish</button>
-          <button id="plan" class="btn btn-primary" type="button" disabled>Plan our week</button>
+          <button id="plan" class="btn btn-primary" type="button" disabled>Plan my week</button>
         </div>
+
+
+        <!-- Plan my week: a short dietitian-style intake -->
+        <section id="intake" class="intake reveal" aria-labelledby="intakeTitle" hidden>
+          <div class="intake-head">
+            <p class="eyebrow">Your personal week</p>
+            <h2 id="intakeTitle" class="sec-title" tabindex="-1">Let's plan your week</h2>
+            <p id="intakeSub" class="intake-sub"></p>
+          </div>
+          <form id="intakeForm" class="intake-form" novalidate>
+            <div class="q">
+              <p class="q-h">Who is it for? <span class="opt">optional</span></p>
+              <div class="q-two">
+                <label class="field"><span class="field-label">What you call them</span>
+                  <input id="pName" type="text" maxlength="20" autocomplete="off" placeholder="Mum, Dad, Nani, Lola…"></label>
+                <label class="field"><span class="field-label">Language for their note</span>
+                  <select id="pLang"></select></label>
+              </div>
+              <p class="q-help">Add a name and we'll write them a short, warm note about the week.</p>
+            </div>
+
+            <fieldset class="q">
+              <legend class="q-h">What do they eat?</legend>
+              <div id="pDiet" class="pick"></div>
+            </fieldset>
+
+            <fieldset class="q">
+              <legend class="q-h">Any health conditions? <span class="opt">pick any</span></legend>
+              <div id="pCond" class="pick"></div>
+            </fieldset>
+
+            <fieldset class="q">
+              <legend class="q-h">What's the goal?</legend>
+              <div id="pGoal" class="pick"></div>
+              <p id="goalHelp" class="q-help" aria-live="polite"></p>
+            </fieldset>
+
+            <div class="q">
+              <label class="q-h" for="pAvoid">Anything to avoid? <span class="opt">optional</span></label>
+              <input id="pAvoid" type="text" maxlength="200" autocomplete="off" placeholder="e.g. mushrooms, peanuts">
+            </div>
+
+            <details id="pTarget" class="q target">
+              <summary><span class="target-sum"><span class="target-title">Get a personal calorie target</span><span class="opt">optional · 30 seconds</span></span><span class="chev" aria-hidden="true"></span></summary>
+              <div class="target-body">
+                <fieldset class="q-sub">
+                  <legend class="field-label">Sex</legend>
+                  <div id="pSex" class="pick"></div>
+                </fieldset>
+                <label class="field field-num"><span class="field-label">Age</span>
+                  <span class="unit-in"><input id="pAge" type="number" inputmode="numeric" min="18" max="120" step="1"><span aria-hidden="true">years</span></span></label>
+                <div class="field">
+                  <label class="field-label" for="pHeight">Height</label>
+                  <div class="conv">
+                    <span class="unit-in"><input id="pHeight" type="number" inputmode="decimal" min="80" max="250" step="1"><span aria-hidden="true">cm</span></span>
+                    <span class="conv-or">or</span>
+                    <span class="unit-in sm"><input id="pFt" type="number" inputmode="numeric" min="2" max="8" step="1" aria-label="Height, feet"><span aria-hidden="true">ft</span></span>
+                    <span class="unit-in sm"><input id="pIn" type="number" inputmode="decimal" min="0" max="11.9" step="1" aria-label="Height, inches"><span aria-hidden="true">in</span></span>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label" for="pWeight">Weight</label>
+                  <div class="conv">
+                    <span class="unit-in"><input id="pWeight" type="number" inputmode="decimal" min="25" max="350" step="0.5"><span aria-hidden="true">kg</span></span>
+                    <span class="conv-or">or</span>
+                    <span class="unit-in"><input id="pLb" type="number" inputmode="decimal" min="55" max="770" step="1" aria-label="Weight, pounds"><span aria-hidden="true">lb</span></span>
+                  </div>
+                </div>
+                <label id="pPregWrap" class="check-row" hidden>
+                  <input id="pPregnant" type="checkbox">
+                  <span>Pregnant or breastfeeding <span class="muted">(no calorie cut)</span></span>
+                </label>
+                <fieldset class="q-sub">
+                  <legend class="field-label">Background <span class="opt">optional</span></legend>
+                  <div id="pEth" class="pick"></div>
+                  <p class="q-help">Used for healthy-weight ranges, since health risks start at a lower BMI for Asian adults.</p>
+                </fieldset>
+                <fieldset class="q-sub">
+                  <legend class="field-label">How active are they?</legend>
+                  <div id="pAct" class="pick"></div>
+                </fieldset>
+                <p class="q-help">Only used to work out a daily calorie target. Saved on this device, not on our server.</p>
+              </div>
+            </details>
+
+            <div class="q q-row">
+              <label class="switch">
+                <input id="pSnacks" type="checkbox" role="switch">
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-text">A snack each day</span>
+              </label>
+              <div class="stepper" role="group" aria-labelledby="hhLabel">
+                <span id="hhLabel" class="stepper-label">Cooking for</span>
+                <button type="button" class="stepper-btn" data-hh="-1" aria-label="One fewer person">−</button>
+                <input id="pHousehold" type="number" min="1" max="12" value="1" inputmode="numeric" aria-labelledby="hhLabel" aria-describedby="hhUnit">
+                <span id="hhUnit" class="stepper-unit">people</span>
+                <button type="button" class="stepper-btn" data-hh="1" aria-label="One more person">+</button>
+              </div>
+            </div>
+
+            <p id="intakeMsg" class="msg" role="alert"></p>
+            <div class="intake-go">
+              <button id="intakeGo" type="submit" class="btn btn-primary btn-wide">Plan my week</button>
+              <button id="intakeCancel" type="button" class="btn-link">Not now</button>
+            </div>
+          </form>
+        </section>
 
         <!-- The week -->
         <section id="week" class="step-sec reveal" aria-labelledby="weekTitle" hidden>
@@ -187,6 +297,7 @@
     <div class="wrap foot-inner">
       <button id="howOpen" class="btn-link" type="button" aria-haspopup="dialog">How it works</button>
       <p class="disclaimer"><b>Not medical advice.</b> Check changes with their doctor.</p>
+      <p class="credit">Built with NVIDIA Nemotron on Nebius</p>
     </div>
   </footer>
 
@@ -199,23 +310,19 @@
         </button>
       </div>
       <ol class="how-rows">
-        <li><span class="how-n" aria-hidden="true">1</span><span><b>Reads your recipe</b><span class="how-model">NVIDIA Nemotron Nano</span></span></li>
-        <li><span class="how-n" aria-hidden="true">2</span><span><b>Suggests lighter swaps and writes the steps</b><span class="how-model">Nemotron Super</span></span></li>
-        <li><span class="how-n" aria-hidden="true">3</span><span><b>Plans the week and writes the note</b><span class="how-model">Nemotron Ultra</span></span></li>
+        <li><span class="how-n" aria-hidden="true">1</span><span><b>Reads your recipe</b><span class="how-sub">Home measures like “2 katori” become estimated grams.</span></span></li>
+        <li><span class="how-n" aria-hidden="true">2</span><span><b>Suggests lighter swaps and writes the steps</b><span class="how-sub">Or suggests a new dish that fits, when you ask for one.</span></span></li>
+        <li><span class="how-n" aria-hidden="true">3</span><span><b>Plans the week</b><span class="how-sub">Around your dishes, with a shopping list and a note for the person you cook for.</span></span></li>
       </ol>
-      <p class="how-numbers">Numbers are computed in code from IFCT 2017 and USDA tables, never by the AI.</p>
+      <p class="how-numbers">Numbers are computed in code from IFCT 2017 and USDA food tables, never by the AI.</p>
+      <p class="how-target">The daily calorie target is worked out in code from age, height, weight and activity (the Mifflin-St Jeor equation), adjusted for the goal and never below 1,200 kcal for women or 1,500 for men. Every planned meal is checked against the diet and the food tables, and portions are scaled so each day lands near the target.</p>
       <div class="how-why">
         <h3>Why this helps</h3>
         <p>When a parent is told to change their diet, families are often handed a generic diet sheet. Home food starts to feel off-limits and someone ends up cooking two meals. We keep your family's own dishes and make them lighter: swap, don't ban.</p>
-        <p>Home measures like "1 katori" become estimated grams, so treat numbers as a close guide. If an ingredient isn't in our tables we say so, don't count it, and don't claim a "% less". "Good to know" notes come from a short checked list with their source linked.</p>
+        <p>Home measures become estimated grams, so treat numbers as a close guide. If an ingredient isn't in our tables we say so, don't count it, and don't claim a “% less”. “Good to know” notes come from a short checked list with their source linked.</p>
       </div>
-      <details class="sub how-tech">
-        <summary>Technical details</summary>
-        <p id="howMode" class="how-mode"></p>
-        <div class="tiers" id="tiers"></div>
-        <h3 class="hood-sub">This session</h3>
-        <ol id="trace" class="trace"><li class="muted">Nothing yet.</li></ol>
-      </details>
+      <p id="howMode" class="how-mode"></p>
+      <p class="how-disclaimer"><b>Not medical advice.</b> Check changes with their doctor or a registered dietitian.</p>
     </div>
   </dialog>
 

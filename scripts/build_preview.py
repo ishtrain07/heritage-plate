@@ -29,6 +29,17 @@ from app import engine, nutrition
 from app.main import app
 
 CONDITIONS = ("diabetes", "bp", "cholesterol", "everyday")
+# The preview can't plan for any profile, so each family's week is planned once for a sample person.
+SAMPLE_PROFILES = {
+    "gill": {"diet": "vegetarian", "conditions": ["diabetes"], "goal": "lose_weight", "sex": "female", "age": 64,
+             "height_cm": 158, "weight_kg": 68, "activity": "light", "ethnicity": "south_asian"},
+    "chen": {"diet": "non_veg", "conditions": ["bp"], "goal": "maintain", "sex": "male", "age": 70,
+             "height_cm": 168, "weight_kg": 70, "activity": "light", "ethnicity": "east_asian"},
+    "rossi": {"diet": "non_veg", "conditions": ["cholesterol"], "goal": "lose_weight", "sex": "female", "age": 72,
+              "height_cm": 160, "weight_kg": 74, "activity": "light", "ethnicity": "other"},
+    "reyes": {"diet": "non_veg", "conditions": ["diabetes"], "goal": "steady_sugar", "sex": "female", "age": 68,
+              "height_cm": 155, "weight_kg": 70, "activity": "light", "ethnicity": "other"},
+}
 
 
 def precompute() -> dict:
@@ -40,7 +51,14 @@ def precompute() -> dict:
             for condition in CONDITIONS:
                 body = {"recipe": recipe, "condition": condition, "cuisine": fam["cuisine"]}
                 adapt[f'{recipe["id"]}|{condition}'] = client.post("/api/adapt", json=body).json()
+    weeks = {}
+    for fid, fam in families.items():
+        recipes = [adapt[f'{r["id"]}|{fam["condition"]}']["recipe"] for r in fam["recipes"]]
+        body = {"recipes": recipes, "profile": SAMPLE_PROFILES.get(fid, {}), "language": fam["language"]}
+        weeks[fid] = client.post("/api/week", json=body).json()
+    weeks["default"] = client.post("/api/week", json={"profile": {"diet": "vegetarian"}}).json()
     return {
+        "weeks": weeks,
         "health": client.get("/api/health").json(),
         "demoList": client.get("/api/demo").json(),
         "families": families,
@@ -137,7 +155,16 @@ SHIM = r"""
       return hit ? reply(200, hit) : notInPreview();
     }
     if (path === "/api/plan") return plan(body);
-    if (path === "/api/parse") return notInPreview();
+    if (path === "/api/week") {
+      // One sample week per family, planned by the real engine at build time.
+      const ids = (body.recipes || []).map((r) => String(r.id || "").split("-")[0]);
+      const fid = ids.find((f) => D.weeks[f]) || "default";
+      const res = JSON.parse(JSON.stringify(D.weeks[fid]));
+      res.week.notes = ["Demo preview: this week was planned for a sample person, not your answers. The full app plans around yours.",
+                        ...(res.week.notes || [])];
+      return reply(200, res);
+    }
+    if (path === "/api/parse" || path === "/api/suggest") return notInPreview();
     return reply(404, { detail: "Not found." });
   };
 })();

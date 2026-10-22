@@ -80,19 +80,43 @@ const VOICE_FALLBACK = "Voice works in Chrome and Safari. You can type it here i
 
 const FAMILY_SHADES = 4; // .avatar.fam-1 … fam-4, coloured by theme tokens
 const DAY_NAMES = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
-const SLOTS = [["breakfast", "Breakfast"], ["lunch", "Lunch"], ["dinner", "Dinner"], ["dessert", "Sweet"]];
+const SLOT_NAMES = { breakfast: "Breakfast", lunch: "Lunch", snack: "Snack", dinner: "Dinner" };
+const SLOT_ORDER = ["breakfast", "lunch", "snack", "dinner"];
+
+// The dietitian intake. Values match the /api/week Profile model.
+const DIETS = [["non_veg", "Everything"], ["pescatarian", "Fish, no meat"], ["eggetarian", "Vegetarian + eggs"], ["vegetarian", "Vegetarian"], ["vegan", "Vegan"]];
+const DIET_WORDS = { non_veg: "Eats everything", pescatarian: "Fish, no meat", eggetarian: "Vegetarian + eggs", vegetarian: "Vegetarian", vegan: "Vegan" };
+const HEALTH = [["diabetes", "Type 2 diabetes"], ["bp", "High blood pressure"], ["cholesterol", "High cholesterol"]];
+const GOALS = [
+  ["maintain", "Eat well", "Balanced meals at their usual calories."],
+  ["lose_weight", "Lose weight", "A gentle calorie deficit, about half a kilo a week."],
+  ["belly_fat", "Lose belly fat", "Fat can't be lost from one spot, so we plan a steady overall deficit. Walking and strength exercise help most."],
+  ["steady_sugar", "Steady blood sugar", "Fewer sugar-raising carbs, spread evenly through the day."],
+  ["build_muscle", "Build muscle", "A small calorie surplus with plenty of protein."],
+];
+const SEXES = [["female", "Female"], ["male", "Male"]];
+const ETHNICITIES = [["south_asian", "South Asian"], ["east_asian", "East Asian"], ["southeast_asian", "Southeast Asian"], ["other", "Another background"]];
+const ACTIVITY = [["sedentary", "Mostly sitting"], ["light", "Lightly active"], ["moderate", "Active"], ["active", "Very active"]];
+// The number that matters most for each condition, shown as a weekly daily average.
+const KEY_NUMBERS = {
+  diabetes: ["net_carbs_g", "Sugar-raising carbs", "g"],
+  bp: ["sodium_mg", "Salt (sodium)", "mg"],
+  cholesterol: ["sat_fat_g", "Saturated fat", "g"],
+};
+const PLAN_STAGES = [
+  // [label, seconds after start when this stage begins]
+  ["Setting the calorie target", 0],
+  ["Choosing meals", 3],
+  ["Checking every meal against the food tables", 15],
+  ["Balancing portions for each day", 27],
+];
 const SHOP_GROUPS = {
   grain: "Grains and flour", legume: "Beans and lentils", vegetable: "Vegetables", fruit: "Fruit", dairy: "Dairy",
   protein: "Meat, fish and eggs", fat: "Oils and fats", nuts: "Nuts", sauce: "Sauces", sweetener: "Sugar and sweeteners",
   spice: "Spices", other: "Other",
 };
-const MODELS = {
-  nano: { name: "Nemotron Nano", job: "Reads your recipe into ingredients and grams." },
-  super: { name: "Nemotron Super", job: "Suggests lighter swaps and writes the steps." },
-  ultra: { name: "Nemotron Ultra", job: "Plans the week and writes the note." },
-};
 const ADAPT_CONCURRENCY = 3;
-const MAX_DISHES = 30; // matches the /api/plan limit
+const MAX_DISHES = 30; // matches the /api/week limit
 const LOWER_IS_BETTER = new Set(["kcal", "net_carbs_g", "fat_g", "sat_fat_g", "sodium_mg"]);
 const BOOK_KEY = "hp-cookbook-v1";
 const ASK_CHIPS = ["Less spicy", "No onion or garlic", "Quicker to cook"];
@@ -118,22 +142,41 @@ const state = {
   families: [],
   familiesLoaded: false,
   recipes: [],           // [{id, base, adapted, status: idle|busy|error, error, open, origin: "own"|familyId}]
-  trace: [],
+  also: [],              // more health issues besides `condition` (multi-select)
   health: null,
   healthFailed: false,
-  plan: null,
+  plan: null,            // the /api/week result
   planStale: false,
   planning: false,
   planError: false,
-  whoSkipped: false,
+  planCtrl: null,        // AbortController for the running plan (Cancel)
+  planErrorMsg: "",
   weekTab: "meals",
-  week: 1,               // which week's rotation /api/plan should give; bumps for "Plan this week"
+  weekDay: 0,            // which day shows on phones
+  week: 1,               // which week's rotation /api/week should give; bumps for "Plan another week"
+  profile: null,         // the person's intake (see defaultProfile)
+  profileSet: false,     // true once they've planned with it, so a return visit is one tap
+  profileTouched: false, // edited in the intake but not planned yet
+  household: 1,
+  intakeOpen: false,
   composerOpen: false,
+  composerMode: "recipe", // "recipe" (make it lighter) or "suggest" (a new dish from a wish)
   editingId: null,
   saved: null,           // a cookbook saved on this device, offered on the home screen
   adaptRun: 0,           // bumps to cancel a running "make every dish lighter"
-  cookbookVersion: 0,    // bumps whenever the dishes change; late /api/plan replies are dropped
+  cookbookVersion: 0,    // bumps whenever the dishes change; late /api/week replies are dropped
 };
+
+// The selected health issues, first one leads (its number is the headline on each card).
+function conds() { return [state.condition, ...state.also.filter((c) => c !== state.condition)]; }
+function condKey() { return conds().join("+"); }
+function adaptedKey(a) { return a ? a.condKey || a.condition : ""; }
+function cleanConds(list) {
+  const ok = (Array.isArray(list) ? list : []).filter((c, i, arr) => c in CONDITIONS && arr.indexOf(c) === i);
+  if (!ok.length || ok.includes("everyday") && ok[0] === "everyday") return ["everyday"];
+  return ok.filter((c) => c !== "everyday").slice(0, 4);
+}
+function condWords() { return conds().map((c) => CONDITIONS[c].word).join(" + "); }
 
 function markCookbookChanged() {
   state.cookbookVersion += 1;
@@ -178,11 +221,13 @@ function familyShort() {
 }
 function cookbookTitle() {
   const f = familyShort();
+  if (!f && !state.recipes.length && state.plan) return "Your week of meals";
   return f ? `The ${f} family cookbook` : "Your family cookbook";
 }
 function coverLine() {
+  if (!state.recipes.length && state.plan) return `A personal week of meals${hasParent() ? ` for ${state.parentName.trim()}` : ""} · ${profileWords(state.plan).join(" · ")}`;
   if (state.condition === "everyday") return "Lighter family recipes for everyday";
-  return `Lighter family recipes for ${hasParent() ? state.parentName.trim() : "the family"} · ${CONDITIONS[state.condition].word}`;
+  return `Lighter family recipes for ${hasParent() ? state.parentName.trim() : "the family"} · ${condWords()}`;
 }
 
 function announce(text) {
@@ -218,14 +263,17 @@ function readableError(detail, status) {
   }
   if (detail && typeof detail === "object") return detail.msg ? String(detail.msg) : "Something in the request wasn't right.";
   if (typeof detail === "string" && detail) return detail;
-  if (status === 502) return "The AI model didn't answer properly. Please try again.";
+  if (status === 502) return "The AI didn't answer properly. Please try again.";
   if (status >= 500) return "Something went wrong on our side. Please try again.";
   return `Request failed (${status}).`;
 }
 
-async function api(path, body, timeoutMs = 120000) {
+// `signal` lets the person cancel; a cancelled call throws an Error with .cancelled = true.
+async function api(path, body, timeoutMs = 120000, signal = null) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const onCancel = () => ctrl.abort();
+  if (signal) signal.addEventListener("abort", onCancel);
   let res;
   try {
     res = await fetch(path, {
@@ -235,11 +283,12 @@ async function api(path, body, timeoutMs = 120000) {
       signal: ctrl.signal,
     });
   } catch (err) {
+    if (signal?.aborted) { const e = new Error("Cancelled."); e.cancelled = true; throw e; }
     throw new Error(err.name === "AbortError" ? "This is taking too long. Please try again." : "Can't reach the server. Check your connection and try again.");
-  } finally { clearTimeout(timer); }
+  } finally { clearTimeout(timer); if (signal) signal.removeEventListener("abort", onCancel); }
+  if (signal?.aborted) { const e = new Error("Cancelled."); e.cancelled = true; throw e; }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(readableError(data.detail, res.status));
-  if (Array.isArray(data.trace)) addTrace(data.trace);
   return data;
 }
 
@@ -285,17 +334,56 @@ async function busy(btn, label, fn) {
   }
 }
 
+// ---------- the person's profile ----------
+function defaultProfile() {
+  return {
+    diet: "non_veg", conditions: conds().filter((c) => c !== "everyday"),
+    goal: "maintain", dislikes: "", sex: null, age: null, height_cm: null, weight_kg: null, activity: "light",
+    ethnicity: null, pregnant: false, snacks: true,
+  };
+}
+
+// Only keep values the API accepts, so an old or edited save can never cause a 422.
+function cleanProfile(p) {
+  const d = defaultProfile();
+  if (!p || typeof p !== "object") return d;
+  const pick = (v, list, def) => (list.some(([k]) => k === v) ? v : def);
+  const inRange = (v, lo, hi) => { const n = Number(v); return v !== null && v !== "" && Number.isFinite(n) && n >= lo && n <= hi ? n : null; };
+  const age = inRange(p.age, 1, 120);
+  return {
+    diet: pick(p.diet, DIETS, d.diet),
+    conditions: Array.isArray(p.conditions) ? HEALTH.map(([k]) => k).filter((k) => p.conditions.includes(k)) : d.conditions,
+    goal: pick(p.goal, GOALS, d.goal),
+    dislikes: String(p.dislikes || "").slice(0, 200),
+    sex: p.sex === "female" || p.sex === "male" ? p.sex : null,
+    age: age === null ? null : Math.round(age),
+    height_cm: inRange(p.height_cm, 80, 250),
+    weight_kg: inRange(p.weight_kg, 25, 350),
+    activity: pick(p.activity, ACTIVITY, d.activity),
+    ethnicity: pick(p.ethnicity, ETHNICITIES, null),
+    pregnant: p.sex === "female" && p.pregnant === true,
+    snacks: p.snacks !== false,
+  };
+}
+
+function profile() {
+  if (!state.profile) state.profile = defaultProfile();
+  return state.profile;
+}
+
 // ---------- saved cookbook (this device only; works without storage) ----------
 function saveBook() {
   try {
-    if (!state.recipes.length) { window.localStorage.removeItem(BOOK_KEY); return; }
+    if (!state.recipes.length && !state.plan && !state.profileSet) { window.localStorage.removeItem(BOOK_KEY); return; }
     const data = {
       v: 1, savedAt: Date.now(),
-      condition: state.condition, cuisine: state.cuisine, language: state.language, parentName: state.parentName,
+      condition: state.condition, also: state.also, cuisine: state.cuisine, language: state.language, parentName: state.parentName,
       family: state.family ? { id: state.family.id, family: state.family.family, parent: state.family.parent } : null,
       recipes: state.recipes.map((e) => ({ id: e.id, base: e.base, adapted: e.adapted, origin: e.origin })),
       plan: state.plan && !state.planStale ? state.plan : null,
       week: state.week,
+      profile: state.profileSet ? state.profile : null,
+      household: state.household,
     };
     window.localStorage.setItem(BOOK_KEY, JSON.stringify(data));
   } catch { /* storage blocked or full: the cookbook lasts for this visit */ }
@@ -306,7 +394,9 @@ function readBook() {
     const d = JSON.parse(window.localStorage.getItem(BOOK_KEY) || "null");
     if (d && d.v === 1 && Array.isArray(d.recipes)) {
       d.recipes = d.recipes.filter((r) => r && r.id && r.base && r.base.name && Array.isArray(r.base.ingredients));
-      if (d.recipes.length) return d;
+      // Plans from the old /api/plan shape (one dish name per slot) are dropped; the dishes stay.
+      if (d.plan && !(Array.isArray(d.plan.days) && d.plan.days.every((x) => x && Array.isArray(x.meals)))) d.plan = null;
+      if (d.recipes.length || d.plan || d.profile) return d;
     }
   } catch { /* ignore */ }
   return null;
@@ -318,18 +408,22 @@ function clearBook() {
 
 function restoreBook(d) {
   state.adaptRun += 1;
-  state.condition = d.condition in CONDITIONS ? d.condition : "everyday";
+  const cs = cleanConds([d.condition, ...(Array.isArray(d.also) ? d.also : [])]);
+  state.condition = cs[0]; state.also = cs.slice(1);
   state.cuisine = typeof d.cuisine === "string" ? d.cuisine : state.cuisine;
   state.language = typeof d.language === "string" ? d.language : "English";
   state.parentName = String(d.parentName || "").slice(0, 20);
   state.family = d.family && d.family.id ? d.family : null;
   state.recipes = d.recipes.slice(0, MAX_DISHES).map((r) => ({
-    id: String(r.id), base: r.base, adapted: r.adapted && r.adapted.condition === state.condition ? r.adapted : null,
+    id: String(r.id), base: r.base, adapted: r.adapted && (r.origin === "suggested" || adaptedKey(r.adapted) === condKey()) ? r.adapted : null,
     status: "idle", error: "", open: null, origin: r.origin || "own",
   }));
-  state.plan = d.plan && Array.isArray(d.plan.days) ? d.plan : null;
+  state.plan = d.plan || null;
   state.planStale = false; state.planError = false;
   state.week = Math.max(1, Math.round(num(d.week)) || 1);
+  state.profile = d.profile ? cleanProfile(d.profile) : defaultProfile();
+  state.profileSet = Boolean(d.profile);
+  state.household = Math.min(12, Math.max(1, Math.round(num(d.household)) || 1));
   state.cookbookVersion += 1;
   state.saved = null;
   fillSelects();
@@ -346,11 +440,14 @@ function renderResume() {
   const f = d.family?.family ? String(d.family.family).replace(/^The\s+/i, "").replace(/\s+family$/i, "") : "";
   const title = f ? `The ${f} family cookbook` : "Your family cookbook";
   const n = d.recipes.length;
+  const who = String(d.parentName || "").trim();
+  const bits = [n ? `${title}: ${n} dish${n === 1 ? "" : "es"}` : "Your week plan"];
+  if (d.profile) bits.push(`${DIET_WORDS[d.profile.diet] || "Eats everything"}${who ? ` · for ${who}` : ""}`);
   box.innerHTML = `
     <section class="resume" aria-labelledby="resumeTitle">
       <div class="resume-text">
         <h2 id="resumeTitle" class="resume-title">Welcome back.</h2>
-        <p>${esc(title)}: ${n} dish${n === 1 ? "" : "es"}</p>
+        <p>${bits.map(esc).join(" · ")}</p>
       </div>
       <div class="resume-btns">
         <button type="button" class="btn btn-primary" data-resume="plan">Plan this week</button>
@@ -360,47 +457,16 @@ function renderResume() {
     </section>`;
 }
 
-// ---------- trace / how it works ----------
-function addTrace(entries) {
-  state.trace.push(...entries.filter((t) => t && typeof t === "object"));
-  if ($("how").open) renderTrace();
-}
-
-function renderTiers() {
-  const models = state.health?.models || {};
-  const counts = { nano: 0, super: 0, ultra: 0 };
-  state.trace.forEach((t) => { if (t.tier in counts) counts[t.tier] += 1; });
-  $("tiers").innerHTML = Object.entries(MODELS).map(([k, t]) => `
-    <div class="tier">
-      <p class="tier-name">${esc(t.name)}</p>
-      <p class="tier-job">${esc(t.job)}</p>
-      ${models[k] ? `<code>${esc(models[k])}</code>` : ""}
-      <p class="tier-count">${counts[k]} call${counts[k] === 1 ? "" : "s"} so far</p>
-    </div>`).join("");
-}
-
-function renderTrace() {
-  renderTiers();
+// ---------- how it works ----------
+function renderHow() {
   const mode = $("howMode");
   if (state.healthFailed) mode.textContent = "Can't reach the server right now.";
-  else if (state.health?.mode === "live") mode.textContent = "Running live: NVIDIA Nemotron models on Nebius Token Factory.";
-  else if (state.health) mode.textContent = "Running in demo mode: built-in sample answers stand in for the models, so it works without an API key. Numbers are still computed from the food tables. When live, the note is written in their language.";
+  else if (state.health && state.health.mode !== "live") mode.textContent = "Running in demo mode: built-in sample answers stand in for the AI, so it works without an API key. Numbers are still computed from the food tables.";
   else mode.textContent = "";
-  if (!state.trace.length) return;
-  $("trace").innerHTML = state.trace.slice().reverse().map((t) => {
-    const tier = ["nano", "super", "ultra"].includes(t.tier) ? t.tier : "nano";
-    const bits = [];
-    if (t.ms) bits.push(`${(num(t.ms) / 1000).toFixed(1)} s`);
-    if (t.tokens) bits.push(`${num(t.tokens)} tokens`);
-    const flags = [];
-    if (t.cached) flags.push("from cache");
-    if (t.fallback) flags.push("used backup rules");
-    return `<li><b>${esc(t.step)}</b> <span class="muted">· ${esc(MODELS[tier].name)}</span>${bits.length ? ` <span class="muted">· ${esc(bits.join(", "))}</span>` : ""}${flags.length ? ` <span class="tflag">(${esc(flags.join(", "))})</span>` : ""}<br><code>${esc(t.model)}</code></li>`;
-  }).join("");
 }
 
 function openHow() {
-  renderTrace();
+  renderHow();
   const d = $("how");
   if (typeof d.showModal === "function") { if (!d.open) d.showModal(); } else d.setAttribute("open", "");
   $("howClose").focus();
@@ -419,7 +485,6 @@ function fillSelects() {
     return `<option value="${esc(k)}">${esc(label)}</option>`;
   }).join("");
   $("speechLang").innerHTML = langs.filter((l) => SPEECH_LANG[l]).map((l) => `<option value="${esc(l)}">${esc(l)}</option>`).join("");
-  $("goalSelect").innerHTML = Object.entries(CONDITIONS).map(([k, c]) => `<option value="${esc(k)}">${esc(c.short)}</option>`).join("");
   if (!(state.cuisine in cuisines)) state.cuisine = Object.keys(cuisines)[0];
   if (!langs.includes(state.language)) state.language = langs[0];
   if (!SPEECH_LANG[state.speechLang]) state.speechLang = "English";
@@ -427,13 +492,18 @@ function fillSelects() {
 }
 
 function syncControls() {
-  document.querySelectorAll('input[name="condition"]').forEach((r) => { r.checked = r.value === state.condition; });
-  $("goalSelect").value = state.condition;
+  const on = conds();
+  document.querySelectorAll('input[name="condition"]').forEach((r) => { r.checked = on.includes(r.value); });
+  $("goalChips").innerHTML = Object.entries(CONDITIONS).map(([k, c]) => `<label class="pick-opt"><input type="checkbox" name="goalChip" value="${esc(k)}"${on.includes(k) ? " checked" : ""}><span>${esc(c.short)}</span></label>`).join("");
   $("cuisine").value = state.cuisine;
   $("speechLang").value = state.speechLang;
   $("styleSummary").textContent = `Cooking style: ${shortCuisine(state.cuisine)}`;
-  $("focusHint").textContent = CONDITIONS[state.condition].hint;
-  $("micExample").textContent = `“${EXAMPLES[state.cuisine] || EXAMPLES.other}”`;
+  $("focusHint").textContent = state.composerMode === "suggest"
+    ? `We'll suggest a dish that suits ${on.map((c) => (c === "everyday" ? "everyday healthy eating" : CONDITIONS[c].word)).join(" and ")}, using your cooking style.`
+    : on.length > 1
+    ? `${CONDITIONS[on[0]].hint} The big number on each card follows ${CONDITIONS[on[0]].short.toLowerCase()}; the swaps help all of them.`
+    : CONDITIONS[on[0]].hint;
+  $("micExample").textContent = `“${state.composerMode === "suggest" ? SUGGEST_EXAMPLE : EXAMPLES[state.cuisine] || EXAMPLES.other}”`;
   renderNames();
   updateMicHint();
 }
@@ -445,29 +515,49 @@ function renderNames() {
   $("dishesWho").innerHTML = bits.length ? `${bits.join(" · ")} <span aria-hidden="true">·</span> ` : "";
 }
 
-function setCondition(value) {
-  if (!(value in CONDITIONS) || value === state.condition) return;
-  state.condition = value;
-  state.adaptRun += 1; // stop any running batch; late replies for the old condition are dropped
-  state.recipes.forEach((e) => { e.adapted = null; e.prev = null; e.asking = false; e.askError = ""; e.status = "idle"; e.error = ""; e.req = null; });
+// Tapping a chip: "Everyday lighter" is exclusive; the rest combine. Never leaves nothing selected.
+function toggleCondition(value, checked) {
+  let list = conds().filter((c) => c !== "everyday");
+  if (value === "everyday") list = checked ? ["everyday"] : list;
+  else list = checked ? [...list, value] : list.filter((c) => c !== value);
+  setConditions(list.length ? list : ["everyday"]);
+}
+
+let readaptTimer;
+function setConditions(list) {
+  const next = cleanConds(list);
+  if (next.join("+") === condKey()) { syncControls(); return; }
+  state.condition = next[0]; state.also = next.slice(1);
+  state.adaptRun += 1; // stop any running batch; late replies for the old selection are dropped
+  // Suggested dishes were made for their own conditions and keep them; family dishes are made lighter again.
+  state.recipes.forEach((e) => {
+    if (e.origin === "suggested") return;
+    e.adapted = null; e.prev = null; e.asking = false; e.askError = ""; e.status = "idle"; e.error = ""; e.req = null;
+  });
+  if (!state.profileSet && !state.profileTouched) state.profile = defaultProfile();
   $("adaptProgress").hidden = true;
   markCookbookChanged();
   syncControls();
   renderCookbook();
   renderPlan();
-  announce(`Now making dishes lighter for ${CONDITIONS[value].label.toLowerCase()}.`);
-  if (state.recipes.length) adaptAll($("adaptAll"));
+  announce(`Now making dishes lighter for ${next.map((c) => CONDITIONS[c].label.toLowerCase()).join(" and ")}.`);
+  // Wait a moment so tapping two chips in a row runs one batch, not two.
+  clearTimeout(readaptTimer);
+  readaptTimer = setTimeout(() => { if (state.recipes.some((e) => !e.adapted)) adaptAll($("adaptAll")); }, 700);
   saveBook();
 }
 
 // ---------- which parts of the page show ----------
 function renderSections() {
   const n = state.recipes.length;
-  const fresh = Boolean(state.plan && !state.planStale);
+  // The "Plan my week" button under the dishes only starts things; once there's a week, the week has its own buttons.
+  const planBtnShown = !state.plan && !state.intakeOpen && !state.planning;
   $("dishes").hidden = n === 0;
   $("composer").hidden = !state.composerOpen;
   $("dishActions").hidden = n === 0 || state.composerOpen;
-  $("dishActions").classList.toggle("is-sticky", !fresh);
+  $("plan").hidden = !planBtnShown;
+  $("dishActions").classList.toggle("is-sticky", planBtnShown);
+  $("intake").hidden = !state.intakeOpen || state.planning;
   $("week").hidden = !(state.plan || state.planning || state.planError);
   $("readyBar").hidden = !(state.plan && !state.planning);
 }
@@ -506,18 +596,20 @@ async function loadFamily(id, btn) {
   try {
     const fam = await api(`/api/demo/${encodeURIComponent(id)}`);
     state.adaptRun += 1;
+    if (state.planCtrl) { const c = state.planCtrl; state.planCtrl = null; state.planning = false; c.abort(); }
     stopListening();
     state.family = { id: fam.id, family: fam.family, parent: fam.parent };
-    state.condition = fam.condition in CONDITIONS ? fam.condition : "diabetes";
+    state.condition = fam.condition in CONDITIONS ? fam.condition : "diabetes"; state.also = [];
     state.cuisine = fam.cuisine;
     state.language = fam.language;
     state.parentName = String(fam.parent || "").split(",")[0].trim().slice(0, 20);
-    state.whoSkipped = false;
     state.saved = null;
+    // A new family means a new person: start their intake fresh, with the family's condition ticked.
+    state.profile = defaultProfile(); state.profileSet = false; state.intakeOpen = false;
     // Your own dishes stay; a sample family's dishes replace the previous sample family's.
-    const own = state.recipes.filter((e) => e.origin === "own");
+    const own = state.recipes.filter((e) => e.origin === "own" || e.origin === "suggested");
     own.forEach((e) => {
-      if (e.adapted && e.adapted.condition !== state.condition) e.adapted = null;
+      if (e.adapted && e.origin !== "suggested" && adaptedKey(e.adapted) !== condKey()) e.adapted = null;
       if (e.status !== "idle" || e.asking) { e.status = "idle"; e.error = ""; e.req = null; e.asking = false; }
     });
     const famEntries = (fam.recipes || []).map((r) => ({ id: String(r.id || uid()), base: r, adapted: null, status: "idle", error: "", open: null, origin: fam.id }));
@@ -551,15 +643,15 @@ function refreshButtons() {
   const allBusy = all.hasAttribute("aria-busy");
   // Only needed when something is left to do and nothing is running (e.g. after a failure).
   $("adaptBar").hidden = !(todo && !anyBusy && !allBusy);
-  const plan = $("plan");
-  if (!plan.hasAttribute("aria-busy")) {
-    // Wait for dishes still being made lighter, or their late replies would make the new week stale.
-    plan.disabled = n === 0 || anyBusy || allBusy;
-    const fresh = state.plan && !state.planStale;
-    plan.textContent = state.plan ? (state.planStale ? "Update our week" : "Plan another week") : "Plan our week";
-    plan.classList.toggle("btn-primary", !fresh);
-    plan.classList.toggle("btn-quiet", Boolean(fresh));
+  // Wait for dishes still being made lighter, or their late replies would make the new week stale.
+  const wait = anyBusy || allBusy;
+  $("plan").disabled = n === 0 || wait;
+  const go = $("intakeGo");
+  if (!state.planning) {
+    go.disabled = wait;
+    go.textContent = wait ? "Waiting for your dishes…" : "Plan my week";
   }
+  document.querySelectorAll("[data-replan]").forEach((b) => { b.disabled = wait || state.planning; });
   renderSections();
   return anyBusy;
 }
@@ -705,18 +797,20 @@ async function askDish(id, text) {
   const request = String(text || "").trim().slice(0, 200);
   if (!e || !e.adapted || e.asking) return;
   if (!request) { document.getElementById(`ask-${id}`)?.focus(); return; }
-  const condition = state.condition;
+  const [condition, ...also] = conds();
+  const key = condKey();
   const token = {};
   e.req = token; e.asking = true; e.askError = ""; e.askDraft = request; e.open = true;
   renderCard(id);
-  const stale = () => findEntry(id) !== e || state.condition !== condition || e.req !== token;
+  const stale = () => findEntry(id) !== e || (e.origin !== "suggested" && condKey() !== key) || e.req !== token;
   try {
-    const { recipe } = await api("/api/adapt", { recipe: baseFields(e.base), condition, cuisine: state.cuisine, request });
+    // A suggested dish is asked about as its own base.
+    const { recipe } = await api("/api/adapt", { recipe: baseFields(e.base), condition, also, cuisine: state.cuisine, request });
     if (stale()) return;
     // A server that doesn't echo the request didn't act on it (e.g. the static preview): don't pretend it did.
     if (!String(recipe.request || "").trim()) throw new Error("Couldn't change this dish for that request here. Please try again in the full app.");
     e.prev = e.adapted;
-    e.adapted = { ...recipe, condition, id: e.id, request: String(recipe.request) };
+    e.adapted = { ...recipe, condition, condKey: key, id: e.id, request: String(recipe.request) };
     e.asking = false; e.askDraft = "";
     markCookbookChanged();
     renderCard(id);
@@ -740,9 +834,21 @@ function dishCard(e, index) {
   const adapted = Boolean(e.adapted);
   const isBusy = e.status === "busy";
   const open = e.open === null || e.open === undefined ? index === 0 : e.open;
+  const fromSuggest = e.origin === "suggested";
+  const plainSuggested = adapted && Boolean(r.suggested); // as suggested, not yet changed by an ask
+  const condList = (Array.isArray(r.conditions) && r.conditions.length ? r.conditions : [r.condition]).filter((x) => x in CONDITIONS);
+  const condTags = adapted && condList.length
+    ? `<p class="cond-tags"><span class="sr-only">For: </span>${condList.map((x) => `<span class="cond-tag">${esc(CONDITIONS[x].short)}</span>`).join("")}</p>` : "";
 
   let numbers, badge = "", secondary = "";
-  if (adapted) {
+  if (plainSuggested) {
+    const f = focusNumbers(r);
+    numbers = `
+      <p class="nums"><span class="nums-now plain">${esc(fmt(f.after, f.unit))}<span class="nums-unit"> ${esc(f.unit)}</span></span></p>
+      <p class="nums-label">${esc(f.label)} per serving</p>`;
+    if (f.key === "kcal") secondary = `<ul class="nums-2">${SECONDARY.map(([k, label, unit]) => `<li>${esc(label)} <b>${esc(fmt(n[k], unit))} ${esc(unit)}</b></li>`).join("")}</ul>`;
+    badge = `<span class="tag tag-suggest">Suggested for you</span>`;
+  } else if (adapted) {
     const f = focusNumbers(r);
     numbers = `
       <p class="nums"><span class="sr-only">${esc(f.label)} per serving: was </span><span class="nums-was">${esc(fmt(f.before, f.unit))}</span><span class="nums-arrow" aria-hidden="true">→</span><span class="sr-only"> now </span><span class="nums-now">${esc(fmt(f.after, f.unit))}<span class="nums-unit"> ${esc(f.unit)}</span></span></p>
@@ -750,7 +856,8 @@ function dishCard(e, index) {
     if (f.key === "kcal" && r.original?.nutrition) {
       secondary = `<ul class="nums-2">${SECONDARY.map(([k, label, unit]) => `<li>${esc(label)} <span class="n2-was">${esc(fmt(r.original.nutrition[k], unit))}</span> <span aria-hidden="true">→</span><span class="sr-only">now</span> <b>${esc(fmt(n[k], unit))} ${esc(unit)}</b></li>`).join("")}</ul>`;
     }
-    if (r.comparable === false) badge = `<span class="tag tag-quiet">No % shown</span>`;
+    if (fromSuggest) badge = `<span class="tag tag-suggest">Suggested for you</span>`;
+    else if (r.comparable === false) badge = `<span class="tag tag-quiet">No % shown</span>`;
     else if (f.pct > 0) badge = `<span class="tag tag-win">${f.pct}% less</span>`;
     else badge = `<span class="tag tag-quiet">Already light</span>`;
   } else {
@@ -766,12 +873,29 @@ function dishCard(e, index) {
 
   const links = `
     <div class="rc-links">
-      <button type="button" class="btn-link" data-edit="${esc(e.id)}">Edit recipe</button>
+      ${fromSuggest ? "" : `<button type="button" class="btn-link" data-edit="${esc(e.id)}">Edit recipe</button>`}
       <button type="button" class="btn-link danger" data-remove="${esc(e.id)}" aria-label="Remove ${esc(r.name)}">Remove</button>
     </div>`;
 
   let body = "";
-  if (adapted) {
+  if (plainSuggested) {
+    const why = String(r.why || "").trim();
+    const portion = String(r.portion_tip || r.cooking_tip || "").trim();
+    body = `
+      <details class="more" data-more="${esc(e.id)}" ${open ? "open" : ""}>
+        <summary><span class="when-closed">Show recipe</span><span class="when-open">Hide recipe</span></summary>
+        <div class="more-body">
+          ${why ? `<div class="why-fits"><p class="portion-h">Why it fits</p><p>${esc(why)}</p></div>` : ""}
+          <div class="rc-block"><h4 class="rc-h">Ingredients</h4>${ingredientsBlock(r, { compare: false })}</div>
+          ${methodBlock({ ...r, original: null })}
+          ${portion ? `<div class="portion"><p class="portion-h">Portion</p><p>${esc(portion)}</p></div>` : ""}
+          ${askBox(e)}
+          ${factsBlock(r)}
+          <div class="rc-more"><details class="sub"><summary>Where the numbers come from</summary>${sourcesBlock({ ...r, original: null })}</details></div>
+          ${links}
+        </div>
+      </details>`;
+  } else if (adapted) {
     const why = r.comparable === false
       ? `<p class="small-print">The new version uses something not in our food tables, so we don't claim a "% less".</p>` : "";
     const changes = (r.changes || []).slice(0, 4);
@@ -827,6 +951,7 @@ function dishCard(e, index) {
         </div>
         <h3 tabindex="-1">${esc(r.name)}</h3>
         <p class="dish-serves">Serves ${esc(r.servings)}</p>
+        ${condTags}
         ${numbers}
         ${secondary}
         ${adapted ? askedLine(e) : ""}
@@ -838,7 +963,7 @@ function dishCard(e, index) {
 }
 
 function renderSummary() {
-  const done = state.recipes.filter((e) => e.adapted && e.adapted.condition === state.condition);
+  const done = state.recipes.filter((e) => e.origin !== "suggested" && e.adapted && adaptedKey(e.adapted) === condKey());
   if (done.length < 2) { $("summary").innerHTML = ""; return; }
   const c = CONDITIONS[state.condition];
   const pcts = done.filter((e) => e.adapted.comparable !== false).map((e) => {
@@ -882,18 +1007,19 @@ function renderCard(id) {
 async function adaptOne(id) {
   const e = findEntry(id);
   if (!e || e.adapted || e.status === "busy") return "skip";
-  const condition = state.condition;
+  const [condition, ...also] = conds();
+  const key = condKey();
   const token = {};
   e.req = token;
   e.status = "busy"; e.error = "";
   renderCard(id);
-  const stale = () => findEntry(id) !== e || state.condition !== condition || e.req !== token;
+  const stale = () => findEntry(id) !== e || condKey() !== key || e.req !== token;
   try {
-    const { recipe } = await api("/api/adapt", { recipe: baseFields(e.base), condition, cuisine: state.cuisine });
+    const { recipe } = await api("/api/adapt", { recipe: baseFields(e.base), condition, also, cuisine: state.cuisine });
     // Drop the reply if the dish was removed/replaced, the health focus changed, or a newer request started.
     if (stale()) return "stale";
     if (recipe.condition && recipe.condition !== condition) return "stale";
-    e.adapted = { ...recipe, condition, id: e.id };
+    e.adapted = { ...recipe, condition, condKey: key, id: e.id };
     e.status = "idle";
     markCookbookChanged();
     renderCard(id);
@@ -959,12 +1085,34 @@ function recipeAsText(r) {
   return `${r.name}: ${(r.ingredients || []).map((g) => `${grams(g.grams)} ${g.item}`).join(", ")}`;
 }
 
+const SUGGEST_EXAMPLE = "a quick high-protein dinner with spinach";
+function micIdleLabel() { return state.composerMode === "suggest" ? "Tap and say what you'd like" : "Tap and say it the way she says it"; }
+
+// The composer has two jobs: a family recipe to make lighter, or a wish for a new dish ("suggest").
+function setComposerMode(mode) {
+  const suggest = mode === "suggest";
+  if ((state.composerMode === "suggest") !== suggest) $("recipeText").value = "";
+  state.composerMode = suggest ? "suggest" : "recipe";
+  const box = $("recipeText");
+  box.maxLength = suggest ? 300 : 2000;
+  box.rows = suggest ? 3 : 5;
+  box.placeholder = suggest ? `e.g. ${SUGGEST_EXAMPLE}` : "Or type or paste it here: dish name, then what goes in. Home measures are fine.";
+  $("recipeTextLabel").textContent = suggest ? "What would you like to eat?" : "The recipe: dish name, then what goes in";
+  $("goalLegend").firstChild.textContent = suggest ? "Suggest it for " : "Make it lighter for ";
+  $("composer").classList.toggle("is-suggest", suggest);
+  syncControls();
+  if (!voice.listening) $("mic").querySelector(".mic-label").textContent = micIdleLabel();
+}
+
 function openComposer({ mode = "type", editId = null } = {}) {
   const editing = editId ? findEntry(editId) : null;
+  if (state.intakeOpen) state.intakeOpen = false;
+  setComposerMode(editing ? "recipe" : mode === "suggest" ? "suggest" : "recipe");
   state.composerOpen = true;
   state.editingId = editing ? editing.id : null;
-  $("composerTitle").textContent = editing ? "Edit the recipe" : "Tell us the recipe";
-  $("parse").textContent = editing ? "Update and make it lighter" : "Make it lighter";
+  const suggest = state.composerMode === "suggest";
+  $("composerTitle").textContent = editing ? "Edit the recipe" : suggest ? "What would you like?" : "Tell us the recipe";
+  $("parse").textContent = editing ? "Update and make it lighter" : suggest ? "Suggest a dish" : "Make it lighter";
   if (editing) {
     $("recipeText").value = recipeAsText(editing.base);
     $("servings").value = Math.min(20, Math.max(1, Math.round(num(editing.base.servings)) || 4));
@@ -995,10 +1143,11 @@ async function submitComposer(btn) {
   msg.className = "msg";
   if (text.length < 3) {
     msg.className = "msg error";
-    msg.textContent = "Say or type a recipe first.";
+    msg.textContent = state.composerMode === "suggest" ? "Say or type what you'd like first." : "Say or type a recipe first.";
     $("recipeText").focus();
     return;
   }
+  if (state.composerMode === "suggest") { await submitSuggest(btn, text); return; }
   const editing = state.editingId ? findEntry(state.editingId) : null;
   if (!editing && state.recipes.length >= MAX_DISHES) {
     msg.className = "msg error";
@@ -1041,6 +1190,45 @@ async function submitComposer(btn) {
   }
 }
 
+async function submitSuggest(btn, wish) {
+  const msg = $("parseMsg");
+  if (state.recipes.length >= MAX_DISHES) {
+    msg.className = "msg error";
+    msg.textContent = `The cookbook holds up to ${MAX_DISHES} dishes. Remove one to add another.`;
+    return;
+  }
+  const servings = Math.min(12, Math.max(1, Math.round(num($("servings").value) || 4)));
+  const p = state.profileSet || state.profileTouched ? profile() : null;
+  const conditions = conds();
+  const key = condKey();
+  const stop = ticker(msg, `<span class="spinner" aria-hidden="true"></span><span>Thinking of a dish that fits<span class="dots"></span></span>`);
+  msg.className = "msg working";
+  try {
+    const body = { wish: wish.slice(0, 300), conditions, cuisine: state.cuisine, servings, diet: p ? p.diet : "non_veg", dislikes: p ? p.dislikes : "" };
+    const { recipe } = await busy(btn, "Thinking…", () => api("/api/suggest", body));
+    stop();
+    const id = uid();
+    const r = { ...recipe, id, suggested: true };
+    state.recipes.unshift({ id, base: r, adapted: { ...r, condition: conditions[0], condKey: key }, status: "idle", error: "", open: true, origin: "suggested" });
+    state.saved = null;
+    markCookbookChanged();
+    $("recipeText").value = "";
+    msg.className = "msg"; msg.textContent = "";
+    state.composerOpen = false;
+    renderResume();
+    renderCookbook();
+    renderPlanStale();
+    const card = document.querySelector(`[data-card="${CSS.escape(id)}"]`);
+    if (card) { scrollToEl(card); card.querySelector("h3")?.focus({ preventScroll: true }); }
+    announce(`Suggested: ${recipe.name}. Added to your cookbook.`);
+    saveBook();
+  } catch (err) {
+    stop();
+    msg.className = "msg error";
+    msg.textContent = err.message;
+  }
+}
+
 // ---------- voice ----------
 const voice = { rec: null, listening: false, base: "" };
 
@@ -1056,7 +1244,7 @@ function setListening(on) {
   voice.listening = on;
   const mic = $("mic");
   mic.setAttribute("aria-pressed", String(on));
-  mic.querySelector(".mic-label").textContent = on ? "Done" : "Tap and say it the way she says it";
+  mic.querySelector(".mic-label").textContent = on ? "Done" : micIdleLabel();
   mic.closest(".mic-wrap").classList.toggle("is-listening", on);
   updateMicHint();
 }
@@ -1120,29 +1308,148 @@ function setupVoice() {
   updateMicHint();
 }
 
-// ---------- week ----------
+// ---------- plan my week: the intake ----------
+function pickHTML(name, options, type, isOn) {
+  return options.map(([v, l]) => `<label class="pick-opt"><input type="${type}" name="${name}" value="${esc(v)}"${isOn(v) ? " checked" : ""}><span>${esc(l)}</span></label>`).join("");
+}
+
+function goalHelpText(goal) { return (GOALS.find(([k]) => k === goal) || GOALS[0])[2]; }
+
+function setHeightFromCm() {
+  const cm = num($("pHeight").value);
+  if (!$("pHeight").value || cm <= 0) { $("pFt").value = ""; $("pIn").value = ""; return; }
+  let ft = Math.floor(cm / 2.54 / 12);
+  let inch = Math.round(cm / 2.54 - ft * 12);
+  if (inch === 12) { ft += 1; inch = 0; }
+  $("pFt").value = ft; $("pIn").value = inch;
+}
+function setHeightFromFtIn() {
+  const ft = $("pFt").value, inch = $("pIn").value;
+  if (!ft && !inch) { $("pHeight").value = ""; return; }
+  $("pHeight").value = Math.round((num(ft) * 12 + num(inch)) * 2.54);
+}
+function setLbFromKg() {
+  const kg = $("pWeight").value;
+  $("pLb").value = kg && num(kg) > 0 ? Math.round(num(kg) * 2.20462) : "";
+}
+function setKgFromLb() {
+  const lb = $("pLb").value;
+  $("pWeight").value = lb && num(lb) > 0 ? Math.round((num(lb) / 2.20462) * 10) / 10 : "";
+}
+
+function intakeTitle() {
+  return hasParent() ? `Let's plan ${state.parentName.trim()}'s week` : "Let's plan your week";
+}
+
+function renderIntake() {
+  const p = profile();
+  const langs = state.health?.languages || DEFAULT_LANGUAGES;
+  const n = state.recipes.length;
+  $("intakeTitle").textContent = intakeTitle();
+  $("intakeSub").textContent = n
+    ? `A few quick questions, like a chat with a dietitian. We'll build the week around your ${n} family dish${n === 1 ? "" : "es"} and suggest simple meals for the rest.`
+    : "A few quick questions, like a chat with a dietitian. We'll suggest simple meals that fit. You can add family recipes any time.";
+  $("pName").value = state.parentName;
+  $("pLang").innerHTML = langs.map((l) => `<option value="${esc(l)}"${l === state.language ? " selected" : ""}>${esc(l)}</option>`).join("");
+  $("pDiet").innerHTML = pickHTML("diet", DIETS, "radio", (v) => v === p.diet);
+  $("pCond").innerHTML = pickHTML("cond", HEALTH, "checkbox", (v) => p.conditions.includes(v));
+  $("pGoal").innerHTML = pickHTML("goal", GOALS, "radio", (v) => v === p.goal);
+  $("goalHelp").textContent = goalHelpText(p.goal);
+  $("pAvoid").value = p.dislikes;
+  $("pSex").innerHTML = pickHTML("sex", SEXES, "radio", (v) => v === p.sex);
+  $("pAge").value = p.age ?? "";
+  $("pHeight").value = p.height_cm ?? "";
+  $("pWeight").value = p.weight_kg ?? "";
+  setHeightFromCm(); setLbFromKg();
+  $("pAct").innerHTML = pickHTML("act", ACTIVITY, "radio", (v) => v === p.activity);
+  $("pEth").innerHTML = pickHTML("eth", ETHNICITIES, "radio", (v) => v === p.ethnicity);
+  $("pPregnant").checked = p.pregnant;
+  $("pPregWrap").hidden = p.sex !== "female";
+  $("pTarget").open = Boolean(p.sex || p.age || p.height_cm || p.weight_kg || p.ethnicity);
+  $("pSnacks").checked = p.snacks;
+  $("pHousehold").value = state.household;
+  const msg = $("intakeMsg");
+  msg.className = "msg"; msg.textContent = "";
+}
+
+// Read the form. Returns {profile, name, language, household} or {error, field}.
+function readIntake() {
+  const form = $("intakeForm");
+  const checked = (name) => form.querySelector(`input[name="${name}"]:checked`)?.value ?? null;
+  const ranges = [["pAge", 1, 120, "Age", "years"], ["pHeight", 80, 250, "Height", "cm"], ["pWeight", 25, 350, "Weight", "kg"]];
+  for (const [id, lo, hi, label, unit] of ranges) {
+    const raw = $(id).value.trim();
+    if (raw && !(num(raw) >= lo && num(raw) <= hi)) {
+      $("pTarget").open = true;
+      return { error: `${label} should be between ${lo} and ${hi} ${unit}.`, field: id };
+    }
+  }
+  const val = (id) => ($(id).value.trim() ? num($(id).value) : null);
+  const p = cleanProfile({
+    diet: checked("diet"),
+    conditions: Array.from(form.querySelectorAll('input[name="cond"]:checked')).map((x) => x.value),
+    goal: checked("goal"),
+    dislikes: $("pAvoid").value.trim(),
+    sex: checked("sex"),
+    age: val("pAge"),
+    height_cm: val("pHeight"),
+    weight_kg: val("pWeight"),
+    activity: checked("act"),
+    ethnicity: checked("eth"),
+    pregnant: $("pPregnant").checked,
+    snacks: $("pSnacks").checked,
+  });
+  return {
+    profile: p,
+    name: $("pName").value.trim().slice(0, 20),
+    language: $("pLang").value,
+    household: Math.min(12, Math.max(1, Math.round(num($("pHousehold").value)) || 1)),
+  };
+}
+
+function openIntake() {
+  if (!state.profileSet && !state.profileTouched) state.profile = defaultProfile();
+  if (state.composerOpen) { stopListening(); state.composerOpen = false; state.editingId = null; }
+  state.intakeOpen = true;
+  renderIntake();
+  refreshButtons();
+  scrollToEl($("intake"));
+  $("intakeTitle").focus({ preventScroll: true });
+}
+
+function closeIntake() {
+  state.intakeOpen = false;
+  refreshButtons();
+  if (state.plan) { scrollToEl($("week")); $("weekTitle").focus({ preventScroll: true }); }
+  else if (state.recipes.length) { scrollToEl($("dishes")); $("dishesTitle").focus({ preventScroll: true }); }
+  else { window.scrollTo({ top: 0, behavior: reduceMotion() ? "auto" : "smooth" }); $("heroSay").focus({ preventScroll: true }); }
+}
+
+function submitIntake() {
+  const r = readIntake();
+  const msg = $("intakeMsg");
+  if (r.error) {
+    msg.className = "msg error"; msg.textContent = r.error;
+    $(r.field).focus();
+    return;
+  }
+  msg.className = "msg"; msg.textContent = "";
+  state.profile = r.profile;
+  state.parentName = r.name;
+  if (r.name) state.language = r.language;
+  state.household = r.household;
+  renderNames();
+  makePlan();
+}
+
+// ---------- the week ----------
 function renderPlanStale() {
   const el = document.querySelector("#planOut .stale");
   if (el) el.hidden = !state.planStale;
   refreshButtons();
 }
 
-function entryByName(name) { return state.recipes.find((x) => current(x).name === name); }
-
-function dishLabel(name) {
-  if (!name) return `<span class="none">Your choice</span>`;
-  const e = entryByName(name);
-  if (!e) return esc(name);
-  return `<button type="button" class="dish-link" data-goto-dish="${esc(e.id)}">${esc(name)}</button>${!e.adapted ? ` <span class="orig">original</span>` : ""}`;
-}
-
 function hasNote(plan) { return Boolean(String(plan?.message_for_parent || "").trim()); }
-
-function weekTabs(plan) {
-  const tabs = [["meals", "Meals"], ["shop", "Shopping list"]];
-  if (hasNote(plan)) tabs.push(["note", `Note for ${parentWord()}`]);
-  return tabs;
-}
 
 function noteLabel(plan) {
   const lang = String(plan.language || "").trim();
@@ -1156,45 +1463,182 @@ function shopGroups(plan) {
   return Object.keys(SHOP_GROUPS).filter((k) => groups[k]).map((k) => [k, groups[k]]);
 }
 
-function whoPrompt() {
-  if (hasParent() || state.whoSkipped) return "";
-  const langs = state.health?.languages || DEFAULT_LANGUAGES;
+const kcal = (v) => Math.round(num(v)).toLocaleString("en-US");
+function people(n) { return `${n} ${n === 1 ? "person" : "people"}`; }
+
+function planSlots(plan) {
+  const seen = new Set();
+  (plan.days || []).forEach((d) => (d.meals || []).forEach((m) => seen.add(m.slot)));
+  return SLOT_ORDER.filter((k) => seen.has(k));
+}
+
+function portionWord(s) {
+  const n = num(s) || 1;
+  const whole = Math.floor(n + 1e-9);
+  const frac = Math.round((n - whole) * 4) / 4;
+  const f = { 0.25: "¼", 0.5: "½", 0.75: "¾" }[frac] || "";
+  const txt = `${whole || !f ? whole : ""}${f}`;
+  return `${txt} ${n === 1 || n < 1 ? "portion" : "portions"}`;
+}
+
+function keyNumbers(plan) {
+  const conds = plan.profile?.conditions || [];
+  const keys = conds.map((c) => KEY_NUMBERS[c]).filter(Boolean);
+  if (plan.profile?.goal === "steady_sugar" && !conds.includes("diabetes")) keys.unshift(KEY_NUMBERS.diabetes);
+  if (!keys.length) keys.push(["fiber_g", "Fibre", "g"]);
+  return keys;
+}
+
+function profileWords(plan) {
+  const p = plan.profile || {};
+  const bits = [DIET_WORDS[p.diet] || DIET_WORDS.non_veg];
+  (p.conditions || []).forEach((c) => { const h = HEALTH.find(([k]) => k === c); if (h) bits.push(h[1]); });
+  const g = GOALS.find(([k]) => k === p.goal);
+  if (g && g[0] !== "maintain") bits.push(g[1]);
+  return bits;
+}
+
+function targetLine(plan) {
+  const t = num(plan.target?.kcal);
+  return `About ${kcal(plan.average?.kcal)} kcal a day${t ? ` · target ${kcal(t)}` : ""}`;
+}
+
+function weekSummary(plan) {
+  const avg = plan.average || {};
+  const t = plan.target || {};
+  const target = num(t.kcal);
+  const prot = num(avg.protein_g);
+  const aim = num(t.protein_g);
+  const stats = [`
+    <div class="stat"><dt>Protein</dt><dd><b>${esc(fmt(prot, "g"))} g</b> a day${aim ? `<span class="stat-sub${prot < 0.85 * aim ? " is-low" : ""}">aim ${esc(aim)} g</span>` : ""}</dd></div>`];
+  keyNumbers(plan).forEach(([k, label, unit]) => {
+    stats.push(`<div class="stat"><dt>${esc(label)}</dt><dd><b>${esc(unit === "mg" ? kcal(avg[k]) : fmt(avg[k], unit))} ${esc(unit)}</b> a day</dd></div>`);
+  });
+  const who = hasParent() ? `for ${state.parentName.trim()}` : "";
   return `
-    <form class="who" id="whoForm" aria-labelledby="whoTitle">
-      <p id="whoTitle" class="who-title">Who are you cooking for? <span class="muted">(optional)</span></p>
-      <p class="who-sub">Add a name and we'll write them a note about the week, in their language.</p>
-      <div class="who-fields">
-        <label class="field"><span class="field-label">What you call them</span>
-          <input id="whoName" type="text" maxlength="20" autocomplete="off" placeholder="Mum, Dad, Nani, Lola…"></label>
-        <label class="field"><span class="field-label">Their language</span>
-          <select id="whoLang">${langs.map((l) => `<option value="${esc(l)}"${l === state.language ? " selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
+    <div class="wk-summary">
+      <p class="wk-who">${profileWords(plan).map(esc).join(" · ")}${who ? ` · ${esc(who)}` : ""}</p>
+      <div class="wk-cal">
+        <p class="wk-big"><span class="wk-about">About</span> ${esc(kcal(avg.kcal))}<span class="wk-unit"> kcal a day</span></p>
+        <p class="wk-target">${target ? `Target ${esc(kcal(target))} kcal a day, set from age, height, weight and activity` : "Daily calories shown per day. Add age, height and weight for a personal target."}</p>
+        ${bodyLine(t.body) ? `<p class="wk-body">${esc(bodyLine(t.body))}</p>` : ""}
       </div>
-      <div class="who-btns">
-        <button type="submit" class="btn btn-quiet btn-small">Add a note for them</button>
-        <button type="button" class="btn-link" data-who-skip>No thanks</button>
+      <dl class="wk-stats">${stats.join("")}</dl>
+      <p class="wk-foot">Daily averages over the week, worked out from food tables.</p>
+    </div>`;
+}
+
+// Neutral wording: a number and a range, never a judgement or a warning colour.
+function bodyLine(b) {
+  if (!b || !Number.isFinite(Number(b.bmi))) return "";
+  const r = Array.isArray(b.healthy_range_kg) && b.healthy_range_kg.length === 2 ? b.healthy_range_kg : null;
+  const cut = b.cutoffs === "WHO Asian" ? "WHO Asian cut-offs" : "WHO cut-offs";
+  return `BMI ${fmt(b.bmi, "g")}${r ? ` · healthy range ${Math.round(num(r[0]))}–${Math.round(num(r[1]))} kg` : ""} (${cut})`;
+}
+
+function notesBlock(plan) {
+  const notes = (plan.notes || []).filter((x) => String(x || "").trim());
+  if (!notes.length) return "";
+  const li = (x) => `<li>${esc(x)}</li>`;
+  const rest = notes.slice(2);
+  return `
+    <aside class="wk-notes" aria-labelledby="wkNotesH">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19c0-8 6-13 14-14-1 8-6 14-14 14Z"/><path d="M5 19l7-7"/></svg>
+      <div class="wk-notes-body">
+        <h3 id="wkNotesH" class="wk-notes-h">Notes from your plan</h3>
+        <ul>${notes.slice(0, 2).map(li).join("")}</ul>
+        ${rest.length ? `<ul id="wkNotesRest" class="wk-notes-rest"${state.notesOpen ? "" : " hidden"}>${rest.map(li).join("")}</ul>
+        <button type="button" class="btn-link wk-notes-toggle" data-notes-toggle aria-expanded="${Boolean(state.notesOpen)}" aria-controls="wkNotesRest">${state.notesOpen ? "Show fewer" : `Show all ${notes.length} notes`}</button>` : ""}
       </div>
-    </form>`;
+    </aside>`;
+}
+
+function mealRow(m, dayIndex, mealIndex) {
+  const slot = SLOT_NAMES[m.slot] || m.slot;
+  const top = `<p class="meal-top"><span class="meal-slot">${esc(slot)}</span><span class="meal-kcal">${esc(kcal(m.nutrition?.kcal))} kcal</span></p>`;
+  if (m.source === "family") {
+    const e = m.recipe_id != null ? findEntry(String(m.recipe_id)) : null;
+    const name = e
+      ? `<button type="button" class="meal-name dish-link" data-goto-dish="${esc(e.id)}">${esc(m.name)}</button>`
+      : `<span class="meal-name">${esc(m.name)}</span>`;
+    return `
+      <li class="meal is-family">
+        ${top}
+        ${name}
+        <p class="meal-meta"><span class="tag-fam">Family dish</span><span>${esc(portionWord(m.servings))}</span>${e ? `<span class="sr-only">. Activate the name to open the recipe.</span>` : ""}</p>
+      </li>`;
+  }
+  const ings = (m.ingredients || []).map((g) => `<li><span class="ing-amt">${esc(grams(g.grams))}</span><span class="ing-name">${esc(g.item)}</span></li>`).join("");
+  const how = String(m.how || "").trim();
+  return `
+    <li class="meal is-suggested">
+      ${top}
+      <details class="meal-more" data-meal="${dayIndex}-${mealIndex}">
+        <summary><span class="meal-name">${esc(m.name)}</span><span class="meal-meta"><span class="tag-sug">Suggested</span><span class="meal-open"><span class="when-closed">How to make it</span><span class="when-open">Hide</span></span></span></summary>
+        <div class="meal-body">
+          ${ings ? `<p class="rc-h">For one person</p><ul class="ing-list">${ings}</ul>` : ""}
+          ${how ? `<p class="meal-how">${esc(how)}</p>` : ""}
+        </div>
+      </details>
+    </li>`;
+}
+
+function dayCard(d, i, plan) {
+  const tot = d.totals || {};
+  const target = num(plan.target?.kcal);
+  const [k, label, unit] = keyNumbers(plan)[0];
+  return `
+    <article class="day-card${i === state.weekDay ? " is-current" : ""}" id="day-${i}" aria-labelledby="dayh-${i}">
+      <h3 id="dayh-${i}" class="day-h">${esc(DAY_NAMES[d.day] || d.day)}</h3>
+      <ul class="meals">${(d.meals || []).map((m, j) => mealRow(m, i, j)).join("")}</ul>
+      <p class="day-total"><span class="day-total-l">Day total</span><span><b>${esc(kcal(tot.kcal))} kcal</b>${target ? `<span class="muted"> · target ${esc(kcal(target))}</span>` : ""}</span></p>
+      <p class="day-key">${esc(label)}: ${esc(unit === "mg" ? kcal(tot[k]) : fmt(tot[k], unit))} ${esc(unit)}</p>
+    </article>`;
+}
+
+function weekTabs(plan) {
+  const tabs = [["meals", "Meals"], ["shop", "Shopping list"]];
+  if (hasNote(plan)) tabs.push(["note", `Note for ${parentWord()}`]);
+  if ((plan.tips || []).some((t) => String(t || "").trim())) tabs.push(["tips", "Tips"]);
+  return tabs;
+}
+
+function todayIndex(plan) {
+  const short = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date().getDay()];
+  const i = (plan.days || []).findIndex((d) => d.day === short);
+  return i >= 0 ? i : 0;
 }
 
 function renderPlan() {
   const out = $("planOut");
   const plan = state.plan;
   renderNames();
-  if (!plan) { if (!state.planning) out.innerHTML = ""; refreshButtons(); return; }
+  if (state.planning) { refreshButtons(); return; } // the progress card owns #planOut until the reply
+  const err = state.planErrorMsg ? `
+    <div class="msg error plan-err" role="alert">
+      <p>${esc(state.planErrorMsg)}</p>
+      <div class="plan-err-btns">
+        <button type="button" class="btn btn-quiet btn-small" data-retry-plan>Try again</button>
+        <button type="button" class="btn-link" data-prefs>Change preferences</button>
+      </div>
+    </div>` : "";
+  if (!plan) { out.innerHTML = err; refreshButtons(); return; }
   const days = plan.days || [];
+  if (state.weekDay >= days.length) state.weekDay = 0;
   const shopping = plan.shopping_list || [];
   const unadapted = state.recipes.filter((e) => !e.adapted).length;
   const tabs = weekTabs(plan);
   const tab = tabs.some(([k]) => k === state.weekTab) ? state.weekTab : "meals";
-
   const tips = (plan.tips || []).filter((t) => String(t || "").trim());
-  const meals = `<ol class="days" aria-label="Meals for the week">
-    ${days.map((d) => `<li class="day"><h3 class="day-name">${esc(DAY_NAMES[d.day] || d.day)}</h3><dl class="day-meals">
-      ${SLOTS.filter(([k]) => k !== "dessert" || d[k]).map(([k, l]) => `<div><dt>${l}</dt><dd>${dishLabel(d[k])}</dd></div>`).join("")}</dl></li>`).join("")}
-  </ol>
-  ${tips.length ? `<div class="week-tips"><h3 class="rc-h">Tips for the week</h3><ul class="tips">${tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div>` : ""}`;
+  const hh = Math.max(1, num(plan.household) || 1);
+
+  const meals = `
+    <div class="day-chips" role="group" aria-label="Choose a day">
+      ${days.map((d, i) => `<button type="button" class="day-chip" data-day="${i}" aria-pressed="${i === state.weekDay}" aria-controls="day-${i}" aria-label="${esc(DAY_NAMES[d.day] || d.day)}">${esc(d.day)}</button>`).join("")}
+    </div>
+    <div class="days-grid">${days.map((d, i) => dayCard(d, i, plan)).join("")}</div>`;
   const shop = `
-    <div class="panel-head"><p class="muted">Raw weights for the whole week. Tick as you shop.</p>
+    <div class="panel-head"><p class="muted">For ${esc(people(hh))}, the whole week. Raw weights; tick as you shop.</p>
       <button type="button" class="btn btn-quiet btn-small" data-copy="shop">Copy list</button></div>
     ${shopGroups(plan).map(([k, items]) => `
       <div class="shop-group"><h3>${esc(SHOP_GROUPS[k])}</h3>
@@ -1209,16 +1653,23 @@ function renderPlan() {
         <button type="button" class="btn btn-quiet btn-small" data-act="share-note">Send the note to ${esc(parentWord())}</button>
       </div>
     </article>` : "";
-  const panels = { meals, shop, note };
+  const tipsPanel = tips.length ? `<ul class="tips">${tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : "";
+  const panels = { meals, shop, note, tips: tipsPanel };
 
   out.innerHTML = `
-    <p class="msg warn stale" ${state.planStale ? "" : "hidden"}>Your dishes changed. Tap "Update our week" to include them.</p>
+    ${err}
+    <p class="msg warn stale" ${state.planStale ? "" : "hidden"}>Your dishes changed. Tap “Update my week” to include them.</p>
     ${unadapted ? `<p class="hint">${unadapted} dish${unadapted === 1 ? " is" : "es are"} still the original. Make ${unadapted === 1 ? "it" : "them"} lighter, then plan again.</p>` : ""}
-    ${whoPrompt()}
+    ${weekSummary(plan)}
+    ${notesBlock(plan)}
     <div class="tabs" role="tablist" aria-label="Your week">
       ${tabs.map(([k, l]) => `<button type="button" role="tab" id="tab-${k}" aria-controls="panel-${k}" aria-selected="${k === tab}" tabindex="${k === tab ? 0 : -1}" data-tab="${k}">${esc(l)}${k === "shop" ? ` <span class="count">${shopping.length}</span>` : ""}</button>`).join("")}
     </div>
-    ${tabs.map(([k]) => `<div class="tab-panel${k === "note" ? " is-note" : ""}" role="tabpanel" id="panel-${k}" aria-labelledby="tab-${k}" tabindex="0" ${k === tab ? "" : "hidden"}>${panels[k]}</div>`).join("")}`;
+    ${tabs.map(([k]) => `<div class="tab-panel${k === "note" ? " is-note" : ""}${k === "meals" ? " is-meals" : ""}" role="tabpanel" id="panel-${k}" aria-labelledby="tab-${k}" tabindex="0" ${k === tab ? "" : "hidden"}>${panels[k]}</div>`).join("")}
+    <div class="wk-actions">
+      <button type="button" class="btn ${state.planStale ? "btn-primary" : "btn-quiet"}" data-replan>${state.planStale ? "Update my week" : "Plan another week"}</button>
+      <button type="button" class="btn-link" data-prefs>Change preferences</button>
+    </div>`;
   refreshButtons();
 }
 
@@ -1233,56 +1684,104 @@ function selectTab(k, focus) {
   document.querySelectorAll("#planOut [role=tabpanel]").forEach((p) => { p.hidden = p.id !== `panel-${k}`; });
 }
 
-async function makePlan(btn) {
-  const out = $("planOut");
-  state.planning = true; state.planError = false;
-  out.querySelectorAll(":scope > .msg.error").forEach((x) => x.remove());
-  renderSections();
-  const holder = document.createElement("p");
-  holder.className = "working";
-  out.prepend(holder);
+function selectDay(i) {
+  state.weekDay = i;
+  document.querySelectorAll("#planOut .day-chip").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.day) === i)));
+  document.querySelectorAll("#planOut .day-card").forEach((c) => c.classList.toggle("is-current", c.id === `day-${i}`));
+}
+
+function progressHTML(title, stages) {
+  return `
+    <div class="planning" role="group" aria-labelledby="planningTitle">
+      <h3 id="planningTitle" class="planning-title" tabindex="-1">${esc(title)}</h3>
+      <ol class="stages">${stages.map((s, i) => `<li data-stage="${i}"><span class="stage-mark" aria-hidden="true"></span><span class="stage-text">${esc(s)}</span><span class="sr-only stage-state"></span></li>`).join("")}</ol>
+      <div class="planning-foot">
+        <p class="muted">Usually takes 30–40 seconds <span class="secs" aria-hidden="true"></span></p>
+        <button type="button" class="btn btn-quiet btn-small" data-cancel-plan>Cancel</button>
+      </div>
+    </div>`;
+}
+
+function drawStages(now) {
+  document.querySelectorAll("#planOut .stages li").forEach((li, i) => {
+    li.classList.toggle("is-done", i < now);
+    li.classList.toggle("is-now", i === now);
+    li.querySelector(".stage-state").textContent = i < now ? " (done)" : i === now ? " (in progress)" : "";
+  });
+}
+
+async function makePlan() {
+  if (state.planning) return;
+  const p = cleanProfile(profile());
+  state.profile = p;
   const lang = planLanguage();
-  const stop = ticker(holder, `<span class="spinner" aria-hidden="true"></span><span>Planning 7 days and the shopping list${lang ? ` and a note in ${esc(lang)}` : ""}<span class="dots"></span></span>`);
-  let skel = null;
-  if (!state.plan) {
-    skel = document.createElement("div");
-    skel.className = "plan-skel";
-    skel.setAttribute("aria-hidden", "true");
-    skel.innerHTML = `<span class="sk-tabs"></span>${"<span class=\"sk-row\"></span>".repeat(4)}`;
-    holder.after(skel);
-  }
-  scrollToEl($("week"));
-  const condition = state.condition;
+  const ctrl = new AbortController();
   const version = state.cookbookVersion;
+  const n = state.recipes.length;
+  const meals = 7 * (p.snacks ? 4 : 3);
+  const hasBody = Boolean(p.sex && p.age && p.height_cm && p.weight_kg);
+  const title = n ? `Planning ${meals} meals around your family's dishes…` : `Planning ${meals} meals${hasParent() ? ` for ${state.parentName.trim()}` : ""}…`;
+  const stages = PLAN_STAGES.map(([label], i) => {
+    if (i === 0 && !hasBody) return "Reading the preferences";
+    if (i === 1 && n) return "Choosing meals around your dishes";
+    return label;
+  });
+  state.planCtrl = ctrl;
+  state.planning = true; state.planError = false; state.planErrorMsg = ""; state.intakeOpen = false;
+  state.saved = null; renderResume(); // this visit's week replaces the saved one
+  const out = $("planOut");
+  out.innerHTML = progressHTML(title, stages);
+  refreshButtons();
+  scrollToEl($("week"));
+  $("planningTitle").focus({ preventScroll: true });
+  const start = Date.now();
+  let stage = -1;
+  const tick = () => {
+    const s = (Date.now() - start) / 1000;
+    let now = 0;
+    PLAN_STAGES.forEach(([, at], i) => { if (s >= at) now = i; });
+    if (now !== stage) { stage = now; drawStages(now); if (now > 0) announce(`${stages[now]}…`); }
+    const secs = out.querySelector(".secs");
+    if (secs && s >= 2) secs.textContent = `· ${Math.floor(s)} s`;
+  };
+  tick();
+  const timer = setInterval(tick, 500);
+  const finish = () => { clearInterval(timer); if (state.planCtrl === ctrl) { state.planning = false; state.planCtrl = null; } };
   try {
     const recipes = state.recipes.map((e) => baseFields(current(e)));
-    const { plan } = await busy(btn, "Planning…", () => api("/api/plan", { recipes, condition, language: lang, week: state.week }));
-    stop();
-    skel?.remove();
-    state.planning = false;
-    // Drop a late reply if the cookbook or health focus changed while Ultra was planning.
-    if (state.condition !== condition || state.cookbookVersion !== version) {
-      holder.remove();
-      refreshButtons();
-      if (state.condition === condition) announce('Your dishes changed while planning. Tap "Plan our week" again.');
-      return;
-    }
-    state.plan = plan; state.planStale = false; state.weekTab = hasNote(plan) && lang && !hasNote(state._lastPlan) ? "note" : "meals";
-    state._lastPlan = plan;
+    const { week } = await api("/api/week", { recipes, profile: p, language: lang, week: state.week, household: state.household }, 150000, ctrl.signal);
+    if (state.planCtrl !== ctrl) { clearInterval(timer); return; }
+    finish();
+    state.plan = week;
+    // Dishes that changed while planning are kept in the week as they were; offer an update.
+    state.planStale = state.cookbookVersion !== version;
+    state.profileSet = true; state.profileTouched = false;
+    state.weekTab = "meals";
+    state.weekDay = todayIndex(week);
     renderPlan();
     saveBook();
     $("weekTitle").focus({ preventScroll: true });
-    announce(hasNote(plan) ? "Your week is ready, with a shopping list and a note." : "Your week is ready, with a shopping list. Your cookbook is ready too.");
+    announce(`Your week is ready: ${targetLine(week)}. ${hasNote(week) ? "With a shopping list and a note." : "With a shopping list."}`);
   } catch (err) {
-    stop();
-    skel?.remove();
-    state.planning = false;
-    state.planError = !state.plan;
-    holder.className = "msg error";
-    holder.setAttribute("role", "alert");
-    holder.textContent = err.message;
-    refreshButtons();
+    if (state.planCtrl !== ctrl) { clearInterval(timer); return; }
+    finish();
+    if (err.cancelled) {
+      if (!state.plan) state.intakeOpen = true;
+      renderPlan();
+      if (state.intakeOpen) { renderIntake(); refreshButtons(); scrollToEl($("intake")); $("intakeTitle").focus({ preventScroll: true }); }
+      else { $("weekTitle").focus({ preventScroll: true }); }
+      announce("Stopped planning. Nothing was changed.");
+      return;
+    }
+    state.planError = true;
+    state.planErrorMsg = err.message;
+    renderPlan();
+    out.querySelector(".plan-err")?.scrollIntoView({ block: "nearest" });
   }
+}
+
+function cancelPlan() {
+  if (state.planCtrl) state.planCtrl.abort();
 }
 
 async function copyText(text) {
@@ -1313,6 +1812,7 @@ async function shareText(title, text) {
 // ---------- the family cookbook ----------
 function focusLine(r) {
   const f = focusNumbers(r);
+  if (r.suggested) return { f, text: `${f.label.charAt(0).toUpperCase() + f.label.slice(1)} per serving: ${fmt(f.after, f.unit)} ${f.unit}` };
   const pct = r.comparable !== false && f.pct > 0 ? ` (${f.pct}% less)` : "";
   return { f, text: `${f.label.charAt(0).toUpperCase() + f.label.slice(1)} per serving: ${fmt(f.before, f.unit)} → ${fmt(f.after, f.unit)} ${f.unit}${pct}` };
 }
@@ -1330,28 +1830,41 @@ function cookbookHTML() {
     const facts = adapted ? (Array.isArray(r.facts) ? r.facts : []).filter((x) => x && x.text).slice(0, 2) : [];
     return `
       <article class="cb-dish">
-        <p class="cb-kicker">${esc(mealWord(r))} · Serves ${esc(r.servings)}${adapted ? "" : " · original, not yet made lighter"}</p>
+        <p class="cb-kicker">${esc(mealWord(r))} · Serves ${esc(r.servings)}${e.origin === "suggested" ? " · Suggested for you" : adapted ? "" : " · original, not yet made lighter"}</p>
         <h3>${esc(r.name)}</h3>
         ${adapted ? `<p class="cb-focus">${esc(focusLine(r).text)}</p>` : ""}
         <div class="cb-cols">
-          <div><h4 class="rc-h">Ingredients</h4>${ingredientsBlock(r, { compare: adapted })}</div>
+          <div><h4 class="rc-h">Ingredients</h4>${ingredientsBlock(r, { compare: adapted && !r.suggested })}</div>
           ${steps.length ? `<div><h4 class="rc-h">Method</h4><ol class="method">${steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol></div>` : ""}
         </div>
         ${portion ? `<div class="portion"><p class="portion-h">Portion</p><p>${esc(portion)}</p></div>` : ""}
+        ${r.suggested && String(r.why || "").trim() ? `<div class="cb-why"><h4 class="rc-h">Why it fits</h4><p>${esc(r.why)}</p></div>` : ""}
         ${changes.length ? `<div class="cb-why"><h4 class="rc-h">What we changed and why</h4><ul>${changes.map((c) => `<li><b>${esc(c.what)}.</b> ${esc(c.why)}</li>`).join("")}</ul></div>` : ""}
         ${facts.length ? `<div class="cb-facts"><h4 class="rc-h">Good to know</h4><ul>${facts.map((x) => `<li>${esc(x.text)}${x.source ? ` <span class="cb-src">Source: ${esc(x.source)}${safeUrl(x.url) ? `, ${esc(safeUrl(x.url))}` : ""}</span>` : ""}</li>`).join("")}</ul></div>` : ""}
       </article>`;
   }).join("");
+  const slots = plan ? planSlots(plan) : [];
+  const cell = (d, k) => {
+    const m = (d.meals || []).find((x) => x.slot === k);
+    if (!m) return "–";
+    return m.source === "family" ? `<b>${esc(m.name)}</b>` : esc(m.name);
+  };
+  const hh = plan ? Math.max(1, num(plan.household) || 1) : 1;
+  const notes = plan ? (plan.notes || []).filter((x) => String(x || "").trim()) : [];
   const week = plan ? `
     <section class="cb-sec cb-week-sec">
-      <h3>This week's plan</h3>
+      <h3>This week's meals</h3>
+      <p class="cb-target">${esc(targetLine(plan))} · ${esc(profileWords(plan).join(" · "))}</p>
+      ${bodyLine(plan.target?.body) ? `<p class="cb-legend">${esc(bodyLine(plan.target.body))}</p>` : ""}
       <table class="cb-week">
-        <thead><tr><th scope="col">Day</th>${SLOTS.map(([, l]) => `<th scope="col">${l}</th>`).join("")}</tr></thead>
-        <tbody>${(plan.days || []).map((d) => `<tr><th scope="row">${esc(DAY_NAMES[d.day] || d.day)}</th>${SLOTS.map(([k]) => `<td>${esc(d[k] || "–")}</td>`).join("")}</tr>`).join("")}</tbody>
+        <thead><tr><th scope="col">Day</th>${slots.map((k) => `<th scope="col">${esc(SLOT_NAMES[k])}</th>`).join("")}<th scope="col" class="cb-num">kcal</th></tr></thead>
+        <tbody>${(plan.days || []).map((d) => `<tr><th scope="row">${esc(d.day)}</th>${slots.map((k) => `<td>${cell(d, k)}</td>`).join("")}<td class="cb-num">${esc(kcal(d.totals?.kcal))}</td></tr>`).join("")}</tbody>
       </table>
+      <p class="cb-legend">${state.recipes.length ? "Family dishes in bold. " : ""}Calories per person per day, from food tables.</p>
+      ${notes.length ? `<ul class="cb-notes">${notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
     </section>
     <section class="cb-sec">
-      <h3>Shopping list</h3>
+      <h3>Shopping list <span class="cb-h-sub">for ${esc(people(hh))}</span></h3>
       <div class="cb-shop">${shopGroups(plan).map(([k, items]) => `<div><h4 class="rc-h">${esc(SHOP_GROUPS[k])}</h4><ul>${items.map((s) => `<li><span>${esc(s.item)}</span><span>${esc(grams(s.grams))}</span></li>`).join("")}</ul></div>`).join("")}</div>
     </section>
     ${note ? `<section class="cb-sec cb-note"><h3>${esc(noteLabel(plan))}</h3><p class="cb-note-text">${esc(plan.message_for_parent)}</p></section>` : ""}` : `
@@ -1371,7 +1884,7 @@ function cookbookHTML() {
         <h2 id="cbTitle" tabindex="-1">${esc(cookbookTitle())}</h2>
         <p class="cb-line">${esc(coverLine())}</p>
       </header>
-      ${state.recipes.length ? dishes : `<p class="cb-noplan">Nothing in your cookbook yet.</p>`}
+      ${state.recipes.length ? dishes : plan ? "" : `<p class="cb-noplan">Nothing in your cookbook yet.</p>`}
       ${week}
       <footer class="cb-foot">${esc(SOURCES_LINE)}</footer>
     </div>`;
@@ -1389,13 +1902,16 @@ function cookbookText() {
     const steps = (Array.isArray(r.method) ? r.method : []).filter((s) => String(s || "").trim());
     if (steps.length) { L.push("Method:"); steps.forEach((s, i) => L.push(`${i + 1}. ${s}`)); }
     if (r.portion_tip) L.push(`Portion: ${r.portion_tip}`);
+    if (r.suggested && r.why) L.push(`Why it fits: ${r.why}`);
     if (e.adapted && r.changes?.length) { L.push("What we changed:"); r.changes.slice(0, 4).forEach((c) => L.push(`- ${c.what}: ${c.why}`)); }
     L.push("");
   });
   if (plan) {
-    L.push("== This week ==");
-    (plan.days || []).forEach((d) => L.push(`${DAY_NAMES[d.day] || d.day}: ${SLOTS.filter(([k]) => d[k]).map(([k, l]) => `${l} ${d[k]}`).join(" · ")}`));
-    L.push("", "== Shopping list ==");
+    L.push("== This week ==", `${targetLine(plan)} · ${profileWords(plan).join(" · ")}`);
+    if (bodyLine(plan.target?.body)) L.push(bodyLine(plan.target.body));
+    (plan.days || []).forEach((d) => L.push(`${DAY_NAMES[d.day] || d.day} (${kcal(d.totals?.kcal)} kcal): ${(d.meals || []).map((m) => `${SLOT_NAMES[m.slot] || m.slot} ${m.name}${m.source === "family" ? " (family dish)" : ""}`).join(" · ")}`));
+    (plan.notes || []).forEach((x) => L.push(`Note: ${x}`));
+    L.push("", `== Shopping list (for ${people(Math.max(1, num(plan.household) || 1))}) ==`);
     (plan.shopping_list || []).forEach((s) => L.push(`- ${s.item}: ${grams(s.grams)}`));
     if (hasNote(plan)) L.push("", `== ${noteLabel(plan)} ==`, plan.message_for_parent);
     L.push("");
@@ -1424,13 +1940,16 @@ function printCookbook() {
 }
 
 // ---------- events ----------
-document.querySelectorAll('input[name="condition"]').forEach((r) => r.addEventListener("change", () => setCondition(r.value)));
-$("goalSelect").addEventListener("change", (e) => setCondition(e.target.value));
+document.querySelectorAll('input[name="condition"]').forEach((r) => r.addEventListener("change", () => toggleCondition(r.value, r.checked)));
+$("goalChips").addEventListener("change", (e) => { if (e.target.name === "goalChip") toggleCondition(e.target.value, e.target.checked); });
 $("cuisine").addEventListener("change", (e) => { state.cuisine = e.target.value; syncControls(); saveBook(); });
 $("speechLang").addEventListener("change", (e) => { state.speechLang = e.target.value; updateMicHint(); });
 
 $("heroSay").addEventListener("click", () => openComposer({ mode: "say" }));
 $("heroType").addEventListener("click", () => openComposer({ mode: "type" }));
+$("heroSuggest").addEventListener("click", () => openComposer({ mode: "suggest" }));
+$("heroWeek").addEventListener("click", openIntake);
+$("composerSkip").addEventListener("click", openIntake);
 $("heroSample").addEventListener("click", (e) => {
   e.preventDefault();
   scrollToEl($("samples"));
@@ -1463,8 +1982,9 @@ $("resume").addEventListener("click", (e) => {
     adaptAll($("adaptAll"));
     return;
   }
-  state.week += 1; // a fresh rotation, not last week's again
-  makePlan($("plan"));
+  if (!state.profileSet) { openIntake(); return; }
+  if (state.plan) state.week += 1; // a fresh rotation, not last week's again
+  makePlan(); // one tap: the saved profile plans this week
 });
 
 document.querySelectorAll(".stepper-btn").forEach((b) => b.addEventListener("click", () => {
@@ -1519,8 +2039,7 @@ $("cookbook").addEventListener("click", (e) => {
     const entry = findEntry(rm.dataset.remove);
     state.recipes = state.recipes.filter((x) => x.id !== rm.dataset.remove);
     markCookbookChanged();
-    if (!state.recipes.length) { state.plan = null; state.planStale = false; state.planError = false; renderPlan(); }
-    renderCookbook(); renderPlanStale();
+    renderCookbook(); renderPlan();
     saveBook();
     if (state.recipes.length) $("dishesTitle").focus({ preventScroll: true });
     else $("heroSay").focus();
@@ -1529,9 +2048,35 @@ $("cookbook").addEventListener("click", (e) => {
 });
 
 $("adaptAll").addEventListener("click", (e) => adaptAll(e.currentTarget));
-$("plan").addEventListener("click", (e) => {
-  if (state.plan && !state.planStale) state.week += 1; // "Plan another week" gives a new rotation
-  makePlan(e.currentTarget);
+$("plan").addEventListener("click", () => { if (state.profileSet) makePlan(); else openIntake(); });
+
+// ---------- intake events ----------
+$("intakeForm").addEventListener("submit", (e) => { e.preventDefault(); submitIntake(); });
+$("intakeCancel").addEventListener("click", closeIntake);
+$("intakeForm").addEventListener("input", (e) => {
+  state.profileTouched = true;
+  const id = e.target.id;
+  if (id === "pHeight") setHeightFromCm();
+  else if (id === "pFt" || id === "pIn") setHeightFromFtIn();
+  else if (id === "pWeight") setLbFromKg();
+  else if (id === "pLb") setKgFromLb();
+  if (e.target.name === "goal") $("goalHelp").textContent = goalHelpText(e.target.value);
+  const msg = $("intakeMsg");
+  if (msg.classList.contains("error")) { msg.className = "msg"; msg.textContent = ""; }
+});
+$("intakeForm").addEventListener("change", (e) => {
+  if (e.target.name === "goal") $("goalHelp").textContent = goalHelpText(e.target.value);
+  if (e.target.name === "sex") {
+    $("pPregWrap").hidden = e.target.value !== "female";
+    if (e.target.value !== "female") $("pPregnant").checked = false;
+  }
+});
+$("intakeForm").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-hh]");
+  if (!b) return;
+  const input = $("pHousehold");
+  input.value = Math.min(12, Math.max(1, (Math.round(num(input.value)) || 1) + Number(b.dataset.hh)));
+  state.profileTouched = true;
 });
 
 function gotoDish(id) {
@@ -1546,10 +2091,25 @@ function gotoDish(id) {
 $("planOut").addEventListener("click", async (e) => {
   const t = e.target.closest("[data-tab]");
   if (t) { selectTab(t.dataset.tab, false); return; }
+  const day = e.target.closest("[data-day]");
+  if (day) { selectDay(Number(day.dataset.day)); return; }
   const g = e.target.closest("[data-goto-dish]");
   if (g) { gotoDish(g.dataset.gotoDish); return; }
-  if (e.target.closest("[data-who-skip]")) {
-    state.whoSkipped = true; renderPlan(); $("weekTitle").focus({ preventScroll: true }); return;
+  if (e.target.closest("[data-cancel-plan]")) { cancelPlan(); return; }
+  const nt = e.target.closest("[data-notes-toggle]");
+  if (nt) {
+    state.notesOpen = !state.notesOpen;
+    $("wkNotesRest").hidden = !state.notesOpen;
+    nt.setAttribute("aria-expanded", String(state.notesOpen));
+    nt.textContent = state.notesOpen ? "Show fewer" : `Show all ${(state.plan?.notes || []).filter((x) => String(x || "").trim()).length} notes`;
+    return;
+  }
+  if (e.target.closest("[data-retry-plan]")) { makePlan(); return; }
+  if (e.target.closest("[data-prefs]")) { openIntake(); return; }
+  if (e.target.closest("[data-replan]")) {
+    if (state.plan && !state.planStale) state.week += 1; // "Plan another week" gives a new rotation
+    makePlan();
+    return;
   }
   if (e.target.closest("[data-act=share-note]")) { shareText(noteLabel(state.plan), state.plan?.message_for_parent || ""); return; }
   const b = e.target.closest("[data-copy]");
@@ -1559,18 +2119,6 @@ $("planOut").addEventListener("click", async (e) => {
   else text = (state.plan?.shopping_list || []).map((s) => `${s.item}: ${grams(s.grams)}`).join("\n");
   const ok = await copyText(text);
   toast(ok ? "Copied. Paste it anywhere." : "Couldn't copy. Please select the text and copy it.");
-});
-
-$("planOut").addEventListener("submit", (e) => {
-  if (e.target.id !== "whoForm") return;
-  e.preventDefault();
-  const name = $("whoName").value.trim().slice(0, 20);
-  if (!name) { $("whoName").focus(); toast("Add what you call them, or tap No thanks."); return; }
-  state.parentName = name;
-  state.language = $("whoLang").value;
-  renderNames();
-  saveBook();
-  makePlan($("plan"));
 });
 
 $("planOut").addEventListener("keydown", (e) => {
@@ -1606,7 +2154,9 @@ $("howClose").addEventListener("click", closeHow);
 $("how").addEventListener("click", (e) => { if (e.target === $("how")) closeHow(); }); // tap outside closes
 $("how").addEventListener("close", () => $("howOpen").focus());
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && document.body.classList.contains("cb-open") && !$("how").open) closeCookbook();
+  if (e.key !== "Escape" || $("how").open) return;
+  if (document.body.classList.contains("cb-open")) closeCookbook();
+  else if (state.planning) cancelPlan();
 });
 
 // ---------- theme ----------
