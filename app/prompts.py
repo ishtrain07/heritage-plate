@@ -25,9 +25,15 @@ swap and reduce, don't ban. Make at most 4 changes, such as smaller starch porti
 whole grains or legumes, less fat/sugar/salt/salty sauce, or adding vegetables.
 Use ONLY these ingredient names: {names}.
 Do not state nutrition numbers; the app computes them from food-composition tables.
+Then write the lighter version as a recipe a home cook can follow: 4 to 7 short "method" steps
+using the adapted amounts (home measures like katori, cup or spoon are fine), and a "portion_tip":
+one sentence giving a specific serving in home measures (e.g. "1 katori rice", "2 rotis", "1 cup")
+that suits the condition, and what to fill the rest of the plate with.
 Reply with JSON only:
 {{"ingredients": [{{"item": str, "grams": number}}],
   "changes": [{{"what": str, "why": str}}],
+  "method": [str],
+  "portion_tip": str,
   "cooking_tip": str}}"""
 
 PLAN = """You plan a week of home meals for a family with a parent who has {condition}.

@@ -89,13 +89,21 @@ def _meal_type(name: str, ingredients: list[dict]) -> str:
     return "dessert" if sweet / total > 0.08 else "main"
 
 
-def build_recipe(name: str, servings: int, ingredients: list[dict], source_text: str = "", meal: str | None = None) -> dict:
+def clean_steps(raw: object, limit: int = 10) -> list[str]:
+    """Keep a short list of non-empty cooking steps."""
+    steps = [str(s).strip()[:220] for s in (raw if isinstance(raw, list) else []) if isinstance(s, str | int | float)]
+    return [s for s in steps if s][:limit]
+
+
+def build_recipe(name: str, servings: int, ingredients: list[dict], source_text: str = "", meal: str | None = None,
+                 method: object = None) -> dict:
     return {
         "name": name[:80],
         "servings": servings,
         "meal": meal if meal in ("breakfast", "main", "dessert") else _meal_type(name, ingredients),
         "ingredients": ingredients,
         "source_text": source_text[:1000],
+        "method": clean_steps(method),
         "nutrition": nutrition.per_serving(ingredients, servings),
         "sources": nutrition.sources_for(ingredients),
     }
@@ -161,6 +169,13 @@ SALTY = {
     "cheddar cheese": (0.6, "Use 40% less cheddar", "Cheese adds a lot of sodium."),
     "queso fresco": (0.6, "Use 40% less queso", "Cheese adds a lot of sodium."),
     "bacon": (0.5, "Use half the bacon", "Cured meat is salty and fatty."),
+}
+
+
+MOCK_PORTION_TIPS = {
+    "diabetes": "Half the plate vegetables, a quarter this dish's starch, a quarter protein.",
+    "bp": "Serve the usual portion; taste before adding any salt or sauce at the table.",
+    "cholesterol": "Serve with a big salad or vegetables, and keep cheese and cream as toppings, not fillings.",
 }
 
 
@@ -237,6 +252,9 @@ def _mock_adapt(recipe: dict, condition: str) -> dict:
         "ingredients": [{"item": k, "grams": v} for k, v in ings.items()],
         "changes": changes[:5] or [{"what": "Keep it as is, watch the portion", "why": "This dish already fits well."}],
         "cooking_tip": "Fill half the plate with vegetables or salad first, then the dish.",
+        # Demo dishes carry a hand-written method; mock mode reuses it with the changes listed above.
+        "method": recipe.get("method") or [],
+        "portion_tip": MOCK_PORTION_TIPS[condition],
     }
 
 
@@ -246,8 +264,8 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str) -> tuple[dict, list
     if llm.is_live():
         system = prompts.ADAPT.format(condition=CONDITIONS[condition], cuisine=CUISINES[cuisine],
                                       names=", ".join(nutrition.canonical_names()))
-        user = json.dumps({k: recipe[k] for k in ("name", "servings", "ingredients")})
-        data, trace = llm.chat_json("super", system, user, step="Adapt dish")
+        user = json.dumps({k: recipe[k] for k in ("name", "servings", "ingredients", "source_text", "method")})
+        data, trace = llm.chat_json("super", system, user, step="Adapt dish", max_tokens=2500)
     else:
         data, trace = _mock_adapt({**recipe, "nutrition": before}, condition), _mock_trace("Adapt dish", "super")
 
@@ -269,6 +287,8 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str) -> tuple[dict, list
         "sources": nutrition.sources_for(ingredients),
         "changes": changes,
         "cooking_tip": str(data.get("cooking_tip") or "")[:240],
+        "method": clean_steps(data.get("method")) or recipe.get("method") or [],
+        "portion_tip": str(data.get("portion_tip") or "")[:200],
         "original": {"ingredients": recipe["ingredients"], "nutrition": before},
         "delta": {k: round(after[k] - before[k], 1) for k in ("net_carbs_g", "sat_fat_g", "fat_g", "sodium_mg", "kcal")},
         "focus": FOCUS_KEY[condition],

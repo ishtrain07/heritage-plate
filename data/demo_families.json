@@ -9,19 +9,24 @@
     "recipes": [
       {"name": "Mum's aloo paratha", "servings": 4, "meal": "breakfast",
        "source_text": "3 katori atta, 2 big boiled aloo, one onion, hari mirch, masala, and ghee on top, as much as you like.",
-       "ingredients": [{"item": "atta", "grams": 300}, {"item": "aloo", "grams": 300}, {"item": "onion", "grams": 110}, {"item": "green chili", "grams": 10}, {"item": "masala", "grams": 6}, {"item": "ghee", "grams": 40}, {"item": "salt", "grams": 6}]},
+       "ingredients": [{"item": "atta", "grams": 300}, {"item": "aloo", "grams": 300}, {"item": "onion", "grams": 110}, {"item": "green chili", "grams": 10}, {"item": "masala", "grams": 6}, {"item": "ghee", "grams": 40}, {"item": "salt", "grams": 6}],
+       "method": ["Knead the atta with water and a pinch of salt into a soft dough; rest 15 minutes.", "Mash the boiled potato with the onion, green chilli and masala (mix in any cauliflower now).", "Roll a small ball of dough, fill with a spoon of stuffing, seal and roll flat.", "Cook on a hot tawa, turning once, until brown spots appear.", "Brush with a measured half spoon of ghee per paratha at the end, not during cooking."]},
       {"name": "Sunday rajma chawal", "servings": 4,
        "source_text": "2 katori rajma soaked overnight, 1.5 cups basmati, onion-tomato tadka with adrak lahsun, 2 spoons oil.",
-       "ingredients": [{"item": "rajma", "grams": 200}, {"item": "basmati rice", "grams": 280}, {"item": "onion", "grams": 150}, {"item": "tomato", "grams": 200}, {"item": "ginger", "grams": 10}, {"item": "garlic", "grams": 10}, {"item": "vegetable oil", "grams": 26}, {"item": "masala", "grams": 8}, {"item": "salt", "grams": 7}]},
+       "ingredients": [{"item": "rajma", "grams": 200}, {"item": "basmati rice", "grams": 280}, {"item": "onion", "grams": 150}, {"item": "tomato", "grams": 200}, {"item": "ginger", "grams": 10}, {"item": "garlic", "grams": 10}, {"item": "vegetable oil", "grams": 26}, {"item": "masala", "grams": 8}, {"item": "salt", "grams": 7}],
+       "method": ["Pressure-cook the soaked rajma until soft (4-5 whistles).", "Heat the oil, fry onion, ginger and garlic until golden, then add tomato and masala.", "Add the rajma with some cooking water; simmer 15 minutes until thick.", "Rinse and cook the rice (mix in any cauliflower rice in the last 3 minutes).", "Serve a measured katori of rice with a big bowl of rajma and salad."]},
       {"name": "Dal tadka with roti", "servings": 4,
        "source_text": "2 katori toor dal, tamatar, pyaz, lahsun tadka in ghee, 8 rotis from 2.5 katori atta.",
-       "ingredients": [{"item": "toor dal", "grams": 200}, {"item": "atta", "grams": 250}, {"item": "tomato", "grams": 120}, {"item": "onion", "grams": 110}, {"item": "garlic", "grams": 10}, {"item": "ghee", "grams": 30}, {"item": "jeera", "grams": 4}, {"item": "salt", "grams": 6}]},
+       "ingredients": [{"item": "toor dal", "grams": 200}, {"item": "atta", "grams": 250}, {"item": "tomato", "grams": 120}, {"item": "onion", "grams": 110}, {"item": "garlic", "grams": 10}, {"item": "ghee", "grams": 30}, {"item": "jeera", "grams": 4}, {"item": "salt", "grams": 6}],
+       "method": ["Pressure-cook the toor dal with turmeric until soft, then whisk smooth.", "Make the tadka: heat the ghee, add cumin, garlic, onion and tomato.", "Pour the tadka over the dal and simmer 5 minutes.", "Knead the dough (atta and besan if using), roll thin rotis and cook on a dry tawa.", "Serve with salad on the side."]},
       {"name": "Palak paneer", "servings": 4,
        "source_text": "Two bunches palak, 250 g paneer, one onion, one tomato, a spoon of butter and oil.",
-       "ingredients": [{"item": "spinach", "grams": 450}, {"item": "paneer", "grams": 250}, {"item": "onion", "grams": 110}, {"item": "tomato", "grams": 120}, {"item": "butter", "grams": 15}, {"item": "vegetable oil", "grams": 20}, {"item": "masala", "grams": 5}, {"item": "salt", "grams": 6}]},
+       "ingredients": [{"item": "spinach", "grams": 450}, {"item": "paneer", "grams": 250}, {"item": "onion", "grams": 110}, {"item": "tomato", "grams": 120}, {"item": "butter", "grams": 15}, {"item": "vegetable oil", "grams": 20}, {"item": "masala", "grams": 5}, {"item": "salt", "grams": 6}],
+       "method": ["Blanch the spinach for 2 minutes, cool in cold water and blend smooth.", "Heat the oil and butter, fry onion, then add tomato and masala.", "Stir in the spinach and simmer 5 minutes.", "Add the paneer cubes and warm through; finish with a splash of yogurt if using."]},
       {"name": "Rice kheer", "servings": 6, "meal": "dessert",
        "source_text": "1 litre doodh, half katori chawal, 1 katori cheeni, a few kaju.",
-       "ingredients": [{"item": "milk", "grams": 1000}, {"item": "rice", "grams": 60}, {"item": "sugar", "grams": 120}, {"item": "cashews", "grams": 20}]}
+       "ingredients": [{"item": "milk", "grams": 1000}, {"item": "rice", "grams": 60}, {"item": "sugar", "grams": 120}, {"item": "cashews", "grams": 20}],
+       "method": ["Rinse the rice and soak it for 20 minutes.", "Bring the milk to a boil, add the rice and simmer on low, stirring, for 30-40 minutes.", "Stir in the sugar when the rice is soft; simmer 5 more minutes.", "Add the cashews, then serve in small bowls."]}
     ]
   },
   {
@@ -34,16 +39,20 @@
     "recipes": [
       {"name": "Dad's tomato egg stir-fry", "servings": 3,
        "source_text": "4 eggs, 3 tomatoes, a spoon of sugar, 2 spoons soy sauce, spring onion, a little oil.",
-       "ingredients": [{"item": "egg", "grams": 200}, {"item": "tomato", "grams": 360}, {"item": "sugar", "grams": 10}, {"item": "soy sauce", "grams": 32}, {"item": "spring onion", "grams": 20}, {"item": "vegetable oil", "grams": 26}, {"item": "salt", "grams": 3}]},
+       "ingredients": [{"item": "egg", "grams": 200}, {"item": "tomato", "grams": 360}, {"item": "sugar", "grams": 10}, {"item": "soy sauce", "grams": 32}, {"item": "spring onion", "grams": 20}, {"item": "vegetable oil", "grams": 26}, {"item": "salt", "grams": 3}],
+       "method": ["Beat the eggs with a pinch of salt; cut the tomatoes into wedges.", "Scramble the eggs in half the oil until just set, then set aside.", "Cook the tomatoes in the rest of the oil until soft and juicy.", "Add the sugar and soy sauce, return the eggs, toss and top with spring onion."]},
       {"name": "Mapo tofu with rice", "servings": 4,
        "source_text": "One block tofu, 200 g pork mince, chili, 3 spoons soy sauce, garlic, ginger, rice for four.",
-       "ingredients": [{"item": "tofu", "grams": 400}, {"item": "pork", "grams": 200}, {"item": "chili powder", "grams": 5}, {"item": "soy sauce", "grams": 48}, {"item": "garlic", "grams": 12}, {"item": "ginger", "grams": 10}, {"item": "vegetable oil", "grams": 26}, {"item": "white rice", "grams": 300}, {"item": "salt", "grams": 4}]},
+       "ingredients": [{"item": "tofu", "grams": 400}, {"item": "pork", "grams": 200}, {"item": "chili powder", "grams": 5}, {"item": "soy sauce", "grams": 48}, {"item": "garlic", "grams": 12}, {"item": "ginger", "grams": 10}, {"item": "vegetable oil", "grams": 26}, {"item": "white rice", "grams": 300}, {"item": "salt", "grams": 4}],
+       "method": ["Cut the tofu into cubes and blanch in hot water for 2 minutes.", "Brown the pork mince with garlic, ginger and chilli.", "Add the soy sauce and a little water, then slide in the tofu and simmer 5 minutes.", "Serve with a measured bowl of rice and a side of greens."]},
       {"name": "Bok choy with oyster sauce", "servings": 4,
        "source_text": "Two bunches bok choy, garlic, 2 spoons oyster sauce, a little oil.",
-       "ingredients": [{"item": "bok choy", "grams": 500}, {"item": "garlic", "grams": 12}, {"item": "oyster sauce", "grams": 36}, {"item": "vegetable oil", "grams": 13}, {"item": "salt", "grams": 2}]},
+       "ingredients": [{"item": "bok choy", "grams": 500}, {"item": "garlic", "grams": 12}, {"item": "oyster sauce", "grams": 36}, {"item": "vegetable oil", "grams": 13}, {"item": "salt", "grams": 2}],
+       "method": ["Wash the bok choy and halve the larger heads.", "Blanch for 1 minute, then drain well.", "Fry the garlic in the oil, add the bok choy and toss for 1 minute.", "Drizzle the oyster sauce (thinned with a little water) over the top."]},
       {"name": "Morning congee", "servings": 4, "meal": "breakfast",
        "source_text": "1 cup rice cooked soft, ginger, spring onion, a pinch of salt, soy sauce to serve.",
-       "ingredients": [{"item": "white rice", "grams": 185}, {"item": "ginger", "grams": 10}, {"item": "spring onion", "grams": 20}, {"item": "salt", "grams": 4}, {"item": "soy sauce", "grams": 16}]}
+       "ingredients": [{"item": "white rice", "grams": 185}, {"item": "ginger", "grams": 10}, {"item": "spring onion", "grams": 20}, {"item": "salt", "grams": 4}, {"item": "soy sauce", "grams": 16}],
+       "method": ["Rinse the rice and simmer it with plenty of water for about 1 hour, stirring now and then.", "Add shredded ginger in the last 10 minutes.", "Season lightly; let each person add soy sauce at the table, a few drops at a time.", "Top with spring onion."]}
     ]
   },
   {
@@ -56,16 +65,20 @@
     "recipes": [
       {"name": "Nonna's lasagne", "servings": 6,
        "source_text": "500 g beef mince, pasta sheets, tomatoes, a big handful of mozzarella and parmesan, cream for the white sauce.",
-       "ingredients": [{"item": "ground beef", "grams": 500}, {"item": "pasta", "grams": 300}, {"item": "tomato", "grams": 600}, {"item": "mozzarella", "grams": 200}, {"item": "parmesan", "grams": 60}, {"item": "heavy cream", "grams": 200}, {"item": "onion", "grams": 110}, {"item": "olive oil", "grams": 26}, {"item": "salt", "grams": 6}]},
+       "ingredients": [{"item": "ground beef", "grams": 500}, {"item": "pasta", "grams": 300}, {"item": "tomato", "grams": 600}, {"item": "mozzarella", "grams": 200}, {"item": "parmesan", "grams": 60}, {"item": "heavy cream", "grams": 200}, {"item": "onion", "grams": 110}, {"item": "olive oil", "grams": 26}, {"item": "salt", "grams": 6}],
+       "method": ["Brown the beef mince (with mushrooms if using) and add the tomatoes; simmer 30 minutes.", "Mix the cream (or yogurt) with a little cheese for the white layer.", "Layer pasta sheets, meat sauce and white sauce in a dish, three times.", "Top with mozzarella and parmesan and bake at 190 °C for 35-40 minutes."]},
       {"name": "Spaghetti carbonara", "servings": 4,
        "source_text": "400 g spaghetti, 150 g bacon, 3 eggs, parmesan, black pepper.",
-       "ingredients": [{"item": "spaghetti", "grams": 400}, {"item": "bacon", "grams": 150}, {"item": "egg", "grams": 150}, {"item": "parmesan", "grams": 60}, {"item": "salt", "grams": 4}]},
+       "ingredients": [{"item": "spaghetti", "grams": 400}, {"item": "bacon", "grams": 150}, {"item": "egg", "grams": 150}, {"item": "parmesan", "grams": 60}, {"item": "salt", "grams": 4}],
+       "method": ["Cook the spaghetti in salted water until al dente; keep a cup of the water.", "Crisp the bacon in a dry pan.", "Whisk the eggs with the parmesan and lots of black pepper.", "Off the heat, toss the pasta with the bacon, then the egg mix and a splash of pasta water until silky."]},
       {"name": "Minestrone", "servings": 6,
        "source_text": "Carrot, celery, onion, zucchini, a can of beans, tomatoes, a little pasta, olive oil.",
-       "ingredients": [{"item": "carrot", "grams": 150}, {"item": "celery", "grams": 100}, {"item": "onion", "grams": 110}, {"item": "zucchini", "grams": 250}, {"item": "kidney beans", "grams": 120}, {"item": "tomato", "grams": 400}, {"item": "pasta", "grams": 100}, {"item": "olive oil", "grams": 26}, {"item": "salt", "grams": 6}]},
+       "ingredients": [{"item": "carrot", "grams": 150}, {"item": "celery", "grams": 100}, {"item": "onion", "grams": 110}, {"item": "zucchini", "grams": 250}, {"item": "kidney beans", "grams": 120}, {"item": "tomato", "grams": 400}, {"item": "pasta", "grams": 100}, {"item": "olive oil", "grams": 26}, {"item": "salt", "grams": 6}],
+       "method": ["Gently fry the onion, carrot and celery in the olive oil for 10 minutes.", "Add the zucchini, tomatoes and water; simmer 20 minutes.", "Add the beans and the pasta; cook until the pasta is tender.", "Season at the end, tasting before adding salt."]},
       {"name": "Buttered toast and eggs", "servings": 2, "meal": "breakfast",
        "source_text": "4 slices white bread, butter, 3 eggs scrambled with a splash of cream.",
-       "ingredients": [{"item": "white bread", "grams": 120}, {"item": "butter", "grams": 20}, {"item": "egg", "grams": 150}, {"item": "heavy cream", "grams": 30}, {"item": "salt", "grams": 2}]}
+       "ingredients": [{"item": "white bread", "grams": 120}, {"item": "butter", "grams": 20}, {"item": "egg", "grams": 150}, {"item": "heavy cream", "grams": 30}, {"item": "salt", "grams": 2}],
+       "method": ["Whisk the eggs with the splash of cream (or milk).", "Scramble slowly over low heat with a little butter.", "Toast the bread and spread thinly with butter.", "Serve with tomato or greens on the side."]}
     ]
   },
   {
@@ -78,16 +91,20 @@
     "recipes": [
       {"name": "Arroz con pollo", "servings": 6,
        "source_text": "2 cups rice, a whole chicken in pieces, peppers, onion, peas, tomato, oil.",
-       "ingredients": [{"item": "white rice", "grams": 370}, {"item": "chicken", "grams": 900}, {"item": "bell pepper", "grams": 150}, {"item": "onion", "grams": 110}, {"item": "green peas", "grams": 100}, {"item": "tomato", "grams": 150}, {"item": "vegetable oil", "grams": 30}, {"item": "salt", "grams": 7}]},
+       "ingredients": [{"item": "white rice", "grams": 370}, {"item": "chicken", "grams": 900}, {"item": "bell pepper", "grams": 150}, {"item": "onion", "grams": 110}, {"item": "green peas", "grams": 100}, {"item": "tomato", "grams": 150}, {"item": "vegetable oil", "grams": 30}, {"item": "salt", "grams": 7}],
+       "method": ["Brown the chicken pieces in the oil, then set aside.", "Fry the onion and peppers until soft, then add the tomato.", "Add the rice, the chicken and water; cover and simmer 20 minutes.", "Stir in the peas for the last 5 minutes."]},
       {"name": "Black beans and plantains", "servings": 4,
        "source_text": "Two cups black beans, 2 ripe plantains fried, onion, garlic, cumin.",
-       "ingredients": [{"item": "black beans", "grams": 300}, {"item": "plantain", "grams": 360}, {"item": "onion", "grams": 110}, {"item": "garlic", "grams": 10}, {"item": "cumin", "grams": 4}, {"item": "vegetable oil", "grams": 40}, {"item": "salt", "grams": 5}]},
+       "ingredients": [{"item": "black beans", "grams": 300}, {"item": "plantain", "grams": 360}, {"item": "onion", "grams": 110}, {"item": "garlic", "grams": 10}, {"item": "cumin", "grams": 4}, {"item": "vegetable oil", "grams": 40}, {"item": "salt", "grams": 5}],
+       "method": ["Simmer the black beans with onion, garlic and cumin for 20 minutes.", "Slice the plantains on the diagonal.", "Pan-fry the plantains in a little oil, or bake them, until golden.", "Serve the beans with the plantains on the side."]},
       {"name": "Huevos rancheros", "servings": 2, "meal": "breakfast",
        "source_text": "4 flour tortillas, 4 eggs, salsa with tomato and chili, a little queso fresco.",
-       "ingredients": [{"item": "flour tortilla", "grams": 180}, {"item": "egg", "grams": 200}, {"item": "tomato", "grams": 200}, {"item": "green chili", "grams": 10}, {"item": "queso fresco", "grams": 40}, {"item": "vegetable oil", "grams": 13}]},
+       "ingredients": [{"item": "flour tortilla", "grams": 180}, {"item": "egg", "grams": 200}, {"item": "tomato", "grams": 200}, {"item": "green chili", "grams": 10}, {"item": "queso fresco", "grams": 40}, {"item": "vegetable oil", "grams": 13}],
+       "method": ["Warm the salsa of tomato and chilli in a pan.", "Fry or poach the eggs.", "Warm the tortillas on a dry pan.", "Put an egg on each tortilla, spoon salsa over and crumble the queso on top."]},
       {"name": "Flan", "servings": 8, "meal": "dessert",
        "source_text": "1 cup sugar for caramel, 4 eggs, milk, condensed milk.",
-       "ingredients": [{"item": "sugar", "grams": 300}, {"item": "egg", "grams": 200}, {"item": "whole milk", "grams": 500}]}
+       "ingredients": [{"item": "sugar", "grams": 300}, {"item": "egg", "grams": 200}, {"item": "whole milk", "grams": 500}],
+       "method": ["Melt the sugar in a pan until amber and pour it into the mould.", "Whisk the eggs, milk and condensed milk; pour over the caramel.", "Bake in a water bath at 160 °C for about 50 minutes until set.", "Chill, then turn out and serve small slices."]}
     ]
   }
 ]

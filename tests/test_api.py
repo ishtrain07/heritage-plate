@@ -173,3 +173,11 @@ def test_hourly_budget_stops_model_calls(monkeypatch):
     monkeypatch.setattr(llm, "_create", lambda *a: _reply('{"ok": true}'))
     with pytest.raises(llm.LLMError, match="budget"):
         llm.chat_json("nano", "sys-budget", "user", step="t")
+
+
+def test_demo_dishes_have_a_method_that_survives_adapt(client):
+    fam = client.get("/api/demo/gill").json()
+    dish = fam["recipes"][0]
+    assert dish["method"] and all(isinstance(s, str) for s in dish["method"])
+    out = client.post("/api/adapt", json={"recipe": dish, "condition": "diabetes", "cuisine": "south_asian"}).json()["recipe"]
+    assert out["method"] == dish["method"] and out["portion_tip"]

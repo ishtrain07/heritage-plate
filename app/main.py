@@ -39,11 +39,12 @@ class Recipe(BaseModel):
     meal: Literal["breakfast", "main", "dessert"] | None = None
     ingredients: list[Ingredient] = Field(min_length=1, max_length=40)
     source_text: str = Field(default="", max_length=1000)
+    method: list[str] = Field(default_factory=list, max_length=12)
 
     def build(self) -> dict:
         """Recompute nutrition server-side; client-sent numbers are ignored."""
         ingredients = engine.normalize_ingredients([i.model_dump() for i in self.ingredients])
-        recipe = engine.build_recipe(self.name, self.servings, ingredients, self.source_text, self.meal)
+        recipe = engine.build_recipe(self.name, self.servings, ingredients, self.source_text, self.meal, self.method)
         return {**recipe, "id": self.id}
 
 
@@ -129,7 +130,7 @@ def _families() -> list[dict]:
     families = []
     for fam in raw:
         recipes = [
-            {**engine.build_recipe(r["name"], r["servings"], engine.normalize_ingredients(r["ingredients"]), r["source_text"], r.get("meal")), "id": f'{fam["id"]}-{i}'}
+            {**engine.build_recipe(r["name"], r["servings"], engine.normalize_ingredients(r["ingredients"]), r["source_text"], r.get("meal"), r.get("method")), "id": f'{fam["id"]}-{i}'}
             for i, r in enumerate(fam["recipes"])
         ]
         families.append({**fam, "recipes": recipes})
