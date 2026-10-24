@@ -2042,7 +2042,7 @@ function cookbookHTML() {
       ${state.recipes.length ? dishes : plan || care ? "" : `<p class="cb-noplan">Nothing in your family book yet.</p>`}
       ${week}
       ${care}
-      <footer class="cb-foot">${esc(SOURCES_LINE)}</footer>
+      ${state.recipes.length || plan ? `<footer class="cb-foot">${esc(SOURCES_LINE)}</footer>` : ""}
     </div>`;
 }
 
@@ -2074,8 +2074,8 @@ function cookbookText() {
     L.push("");
   }
   if (typeof careBookText === "function") { const c = careBookText(); if (c) L.push(c, ""); }
-  L.push(SOURCES_LINE);
-  return L.join("\n");
+  if (state.recipes.length || plan) L.push(SOURCES_LINE); // food numbers only when the book has Plate pages
+  return L.join("\n").trim();
 }
 
 function renderCookbookView() { $("cookbookView").innerHTML = cookbookHTML(); }

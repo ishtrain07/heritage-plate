@@ -38,7 +38,7 @@ const VERDICTS = {
 const EVIDENCE_WORDS = { strong: "Strong evidence", some: "Some evidence", little: "Little evidence", none: "No good evidence" };
 const TIME_WORDS = { am: "morning", pm: "night", both: "morning and night", shower: "in the shower" };
 const CARE_LINES = {
-  remedy: ["Checking what the evidence says…", "Looking at the checked sources…", "Choosing what does the job…"],
+  remedy: ["Checking what the evidence says…", "Looking for safer options…", "Choosing what does the job…"],
   label: ["Reading the label…"],
 };
 const CARE_DISCLAIMER = "General skincare information, not medical advice. If something hurts, spreads or changes, see a doctor.";
@@ -244,11 +244,17 @@ function renderWhere() {
   care.mic?.updateHint();
 }
 
+// A strength inside brackets: "10% (15-20% on prescription)" becomes "10%", so the text never shows "((".
+function shortStrength(strength) {
+  return String(strength || "").replace(/\s*\([^()]*\)/g, "").replace(/[()]/g, "").replace(/\s+/g, " ").trim();
+}
+
 // "shampoo" + "Ketoconazole shampoo" reads as "Ketoconazole shampoo (1-2%)", never "shampoo with ketoconazole shampoo".
 function productWith(product, name, strength) {
   const prod = String(product || "").trim();
   const n = String(name || "").trim();
-  const str = strength ? ` (${strength})` : "";
+  const short = shortStrength(strength);
+  const str = short ? ` (${short})` : "";
   if (!n) return prod;
   const first = prod.toLowerCase().split(/[\s,(]+/)[0];
   if (!prod || (first && n.toLowerCase().includes(first))) return `${n}${str}`;
@@ -333,7 +339,7 @@ function sourcesBadge(item) {
   if (!item.checked || !src.length) return `<p class="ai-badge">AI-assessed, not in our checked library</p>`;
   return `
     <details class="checked-badge">
-      <summary><span aria-hidden="true">✓</span> Checked: ${src.length} source${src.length === 1 ? "" : "s"}</summary>
+      <summary><span aria-hidden="true">✓</span> Backed by ${src.length} source${src.length === 1 ? "" : "s"}</summary>
       <ul>${src.map((s) => {
         const u = safeUrl(s.url);
         return `<li>${u ? `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(s.name || u)}</a>` : esc(s.name)}</li>`;
@@ -373,6 +379,7 @@ function remedyCard(item, i, total) {
   return `
     <article class="care-card remedy-card" aria-labelledby="remedyH${i}">
       <div class="verdict-row">${verdictPill(item.verdict)}<span class="evidence-word">${esc(EVIDENCE_WORDS[item.evidence] || EVIDENCE_WORDS.little)}</span></div>
+      ${item.safety_rule ? `<p class="safety-rule"><span aria-hidden="true">✕</span> Safety rule: we always say stop to this.</p>` : ""}
       <h2 id="remedyH${i}" class="remedy-name" tabindex="-1">“${esc(item.remedy)}”</h2>
       ${item.why ? `<h3 class="rc-h">What the evidence says</h3><p class="care-p">${esc(item.why)}</p>` : ""}
       ${keepish ? `<h3 class="rc-h">How to keep it safely</h3><p class="care-p">Patch-test on a small area for 2 days first, and stop if it stings, itches or turns red.</p>` : ""}
@@ -437,7 +444,7 @@ async function checkRemedy(textOverride) {
     care.remedy = { text, who, result: res, saved: false, language };
     renderRemedy();
     const v = VERDICTS[res.remedies[0].verdict] || VERDICTS.care;
-    announce(`${v.word}: ${res.remedies[0].remedy}.`);
+    if (care.side === "care") announce(`${v.word}: ${res.remedies[0].remedy}.`); // not over Plate or home
     out.querySelector(".remedy-name")?.focus({ preventScroll: true });
   } catch (err) {
     stop();
@@ -610,7 +617,7 @@ function personPlanHTML(p, i) {
       ${redFlagsCallout(p.red_flags)}
       ${notes.length ? `<ul class="doctor-notes">${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
       ${routines ? `<div class="routine-grid">${routines}</div>` : `<p class="care-p muted">Nothing to add for now.</p>`}
-      ${p.summary ? `<p class="care-p person-summary">${esc(p.summary)}</p>` : ""}
+      ${routines && p.summary ? `<p class="care-p person-summary">${esc(p.summary)}</p>` : ""}
       ${(p.ingredients || []).length ? `
         <details class="why-these">
           <summary>Why these, and where to find them</summary>
@@ -717,11 +724,15 @@ function renderLabel() {
   const whoName = who ? memberLabel(who, careMembers().indexOf(who)) : "";
   const helps = r.actives || [];
   const watch = r.irritants || [];
+  const danger = (Array.isArray(r.danger) ? r.danger : []).filter((x) => x && x.name);
+  // Dangerous ingredients get their own red callout, so drop their copy ("Name: why") from the warnings.
+  const warnings = (r.warnings || []).filter((w) => !danger.some((x) => w === `${x.name}: ${x.why}`));
   box.innerHTML = `
     <article class="care-card label-card" aria-labelledby="labelOutTitle">
       <h2 id="labelOutTitle" class="care-h2" tabindex="-1">Read ${esc(r.count)} ingredient${r.count === 1 ? "" : "s"}</h2>
       ${r.fits?.length && whoName ? `<p class="label-fit"><span class="verdict v-keep"><span class="v-icon" aria-hidden="true">✓</span>Good fit</span> for ${esc(whoName)}: ${esc(r.fits.map((x) => x.toLowerCase()).join(", "))}</p>` : ""}
-      ${(r.warnings || []).length ? `<div class="care-callout care-callout-warn" role="note"><p class="callout-h"><span aria-hidden="true">!</span> ${whoName ? `Not ideal for ${esc(whoName)}` : "Worth knowing"}</p><ul>${r.warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></div>` : ""}
+      ${danger.length ? `<div class="care-callout care-callout-danger" role="note"><p class="callout-h"><span aria-hidden="true">✕</span> Don't use this without a doctor</p><ul>${danger.map((x) => `<li><b>${esc(x.name)}</b>${x.position ? ` <span class="pos">#${esc(x.position)} on the list</span>` : ""}${x.why ? `<span class="label-sub">${esc(x.why)}</span>` : ""}</li>`).join("")}</ul></div>` : ""}
+      ${warnings.length ? `<div class="care-callout care-callout-warn" role="note"><p class="callout-h"><span aria-hidden="true">!</span> ${whoName ? `Not ideal for ${esc(whoName)}` : "Worth knowing"}</p><ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></div>` : ""}
       <div class="label-cols">
         <div>
           <h3 class="rc-h">Helps with</h3>
@@ -784,16 +795,17 @@ function careBookHTML() {
         ${(p.red_flags || []).length ? `<div class="cb-callout"><b>Worth a doctor's visit first.</b><ul>${p.red_flags.map((f) => `<li>${esc(f)}</li>`).join("")}</ul></div>` : ""}
         ${(p.doctor_notes || []).length ? `<ul class="cb-notes">${p.doctor_notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
         <div class="cb-cols cb-routine">${slot("Morning", "am")}${slot("Night", "pm")}${slot("In the shower", "shower")}</div>
-        ${p.summary ? `<p class="cb-legend">${esc(p.summary)}</p>` : ""}
+        ${p.summary && ["am", "pm", "shower"].some((k) => (p.routine[k] || []).length) ? `<p class="cb-legend">${esc(p.summary)}</p>` : ""}
       </article>`;
   }).join("") : "";
   const remedies = cb.remedies.length ? `
     <section class="cb-sec cb-remedies">
-      <h3>Home remedies we checked</h3>
+      <h3>Home remedies we looked at</h3>
       <ul class="cb-remedy-list">${cb.remedies.map((x) => x.result.remedies.map((r) => `
         <li><p><span class="verdict v-${esc(r.verdict)}"><span class="v-icon" aria-hidden="true">${VERDICTS[r.verdict].icon}</span>${esc(VERDICTS[r.verdict].word)}</span> <b>“${esc(r.remedy)}”</b>${x.who ? ` <span class="cb-h-sub">for ${esc(x.who)}</span>` : ""}</p>
+          ${r.safety_rule ? `<p><b>Safety rule:</b> we always say stop to this.</p>` : ""}
           ${r.why ? `<p>${esc(r.why)}</p>` : ""}
-          ${r.better.length ? `<p><b>${r.verdict === "keep" || r.verdict === "care" ? "What does the job" : "Do this instead"}:</b> ${esc(r.better.map((c) => `${c.name}${c.strength ? ` (${c.strength})` : ""}`).join("; "))}</p>` : ""}
+          ${r.better.length ? `<p><b>${r.verdict === "keep" || r.verdict === "care" ? "What does the job" : "Do this instead"}:</b> ${esc(r.better.map((c) => `${c.name}${shortStrength(c.strength) ? ` (${shortStrength(c.strength)})` : ""}`).join("; "))}</p>` : ""}
           ${r.sources.length ? `<p class="cb-src">Sources: ${esc(r.sources.map((s) => s.name).join("; "))}</p>` : ""}</li>`).join("")).join("")}</ul>
     </section>` : "";
   const shop = plan && plan.shopping.length ? `
@@ -829,15 +841,16 @@ function careBookText() {
           L.push(`- ${c ? productWith(s.product, c.name, c.strength) : s.product}${s.tip ? `: ${s.tip}` : ""}`);
         });
       });
-      if (p.summary) L.push(p.summary);
+      if (p.summary && ["am", "pm", "shower"].some((k) => (p.routine[k] || []).length)) L.push(p.summary);
     });
   }
   if (cb.remedies.length) {
-    L.push("", "== Home remedies we checked ==");
+    L.push("", "== Home remedies we looked at ==");
     cb.remedies.forEach((x) => x.result.remedies.forEach((r) => {
       L.push(`${VERDICTS[r.verdict].word}: "${r.remedy}"${x.who ? ` (for ${x.who})` : ""}`);
+      if (r.safety_rule) L.push("Safety rule: we always say stop to this.");
       if (r.why) L.push(r.why);
-      if (r.better.length) L.push(`${r.verdict === "keep" || r.verdict === "care" ? "What does the job" : "Do this instead"}: ${r.better.map((c) => `${c.name}${c.strength ? ` (${c.strength})` : ""}`).join("; ")}`);
+      if (r.better.length) L.push(`${r.verdict === "keep" || r.verdict === "care" ? "What does the job" : "Do this instead"}: ${r.better.map((c) => `${c.name}${shortStrength(c.strength) ? ` (${shortStrength(c.strength)})` : ""}`).join("; ")}`);
     }));
   }
   if (plan && plan.shopping.length) {

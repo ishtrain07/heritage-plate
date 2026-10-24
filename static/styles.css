@@ -1181,6 +1181,8 @@ body[data-side="care"] .side-plate, body:not([data-side="care"]) .side-care { di
 .v-stop { background: var(--error-soft); color: var(--error-ink); border-color: var(--error-ink); }
 .v-stop .v-icon { background: var(--error-ink); color: var(--surface); }
 .evidence-word { color: var(--muted); font-weight: 600; font-size: var(--t-sm); }
+.safety-rule { justify-self: start; color: var(--error-ink); font-weight: 700; font-size: var(--t-sm); }
+.safety-rule span { margin-right: 6px; }
 .remedy-name { font-size: clamp(1.5rem, 6vw, 2rem); line-height: 1.2; overflow-wrap: anywhere; }
 .ing-cards { display: grid; gap: var(--s3); }
 @media (min-width: 700px) { .ing-cards { grid-template-columns: 1fr 1fr; } }
@@ -1196,6 +1198,8 @@ body[data-side="care"] .side-plate, body:not([data-side="care"]) .side-care { di
 .care-callout ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
 .callout-h { font-family: var(--serif); font-weight: 600; font-size: 1.25rem; color: var(--ink); display: flex; gap: 8px; align-items: baseline; }
 .care-callout-warn { border-left-color: var(--saffron); }
+.care-callout-danger { border-left-color: var(--error-ink); background: var(--error-soft); }
+.care-callout-danger .callout-h { color: var(--error-ink); }
 .checked-badge { justify-self: start; max-width: 100%; }
 .checked-badge > summary {
   display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 16px; border-radius: 999px; cursor: pointer;

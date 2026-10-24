@@ -429,7 +429,7 @@ LABEL_SYNONYMS = {"fragrance": ["parfum", "aroma"], "perfume": ["parfum", "fragr
 def label_parts(text: str) -> list[str]:
     """Split an INCI list: drop the "Ingredients:" header, stop at "may contain", split on commas outside brackets."""
     text = re.sub(r"^\s*(ingredients|ingrédients|ingredientes|inci)\s*:", "", (text or "").strip(), flags=re.IGNORECASE)
-    text = re.split(r"\b(may contain|peut contenir|\+/-|\[\+/-\])", text, maxsplit=1, flags=re.IGNORECASE)[0]
+    text = re.split(r"\b(?:may contain|peut contenir)|\[?\+/-\]?", text, maxsplit=1, flags=re.IGNORECASE)[0]
     parts, depth, cur = [], 0, ""
     for ch in text:
         depth += ch in "(["

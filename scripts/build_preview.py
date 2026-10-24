@@ -4,7 +4,8 @@ The preview is the real front end (static/) plus a small in-page stand-in for
 the API. All four demo families are precomputed with the real Python engine in
 mock mode: every dish x every health focus. Heritage Care answers the four example
 remedy chips (every country, pregnant or not), the sample family's care plan and the
-example label, all precomputed by the real /api/care routes. The week plan and shopping list are
+example label, all precomputed by the real /api/care routes. Any other label is read in
+the browser by a port of app/care.py check_label (labelCheck in SHIM), from the same data. The week plan and shopping list are
 recomputed in the browser with a direct port of the engine's mock schedule, and
 tests/test_preview.py checks that port against the Python output.
 
@@ -94,7 +95,14 @@ def precompute_care(client: TestClient) -> dict:
     label = {}
     for m in [{}, *CARE_SAMPLE]:
         label[canon_member(m)] = client.post("/api/care/label", json={"text": LABEL_EXAMPLE, "member": m}).json()["result"]
-    return {"library": client.get("/api/care/library").json(), "remedy": remedy, "plan": plan,
+    lib = care.library()
+    label_lib = {  # what the in-browser label check (labelCheck in SHIM) reads: the same data as app/care.py check_label
+        "actives": [{k: a.get(k) for k in ("id", "name", "aliases", "concerns", "how", "label_note", "pregnancy")} for a in lib["actives"]],
+        "irritants": [{k: x[k] for k in ("name", "aliases", "why")} for x in lib["irritants"]],
+        "danger": [{k: x[k] for k in ("name", "aliases", "why")} for x in lib.get("danger", [])],
+        "synonyms": getattr(care, "LABEL_SYNONYMS", {}),
+    }
+    return {"library": client.get("/api/care/library").json(), "labelLib": label_lib, "remedy": remedy, "plan": plan,
             "planKey": "|".join(canon_member(m) for m in CARE_SAMPLE), "label": label,
             "labelExample": LABEL_EXAMPLE}
 
@@ -196,8 +204,77 @@ SHIM = r"""
     });
   }
 
-  // Heritage Care: the four example chips, the sample family and the example label.
-  const careMsg = () => reply(503, { detail: "This preview answers the four example remedies, the sample family and the example label. Checking your own needs the full app with a live server." });
+  // Heritage Care: the four example chips and the sample family; any label (read in code, below).
+  const careMsg = () => reply(503, { detail: "This preview answers the four example remedies and the sample family. Checking your own needs the full app with a live server." });
+
+  // The label check is pure code, so the preview runs it in the browser: a direct port of app/care.py
+  // label_parts / _hits / check_label, reading the same data (D.care.labelLib). Keep the two in step.
+  const W = "[\\p{L}\\p{N}_]";
+  const isWord = (ch) => new RegExp(W, "u").test(ch || "");
+  const escRe = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Python's \b on either side of a term (Unicode word characters); `end` false = no trailing \b.
+  function wordRe(term, end = true) {
+    const pre = isWord(term[0]) ? `(?<!${W})` : `(?<=${W})`;
+    const post = !end ? "" : isWord(term[term.length - 1]) ? `(?!${W})` : `(?=${W})`;
+    return new RegExp(pre + escRe(term) + post, "u");
+  }
+  function labelParts(text) {
+    let t = String(text || "").trim().replace(/^\s*(ingredients|ingrédients|ingredientes|inci)\s*:/i, "");
+    const cut = t.search(new RegExp(`(?<!${W})(?:may contain|peut contenir)|\\[?\\+/-`, "iu"));
+    if (cut >= 0) t = t.slice(0, cut);
+    const parts = [];
+    let depth = 0, cur = "";
+    for (const ch of t) {
+      if ("([".includes(ch)) depth += 1;
+      if (")]".includes(ch) && depth > 0) depth -= 1;
+      if (depth === 0 && ",;\n·|•".includes(ch)) { parts.push(cur); cur = ""; } else cur += ch;
+    }
+    parts.push(cur);
+    const strip = (p) => p.replace(/^[ .]+|[ .]+$/g, "");
+    return parts.filter((p) => strip(p)).map((p) => strip(p).toLowerCase());
+  }
+  function hits(part, aliases) {
+    const plain = part.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim(); // "cocos nucifera (coconut) oil" → "cocos nucifera oil"
+    const inner = part.replace(/[()]/g, " "); // ... and "cocos nucifera coconut oil"
+    return (aliases || []).some((alias) => {
+      if (alias === "alcohol") return plain === "alcohol"; // only the plain INCI "Alcohol", never fatty alcohols
+      const re = wordRe(alias);
+      return alias === plain || [part, plain, inner].some((x) => re.test(x));
+    });
+  }
+  function labelCheck(text, member) {
+    const L = D.care.labelLib;
+    member = member || {};
+    const parts = labelParts(text);
+    const found = [], irritants = [], danger = [];
+    parts.forEach((part, pos) => {
+      for (const a of L.actives) {
+        if (!found.some((f) => f.id === a.id) && hits(part, a.aliases)) {
+          found.push({ id: a.id, name: a.name, position: pos + 1, helps: a.concerns, how: a.label_note || a.how, pregnancy: a.pregnancy });
+        }
+      }
+      for (const x of L.irritants) {
+        if (!irritants.some((i) => i.name === x.name) && hits(part, x.aliases)) irritants.push({ name: x.name, position: pos + 1, why: x.why, high: pos < 5 });
+      }
+      for (const x of L.danger) {
+        if (!danger.some((i) => i.name === x.name) && hits(part, x.aliases)) danger.push({ name: x.name, position: pos + 1, why: x.why });
+      }
+    });
+    const concerns = new Set(member.concerns || []);
+    const fits = found.filter((f) => f.helps.some((c) => concerns.has(c)));
+    const warnings = danger.map((d) => `${d.name}: ${d.why}`);
+    if (member.pregnant) warnings.push(...found.filter((f) => f.pregnancy === "avoid").map((f) => `Contains ${f.name.toLowerCase()}: avoid in pregnancy or breastfeeding.`));
+    if (concerns.has("sensitive")) warnings.push(...irritants.map((i) => `${i.name} is in this product; it often bothers sensitive skin.`));
+    const allergies = String(member.allergies || "").toLowerCase();
+    if (allergies) {
+      const cleaned = allergies.replace(new RegExp(`(?<!${W})(?:allergic|allergy|allergies|sensitive|to|i'm|i am|react)(?!${W})`, "gu"), " ");
+      let terms = cleaned.split(new RegExp(`[,;/]|(?<!${W})and(?!${W})|(?<!${W})or(?!${W})`, "u")).map((t) => t.trim()).filter((t) => t.length >= 3);
+      terms = [...terms, ...terms.flatMap((t) => Object.entries(L.synonyms).filter(([k]) => t.includes(k)).flatMap(([, v]) => v))];
+      warnings.push(...parts.filter((p) => terms.some((t) => wordRe(t, false).test(p))).map((p) => `Check: the label lists ${p}, which matches your allergy note.`));
+    }
+    return { count: parts.length, actives: found, irritants, danger, fits: fits.map((f) => f.name), warnings: warnings.slice(0, 8) };
+  }
+  window.__HP_LABEL__ = labelCheck; // for checking the port against app/care.py
   const norm = (t) => String(t || "").toLowerCase().replace(/\s+/g, " ").trim();
   const canon = (m) => {
     m = m || {};
@@ -220,7 +297,7 @@ SHIM = r"""
     }
     if (path === "/api/care/label") {
       const hit = norm(body.text) === norm(C.labelExample) && C.label[canon(body.member && Object.keys(body.member).length ? body.member : null)];
-      return hit ? reply(200, { result: hit }) : careMsg();
+      return reply(200, { result: hit || labelCheck(body.text, body.member) });
     }
     return null;
   }
@@ -259,7 +336,7 @@ SHIM = r"""
 """
 
 BANNER = """<div class="preview-banner" role="note">Preview of demo mode: the four demo families run fully in your browser,
-using numbers precomputed by the real engine, plus Care's example remedies and sample family. Your own recipes and remedies need the full app.</div>"""
+using numbers precomputed by the real engine, plus Care's example remedies, sample family and label check. Your own recipes and remedies need the full app.</div>"""
 
 
 def build(out: Path, standalone: bool = False) -> None:

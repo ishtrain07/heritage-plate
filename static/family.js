@@ -2,7 +2,9 @@
 // Shape (v2): {v, savedAt, mode, language, country, members[], plate, careBook}
 //   plate    = Plate's saved book (the old hp-cookbook-v1 payload), or null
 //   careBook = {remedies: [saved remedy checks], plan: last saved care plan or null}
-// A v1 save is migrated once: it becomes `plate`, and its person becomes members[0]. v1 is left in place.
+// A v1 save is migrated once: it becomes `plate`, and its person becomes members[0]. The v2 copy is marked
+// `migratedFrom: 1`, and v1 is removed after the first successful v2 write, so it can never come back later
+// (e.g. after "Start over" and a corrupt v2).
 "use strict";
 
 const FAMILY_KEY = "hp-family-v2";
@@ -18,7 +20,8 @@ const CARE_COUNTRY_KEYS = ["IN", "US", "GB", "CA", "AU", "PH", "MX", "CN", "AE",
 let familyCache = null;
 
 const fIsObj = (x) => Boolean(x) && typeof x === "object" && !Array.isArray(x);
-const fStr = (v, max) => (typeof v === "string" ? v : v === null || v === undefined ? "" : String(v)).slice(0, max);
+// Only strings and finite numbers become text: objects, arrays, booleans and NaN become "".
+const fStr = (v, max) => (typeof v === "string" ? v : typeof v === "number" && Number.isFinite(v) ? String(v) : "").slice(0, max);
 const fList = (v, max) => (Array.isArray(v) ? v.slice(0, max) : []);
 
 function familyId() {
@@ -32,13 +35,13 @@ function emptyFamily() {
 // Clamped to what /api/care and /api/week accept, so a saved person never causes a 422.
 function cleanMember(m) {
   if (!fIsObj(m)) return null;
-  const age = Number(m.age);
+  const age = typeof m.age === "number" || (typeof m.age === "string" && m.age.trim()) ? Number(m.age) : NaN;
   const sex = m.sex === "female" || m.sex === "male" ? m.sex : null;
   const care = fIsObj(m.care) ? m.care : {};
   return {
     id: typeof m.id === "string" && /^[\w-]{1,40}$/.test(m.id) ? m.id : familyId(),
     name: fStr(m.name, 30).trim(),
-    age: m.age !== null && m.age !== "" && Number.isFinite(age) && age >= 0 && age <= 120 ? Math.round(age) : null,
+    age: Number.isFinite(age) && age >= 0 && age <= 120 ? Math.round(age) : null,
     sex,
     pregnant: sex !== "male" && m.pregnant === true,
     conditions: PLATE_CONDITIONS.filter((c) => Array.isArray(m.conditions) && m.conditions.includes(c)),
@@ -74,6 +77,7 @@ function cleanRemedyItem(r) {
     better: fList(r.better, 3).map(cleanCard).filter(Boolean),
     notes: fList(r.notes, 3).map((n) => fStr(n, 300)),
     checked: r.checked === true,
+    safety_rule: r.safety_rule === true,
     sources: cleanSources(r.sources),
   };
 }
@@ -126,6 +130,7 @@ function cleanFamily(d) {
   const seen = new Set();
   out.members = fList(d.members, FAMILY_MAX).map(cleanMember).filter((m) => m && !seen.has(m.id) && seen.add(m.id));
   out.plate = fIsObj(d.plate) && d.plate.v === 1 ? d.plate : null;
+  if (d.migratedFrom === 1) out.migratedFrom = 1;
   const cb = fIsObj(d.careBook) ? d.careBook : {};
   out.careBook = {
     remedies: fList(cb.remedies, 20).map(cleanRemedyCheck).filter(Boolean),
@@ -142,7 +147,9 @@ function persistFamily() {
   const f = familyCache;
   if (!f) return;
   f.savedAt = Date.now();
-  try { window.localStorage.setItem(FAMILY_KEY, JSON.stringify(f)); } catch { /* storage blocked or full: lasts for this visit */ }
+  try { window.localStorage.setItem(FAMILY_KEY, JSON.stringify(f)); } catch { return; /* storage blocked or full: lasts for this visit */ }
+  // v2 is safely written: drop the old v1 save so it can't be migrated again over a cleared or broken v2.
+  try { if (storageGet(V1_KEY) !== null) window.localStorage.removeItem(V1_KEY); } catch { /* ignore */ }
 }
 
 // Plate's person, from a saved Plate book (parentName + profile).
@@ -177,12 +184,13 @@ function readFamily() {
     if (plate) {
       familyCache.plate = plate;
       familyCache.mode = "plate";
+      familyCache.migratedFrom = 1;
       familyCache.language = typeof plate.language === "string" ? plate.language : "English";
       if (String(plate.parentName || "").trim() || fIsObj(plate.profile)) {
         const m = memberFromPlate(plate, null);
         if (m) familyCache.members = [m];
       }
-      persistFamily(); // v1 stays where it is, so an older tab still finds it
+      persistFamily(); // removes v1 once v2 is written
     }
   }
   return familyCache;
