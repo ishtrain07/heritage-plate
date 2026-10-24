@@ -54,8 +54,11 @@ def test_red_flags_and_prescriptions(client):
                {"name": "Riya", "concerns": ["acne"], "details": "painful cysts on my chin"}]
     people = client.post("/api/care/plan", json={"members": members, "country": "GB"}).json()["result"]["people"]
     assert people[0]["red_flags"] and people[1]["red_flags"]
-    assert any("finasteride" in n for n in people[0]["doctor_notes"])  # Rx: ask, never a buy
-    assert all(s["active"] != "finasteride" for v in people[0]["routine"].values() for s in v)
+    assert not people[0]["routine"]["am"] + people[0]["routine"]["pm"]  # hair held back: doctor first
+    plain = {"name": "Uncle", "age": 45, "sex": "male", "concerns": ["thinning_hair"]}
+    uncle = client.post("/api/care/plan", json={"members": [plain], "country": "GB"}).json()["result"]["people"][0]
+    assert any("finasteride" in n for n in uncle["doctor_notes"])  # Rx: ask, never a buy
+    assert all(s["active"] != "finasteride" for v in uncle["routine"].values() for s in v)
 
 
 def test_finasteride_is_never_for_women_and_allergies_are_respected(client):
@@ -93,3 +96,17 @@ def test_every_active_cites_known_sources_and_valid_fields():
     for a in lib["actives"]:
         assert a["sources"] and all(s in lib["sources"] for s in a["sources"]), a["id"]
         assert a["grade"] in "ABC" and a["pregnancy"] in ("ok", "ask", "avoid") and set(a["concerns"]) <= set(lib["concerns"])
+
+
+def test_minoxidil_is_for_adults_only(client):
+    p = client.post("/api/care/plan", json={"members": [{"name": "Riya", "age": 17, "concerns": ["thinning_hair"]}]}).json()
+    person = p["result"]["people"][0]
+    assert all(s["active"] != "minoxidil" for v in person["routine"].values() for s in v)
+    assert any("Under 18" in n for n in person["doctor_notes"])
+
+
+def test_a_red_flag_holds_back_products_for_that_concern(client):
+    m = {"name": "Dad", "age": 50, "sex": "male", "concerns": ["thinning_hair", "dandruff"], "details": "hair falling out in patches"}
+    person = client.post("/api/care/plan", json={"members": [m]}).json()["result"]["people"][0]
+    used = {s["active"] for v in person["routine"].values() for s in v}
+    assert person["red_flags"] and "minoxidil" not in used and "ketoconazole" in used

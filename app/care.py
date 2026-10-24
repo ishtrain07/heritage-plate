@@ -29,15 +29,15 @@ COUNTRIES = {"IN": "India", "US": "United States", "GB": "United Kingdom", "CA":
 # Symptoms that need a doctor or pharmacist before any routine (checked in code, before the model).
 RED_FLAGS = [
     (r"\b(sudden|suddenly|patch|patches|patchy|bald spot|clumps)\b.*\bhair\b|\bhair\b.*\b(sudden|suddenly|patch|patches|patchy|clumps)\b",
-     "Sudden or patchy hair loss can have medical causes (thyroid, iron, alopecia areata). See a doctor first."),
+     "Sudden or patchy hair loss can have medical causes (thyroid, iron, alopecia areata). See a doctor first.", {"thinning_hair"}),
     (r"\b(cystic|cysts|nodule|nodules|painful lumps|scarring)\b",
-     "Deep, painful or scarring acne needs a doctor's treatment; creams alone won't be enough."),
+     "Deep, painful or scarring acne needs a doctor's treatment; creams alone won't be enough.", {"acne"}),
     (r"\b(mole|moles)\b.*\b(chang|grow|bleed|itch|dark)|\b(bleeding|changing|growing) (mole|spot)\b",
-     "A mole or spot that changes, grows or bleeds should be checked by a doctor soon."),
+     "A mole or spot that changes, grows or bleeds should be checked by a doctor soon.", set()),
     (r"\b(spreading|blister|blisters|pus|oozing|fever|swollen|swelling|infected|infection)\b",
-     "Spreading, blistering, oozing or swollen skin can be an infection or allergy. See a doctor or pharmacist today."),
+     "Spreading, blistering, oozing or swollen skin can be an infection or allergy. See a doctor or pharmacist today.", set()),
     (r"\b(burn|burns|burned|burnt|chemical burn)\b",
-     "For a burn, cool it under running water for 20 minutes and get it checked if it blisters or is large."),
+     "For a burn, cool it under running water for 20 minutes and get it checked if it blisters or is large.", set()),
 ]
 SKIN_CONCERNS = {"acne", "oily", "dry", "sensitive", "dark_spots", "sun"}
 PHOTOTOXIC = re.compile(r"\b(lemon|lime|nimbu|limon|limón|kalamansi|calamansi|citrus)\b", re.IGNORECASE)
@@ -53,7 +53,13 @@ def library() -> dict:
 
 def red_flags(text: str) -> list[str]:
     lower = (text or "").lower()
-    return [msg for pattern, msg in RED_FLAGS if re.search(pattern, lower)]
+    return [msg for pattern, msg, _ in RED_FLAGS if re.search(pattern, lower)]
+
+
+def flagged_concerns(text: str) -> set[str]:
+    """Concerns a red flag covers: no products for them until a doctor has looked."""
+    lower = (text or "").lower()
+    return set().union(*(c for pattern, _, c in RED_FLAGS if re.search(pattern, lower)))
 
 
 def _sources(ids: list[str]) -> list[dict]:
@@ -72,6 +78,8 @@ def allowed_for(active: dict, member: dict, country: str) -> tuple[bool, str]:
         return False, f"Not during pregnancy or breastfeeding: {active['name'].lower()}."
     if active.get("sex") and member.get("sex") and member["sex"] != active["sex"]:
         return False, ""
+    if active.get("min_age") and member.get("age") is not None and member["age"] < active["min_age"]:
+        return False, f"Under {active['min_age']}: ask a doctor before using {active['name'].lower()}."
     if active["status"] == "prescription" and country not in active.get("otc_in", []):
         return False, f"Ask your doctor about {active['name'].lower()} ({active['strength']})."
     return True, ""
@@ -178,6 +186,8 @@ def candidates(member: dict, country: str) -> tuple[list[dict], list[str]]:
     """Checked actives that fit this person's concerns, minus what's unsafe for them; plus doctor notes."""
     lib = library()
     concerns = set(member.get("concerns") or [])
+    held = concerns & flagged_concerns(" ".join([member.get("wants") or "", member.get("details") or ""]))
+    concerns -= held  # see a doctor first; no products for these
     out, notes = [], []
     for a in lib["actives"]:
         if not concerns & set(a["concerns"]) or _blocked_by_allergy(a, member.get("allergies", "")):

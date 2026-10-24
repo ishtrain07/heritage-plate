@@ -2,7 +2,9 @@
 
 The preview is the real front end (static/) plus a small in-page stand-in for
 the API. All four demo families are precomputed with the real Python engine in
-mock mode: every dish x every health focus. The week plan and shopping list are
+mock mode: every dish x every health focus. Heritage Care answers the four example
+remedy chips (every country, pregnant or not), the sample family's care plan and the
+example label, all precomputed by the real /api/care routes. The week plan and shopping list are
 recomputed in the browser with a direct port of the engine's mock schedule, and
 tests/test_preview.py checks that port against the Python output.
 
@@ -25,7 +27,7 @@ sys.path.insert(0, str(ROOT))
 
 from fastapi.testclient import TestClient
 
-from app import engine, nutrition
+from app import care, engine, nutrition
 from app.main import app
 
 CONDITIONS = ("diabetes", "bp", "cholesterol", "everyday")
@@ -40,6 +42,61 @@ SAMPLE_PROFILES = {
     "reyes": {"diet": "non_veg", "conditions": ["diabetes"], "goal": "steady_sugar", "sex": "female", "age": 68,
               "height_cm": 155, "weight_kg": 70, "activity": "light", "ethnicity": "other"},
 }
+
+
+# Must match CARE_SAMPLE and CARE_EXAMPLES / LABEL_EXAMPLE in static/care.js (as the page sends them).
+CARE_SAMPLE = [
+    {"name": "Dad", "age": 58, "sex": "male", "pregnant": False, "concerns": ["dandruff", "body_dry"], "skin_type": None,
+     "wants": "men's body wash", "details": "hair falling out in patches lately", "allergies": ""},
+    {"name": "Mum", "age": 54, "sex": "female", "pregnant": False, "concerns": ["dark_spots", "dry"], "skin_type": "dry",
+     "wants": "", "details": "", "allergies": ""},
+    {"name": "Priya", "age": 29, "sex": "female", "pregnant": True, "concerns": ["acne", "dark_spots"], "skin_type": "oily",
+     "wants": "", "details": "", "allergies": ""},
+]
+CARE_CHIPS = ["besan haldi ka lep", "nimbu on dark spots", "coconut oil in hair every night", "toothpaste on a pimple"]
+LABEL_EXAMPLE = ("Aqua, Glycerin, Niacinamide, Parfum, Alcohol Denat., Cetearyl Alcohol, Salicylic Acid, "
+                 "Lavandula Angustifolia Oil")
+
+
+def check_care_sample() -> None:
+    js = (ROOT / "static" / "care.js").read_text(encoding="utf-8")
+    for m in CARE_SAMPLE:
+        assert f'name: "{m["name"]}", age: {m["age"]}' in js, f"CARE_SAMPLE out of step with care.js: {m['name']}"
+    for t in CARE_CHIPS:
+        assert f'"{t}"' in js, f"CARE_EXAMPLES out of step with care.js: {t}"
+    assert LABEL_EXAMPLE in js, "LABEL_EXAMPLE out of step with care.js"
+
+
+def canon_member(m: dict) -> str:
+    keys = ("name", "age", "sex", "pregnant", "concerns", "skin_type", "wants", "details", "allergies")
+    out = {k: m.get(k) for k in keys}
+    out["concerns"] = sorted(out["concerns"] or [])
+    out["pregnant"] = bool(out["pregnant"])
+    for k in ("name", "wants", "details", "allergies"):
+        out[k] = (out[k] or "").strip()
+    return json.dumps(out, sort_keys=True, separators=(",", ":"))
+
+
+def precompute_care(client: TestClient) -> dict:
+    check_care_sample()
+    countries = list(care.COUNTRIES)
+    remedy = {}
+    for text in CARE_CHIPS:
+        for country in countries:
+            for preg in (0, 1):
+                member = {"sex": "female", "pregnant": True} if preg else {}
+                body = {"text": text, "member": member, "country": country, "language": "English"}
+                remedy[f"{text}|{country}|{preg}"] = client.post("/api/care/remedy", json=body).json()["result"]
+    plan = {}
+    for country in countries:
+        res = client.post("/api/care/plan", json={"members": CARE_SAMPLE, "country": country, "language": "English"}).json()
+        plan[country] = res["result"]
+    label = {}
+    for m in [{}, *CARE_SAMPLE]:
+        label[canon_member(m)] = client.post("/api/care/label", json={"text": LABEL_EXAMPLE, "member": m}).json()["result"]
+    return {"library": client.get("/api/care/library").json(), "remedy": remedy, "plan": plan,
+            "planKey": "|".join(canon_member(m) for m in CARE_SAMPLE), "label": label,
+            "labelExample": LABEL_EXAMPLE}
 
 
 def precompute() -> dict:
@@ -68,6 +125,7 @@ def precompute() -> dict:
         "messages": engine.FALLBACK_MESSAGES,
         "tips": engine.FALLBACK_TIPS,
         "days": list(engine.DAYS),
+        "care": precompute_care(client),
     }
 
 
@@ -138,6 +196,35 @@ SHIM = r"""
     });
   }
 
+  // Heritage Care: the four example chips, the sample family and the example label.
+  const careMsg = () => reply(503, { detail: "This preview answers the four example remedies, the sample family and the example label. Checking your own needs the full app with a live server." });
+  const norm = (t) => String(t || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const canon = (m) => {
+    m = m || {};
+    const out = { age: m.age ?? null, allergies: String(m.allergies || "").trim(), concerns: [...(m.concerns || [])].sort(),
+      details: String(m.details || "").trim(), name: String(m.name || "").trim(), pregnant: Boolean(m.pregnant),
+      sex: m.sex ?? null, skin_type: m.skin_type ?? null, wants: String(m.wants || "").trim() };
+    return JSON.stringify(out);
+  };
+  function careRoute(path, body) {
+    const C = D.care;
+    if (path === "/api/care/library") return reply(200, C.library);
+    if (path === "/api/care/remedy") {
+      const hit = C.remedy[`${norm(body.text)}|${body.country || "OTHER"}|${body.member && body.member.pregnant ? 1 : 0}`];
+      return hit ? reply(200, { result: hit, trace: [] }) : careMsg();
+    }
+    if (path === "/api/care/plan") {
+      const key = (body.members || []).map(canon).join("|");
+      const hit = key === C.planKey && C.plan[body.country || "OTHER"];
+      return hit ? reply(200, { result: { ...hit, language: body.language || "" }, trace: [] }) : careMsg();
+    }
+    if (path === "/api/care/label") {
+      const hit = norm(body.text) === norm(C.labelExample) && C.label[canon(body.member && Object.keys(body.member).length ? body.member : null)];
+      return hit ? reply(200, { result: hit }) : careMsg();
+    }
+    return null;
+  }
+
   window.__HP_PLAN__ = plan; // used by tests/test_preview.py
   const realFetch = window.fetch ? window.fetch.bind(window) : null;
   window.fetch = async (url, opts = {}) => {
@@ -154,6 +241,7 @@ SHIM = r"""
       const hit = known[sig(r)] && D.adapt[`${r.id}|${body.condition || "diabetes"}`];
       return hit ? reply(200, hit) : notInPreview();
     }
+    if (path.startsWith("/api/care/")) return careRoute(path, body) || reply(404, { detail: "Not found." });
     if (path === "/api/plan") return plan(body);
     if (path === "/api/week") {
       // One sample week per family, planned by the real engine at build time.
@@ -171,14 +259,14 @@ SHIM = r"""
 """
 
 BANNER = """<div class="preview-banner" role="note">Preview of demo mode: the four demo families run fully in your browser,
-using numbers precomputed by the real engine. Adding your own recipes and live Nemotron need the full app.</div>"""
+using numbers precomputed by the real engine, plus Care's example remedies and sample family. Your own recipes and remedies need the full app.</div>"""
 
 
 def build(out: Path, standalone: bool = False) -> None:
     static = ROOT / "static"
     html = (static / "index.html").read_text(encoding="utf-8")
-    body = re.search(r"<body>(.*)</body>", html, re.DOTALL).group(1)
-    body = re.sub(r'\s*<script src="/static/app.js"></script>', "", body)
+    body = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL).group(1)
+    body = re.sub(r'\s*<script src="/static/[\w.-]+\.js"></script>', "", body)
     body = body.replace('<main id="main">', BANNER + '\n  <main id="main">', 1)
     css = (static / "styles.css").read_text(encoding="utf-8")
     # One self-contained file: embed the self-hosted fonts as data URIs.
@@ -194,24 +282,25 @@ def build(out: Path, standalone: bool = False) -> None:
   font-size: .95rem; text-align: center; }
 """
     data = json.dumps(precompute(), separators=(",", ":")).replace("</", "<\\/")
-    app_js = (static / "app.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
+    scripts = "\n".join("<script>" + (static / name).read_text(encoding="utf-8").replace("</script", "<\\/script") + "</script>"
+                        for name in ("family.js", "app.js", "care.js"))
     page = f"""<meta charset="utf-8">
-<title>Heritage Plate</title>
-<meta name="description" content="Keep the family's food. Fix the numbers.">
+<title>Heritage</title>
+<meta name="description" content="Keep what works from home. Fix what doesn't.">
 <style>
 {css}
 </style>
 {body}
 <script>window.__HP_DATA__ = {data};</script>
 <script>{SHIM}</script>
-<script>{app_js}</script>
+{scripts}
 """
     if standalone:  # plain static hosts (e.g. a Hugging Face Static Space) need a full document
         page = page.replace('<meta charset="utf-8">\n', "", 1)
         cut = page.index("</style>") + len("</style>")
         page = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
                 '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
-                f"{page[:cut]}\n</head>\n<body>\n{page[cut:]}\n</body>\n</html>\n")
+                f"{page[:cut]}\n</head>\n<body data-side=\"home\">\n{page[cut:]}\n</body>\n</html>\n")
     out.write_text(page, encoding="utf-8")
     print(f"Wrote {out} ({len(page) // 1024} KB)")
 

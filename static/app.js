@@ -221,10 +221,12 @@ function familyShort() {
 }
 function cookbookTitle() {
   const f = familyShort();
-  if (!f && !state.recipes.length && state.plan) return "Your week of meals";
-  return f ? `The ${f} family cookbook` : "Your family cookbook";
+  if (!f && !state.recipes.length && state.plan && !careInBook()) return "Your week of meals";
+  return f ? `The ${f} family book` : "Your family book";
 }
+function careInBook() { return typeof hasCareBook === "function" && hasCareBook(); }
 function coverLine() {
+  if (!state.recipes.length && !state.plan && careInBook()) return "Skin & hair care for the family";
   if (!state.recipes.length && state.plan) return `A personal week of meals${hasParent() ? ` for ${state.parentName.trim()}` : ""} · ${profileWords(state.plan).join(" · ")}`;
   if (state.condition === "everyday") return "Lighter family recipes for everyday";
   return `Lighter family recipes for ${hasParent() ? state.parentName.trim() : "the family"} · ${condWords()}`;
@@ -407,7 +409,7 @@ function profile() {
 // ---------- saved cookbook (this device only; works without storage) ----------
 function saveBook() {
   try {
-    if (!state.recipes.length && !state.plan && !state.profileSet) { window.localStorage.removeItem(BOOK_KEY); return; }
+    if (!state.recipes.length && !state.plan && !state.profileSet) { writePlate(null); return; }
     const data = {
       v: 1, savedAt: Date.now(),
       condition: state.condition, also: state.also, cuisine: state.cuisine, language: state.language, parentName: state.parentName,
@@ -418,8 +420,8 @@ function saveBook() {
       profile: state.profileSet ? state.profile : null,
       household: state.household,
     };
-    window.localStorage.setItem(BOOK_KEY, JSON.stringify(data));
-  } catch { /* storage blocked or full: the cookbook lasts for this visit */ }
+    writePlate(data); // the shared family store (static/family.js)
+  } catch { /* storage blocked or full: the book lasts for this visit */ }
 }
 
 // A saved cookbook may be old, edited or corrupt: keep only what the app and the API can use.
@@ -449,8 +451,11 @@ function cleanAdapted(a) {
   return { ...a, asks };
 }
 function readBook() {
+  return checkBook(readPlateRaw());
+}
+// Also used by static/family.js to migrate an old hp-cookbook-v1 save.
+function checkBook(d) {
   try {
-    const d = JSON.parse(window.localStorage.getItem(BOOK_KEY) || "null");
     if (isObj(d) && d.v === 1 && Array.isArray(d.recipes)) {
       d.recipes = d.recipes
         .filter((r) => isObj(r) && (typeof r.id === "string" || typeof r.id === "number") && String(r.id) && goodRecipe(r.base))
@@ -476,7 +481,7 @@ function readBook() {
 }
 
 function clearBook() {
-  try { window.localStorage.removeItem(BOOK_KEY); } catch { /* ignore */ }
+  try { writePlate(null); } catch { /* ignore */ }
 }
 
 // Returns false (and starts fresh, with a message) if the saved cookbook can't be opened.
@@ -493,7 +498,7 @@ function restoreBook(d) {
     Object.assign(state, keep, { planStale: false, planError: false, saved: null });
     clearBook();
     try { fillSelects(); renderResume(); renderFamilies(); renderCookbook(); renderPlan(); } catch { /* keep the toast */ }
-    toast("Couldn't open the saved cookbook, so we started fresh.");
+    toast("Couldn't open the saved family book, so we started fresh.");
     return false;
   }
 }
@@ -530,7 +535,7 @@ function renderResume() {
   const d = state.saved;
   if (!d || state.recipes.length) { box.innerHTML = ""; return; }
   const f = d.family?.family ? String(d.family.family).replace(/^The\s+/i, "").replace(/\s+family$/i, "") : "";
-  const title = f ? `The ${f} family cookbook` : "Your family cookbook";
+  const title = f ? `The ${f} family book` : "Your family book";
   const n = d.recipes.length;
   const who = String(d.parentName || "").trim();
   const bits = [n ? `${title}: ${n} dish${n === 1 ? "" : "es"}` : "Your week plan"];
@@ -1297,7 +1302,7 @@ async function submitComposer(btn) {
   const editing = state.editingId ? findEntry(state.editingId) : null;
   if (!editing && state.recipes.length >= MAX_DISHES) {
     msg.className = "msg error";
-    msg.textContent = `The cookbook holds up to ${MAX_DISHES} dishes. Remove one to add another.`;
+    msg.textContent = `Your family book holds up to ${MAX_DISHES} dishes. Remove one to add another.`;
     return;
   }
   const servings = Math.min(20, Math.max(1, Math.round(num($("servings").value) || 4)));
@@ -1340,7 +1345,7 @@ async function submitSuggest(btn, wish) {
   const msg = $("parseMsg");
   if (state.recipes.length >= MAX_DISHES) {
     msg.className = "msg error";
-    msg.textContent = `The cookbook holds up to ${MAX_DISHES} dishes. Remove one to add another.`;
+    msg.textContent = `Your family book holds up to ${MAX_DISHES} dishes. Remove one to add another.`;
     return;
   }
   const servings = Math.min(12, Math.max(1, Math.round(num($("servings").value) || 4)));
@@ -1366,7 +1371,7 @@ async function submitSuggest(btn, wish) {
     renderPlanStale();
     const card = document.querySelector(`[data-card="${CSS.escape(id)}"]`);
     if (card) { scrollToEl(card); card.querySelector("h3")?.focus({ preventScroll: true }); }
-    announce(`Suggested: ${recipe.name}. Added to your cookbook.`);
+    announce(`Suggested: ${recipe.name}. Added to your family book.`);
     saveBook();
   } catch (err) {
     stop();
@@ -1968,6 +1973,8 @@ function cookbookHTML() {
   const stale = Boolean(plan && state.planStale);
   const shareWord = navigator.share ? "Share" : "Copy as text";
   const note = plan && hasNote(plan);
+  const care = typeof careBookHTML === "function" ? careBookHTML() : ""; // Heritage Care's pages (static/care.js)
+  const fromCare = typeof careBookFromCare === "function" && careBookFromCare();
   const dishes = state.recipes.map((e) => {
     const r = current(e);
     const adapted = Boolean(e.adapted);
@@ -2016,11 +2023,11 @@ function cookbookHTML() {
       <div class="cb-shop">${shopGroups(plan).map(([k, items]) => `<div><h4 class="rc-h">${esc(SHOP_GROUPS[k])}</h4><ul>${items.map((s) => `<li><span>${esc(s.item)}</span><span>${esc(grams(s.grams))}</span></li>`).join("")}</ul></div>`).join("")}</div>
     </section>
     ${note ? `<section class="cb-sec cb-note"><h3>${esc(noteLabel(plan))}</h3><p class="cb-note-text">${esc(plan.message_for_parent)}</p></section>` : ""}` : `
-    <p class="cb-noplan no-print">Plan the week to add meals, a shopping list and a note.</p>`;
+    ${state.recipes.length ? `<p class="cb-noplan no-print">Plan the week to add meals, a shopping list and a note.</p>` : ""}`;
   return `
     <div class="wrap cb-wrap">
       <div class="cb-toolbar">
-        <button type="button" class="btn-link" data-act="close-cookbook"><span aria-hidden="true">←</span> Back to your week</button>
+        <button type="button" class="btn-link" data-act="close-cookbook"><span aria-hidden="true">←</span> ${fromCare ? "Back" : "Back to your week"}</button>
         <div class="cb-btns">
           <button type="button" class="btn btn-primary btn-small" data-act="print">Print or save PDF</button>
           <button type="button" class="btn btn-quiet btn-small" data-act="share">${shareWord}</button>
@@ -2028,12 +2035,13 @@ function cookbookHTML() {
         </div>
       </div>
       <header class="cb-cover">
-        <p class="eyebrow">Heritage Plate</p>
+        <p class="eyebrow">Heritage</p>
         <h2 id="cbTitle" tabindex="-1">${esc(cookbookTitle())}</h2>
         <p class="cb-line">${esc(coverLine())}</p>
       </header>
-      ${state.recipes.length ? dishes : plan ? "" : `<p class="cb-noplan">Nothing in your cookbook yet.</p>`}
+      ${state.recipes.length ? dishes : plan || care ? "" : `<p class="cb-noplan">Nothing in your family book yet.</p>`}
       ${week}
+      ${care}
       <footer class="cb-foot">${esc(SOURCES_LINE)}</footer>
     </div>`;
 }
@@ -2065,6 +2073,7 @@ function cookbookText() {
     if (hasNote(plan)) L.push("", `== ${noteLabel(plan)} ==`, plan.message_for_parent);
     L.push("");
   }
+  if (typeof careBookText === "function") { const c = careBookText(); if (c) L.push(c, ""); }
   L.push(SOURCES_LINE);
   return L.join("\n");
 }
@@ -2076,9 +2085,10 @@ function openCookbook() {
   document.body.classList.add("cb-open");
   window.scrollTo(0, 0);
   $("cbTitle").focus({ preventScroll: true });
-  announce("Your family cookbook.");
+  announce("Your family book.");
 }
 function closeCookbook() {
+  if (typeof careCloseBook === "function" && careCloseBook()) return; // opened from Care: go back there
   document.body.classList.remove("cb-open");
   const target = state.plan ? $("week") : $("dishes");
   if (!target.hidden) { scrollToEl(target); (state.plan ? $("weekTitle") : $("dishesTitle")).focus({ preventScroll: true }); }
@@ -2119,7 +2129,7 @@ $("resume").addEventListener("click", (e) => {
   const d = state.saved;
   if (b.dataset.resume === "clear") {
     clearBook(); state.saved = null; renderResume();
-    announce("Cleared the saved cookbook.");
+    announce("Cleared the saved family book.");
     $("heroSay").focus({ preventScroll: true });
     return;
   }

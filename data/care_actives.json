@@ -83,10 +83,10 @@
      "pregnancy": "ask", "status": "pharmacy", "products": ["shampoo"], "time": "shower", "sources": ["nhs_dandruff"]},
     {"id": "minoxidil", "name": "Minoxidil", "aliases": ["minoxidil"], "concerns": ["thinning_hair"], "strength": "2% (women) or 5% (men)", "grade": "A",
      "how": "The main over-the-counter treatment for pattern hair loss in men and women.", "cautions": "Takes 4-6 months; some extra shedding at first; regrowth is lost if you stop.",
-     "pregnancy": "avoid", "status": "pharmacy", "products": ["scalp solution or foam"], "time": "both", "sources": ["nhs_hair"]},
+     "pregnancy": "avoid", "status": "pharmacy", "min_age": 18, "products": ["scalp solution or foam"], "time": "both", "sources": ["nhs_hair"]},
     {"id": "finasteride", "name": "Finasteride (men only)", "aliases": ["finasteride"], "concerns": ["thinning_hair"], "strength": "1 mg tablet", "grade": "A",
      "how": "A tablet for male pattern hair loss.", "cautions": "Prescription only; women must not take it or handle broken tablets.",
-     "pregnancy": "avoid", "status": "prescription", "sex": "male", "products": ["tablet"], "time": "am", "sources": ["nhs_hair"]},
+     "pregnancy": "avoid", "status": "prescription", "sex": "male", "min_age": 18, "products": ["tablet"], "time": "am", "sources": ["nhs_hair"]},
     {"id": "coconut_oil_hair", "name": "Coconut oil (before washing)", "aliases": ["cocos nucifera oil", "coconut oil"], "concerns": ["dry_hair"], "strength": "a little, 30-60 minutes before washing", "grade": "C",
      "how": "Reduces protein loss from hair during washing, so hair breaks less.", "cautions": "Doesn't regrow hair; can worsen dandruff on an oily scalp.",
      "pregnancy": "ok", "status": "cosmetic", "products": ["pre-wash oil"], "time": "shower", "sources": ["jcs_coconut"]}
