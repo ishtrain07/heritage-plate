@@ -60,3 +60,6 @@ def _guard(fn, *args):
     except llm.LLMError as exc:
         log.warning("model call failed: %s", exc)
         raise HTTPException(status_code=502, detail="The AI model didn't respond properly. Please try again.") from exc
+    except (TypeError, ValueError, KeyError, AttributeError) as exc:  # malformed model output
+        log.warning("bad model output: %r", exc)
+        raise HTTPException(status_code=502, detail="The AI model didn't respond properly. Please try again.") from exc

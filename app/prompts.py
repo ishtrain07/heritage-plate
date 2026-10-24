@@ -106,11 +106,14 @@ For each remedy you can identify (at most 3):
   staining, allergy, infection). Be honest and kind about tradition; never invent studies or numbers.
 - "better": up to 3 ids from "checked_ingredients" that do the job better (only those ids).
 - "how_better": one sentence on how to use them, or how to use the remedy more safely.
+If the text (in any language) describes any of these, list their keys in "red_flags": "hair_loss_patches"
+(sudden, patchy or in-clumps hair loss), "deep_acne" (cysts, boils, deep painful spots), "changing_mole", "infection"
+(spreading rash, pus, blisters, fever, swelling), "burn".
 Consider the person (age, pregnancy, concerns, allergies). Also write "note_for_family" in {language}:
 one or two warm sentences summarising the advice.
 Reply with JSON only:
 {{"remedies": [{{"remedy": str, "verdict": str, "evidence": str, "why": str, "better": [str], "how_better": str}}],
-  "note_for_family": str}}"""
+  "red_flags": [str], "note_for_family": str}}"""
 
 CARE_PLAN = """You are a calm, evidence-minded pharmacist building simple skin and hair routines for a family.
 You get each person with their concerns and the ingredient ids they're allowed (already checked for
@@ -121,7 +124,10 @@ For each person, using ONLY their "allowed_ingredients" ids:
   (retinoids, benzoyl peroxide, acids) at a time, introduced slowly.
 - "why": an object mapping each id you used to one plain sentence about why it suits this person.
 - "summary": one or two sentences of practical advice (patch test, start slowly, when to expect results).
+- "red_flags": keys for anything in their details (any language) that needs a doctor first, e.g. hair
+  falling out suddenly, in clumps or patches → "hair_loss_patches":
+  "hair_loss_patches", "deep_acne", "changing_mole", "infection", "burn"; otherwise [].
 Write "note_for_family" in {language}: warm, simple, under 60 words.
 Reply with JSON only:
-{{"people": [{{"index": int, "am": [...], "pm": [...], "shower": [...], "why": {{}}, "summary": str}}],
+{{"people": [{{"index": int, "am": [...], "pm": [...], "shower": [...], "why": {{}}, "summary": str, "red_flags": [str]}}],
   "note_for_family": str}}"""
