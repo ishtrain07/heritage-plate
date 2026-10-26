@@ -302,6 +302,49 @@ SHIM = r"""
     return null;
   }
 
+  // Input guardrail: a small stand-in for the server's check (app/guards.py), so the preview shows the
+  // inline message for obvious inputs like "money". Same reply shape: 422 {detail: {code, message, lines?}}.
+  const SUPPORT_RE = /\b(kill my ?self|want to die|wanna die|end my life|end it all|suicid\w*|overdose|self[- ]?harm|hurt myself)\b|\beat poison\b/;
+  const NOT_FOOD_RE = /\b(money|cash|coins?|poison|bleach|detergent|soap powder|plastic|petrol|kerosene|battery|batteries|cement|drugs?)\b/;
+  const GUARD_WORDS = {
+    food: "That doesn't look like food. Try a family recipe, like “Mum's dal”.",
+    remedy: "That doesn't look like a skin or hair remedy. Try one from home, like “besan haldi ka lep”.",
+    label: "That doesn't look like an ingredients list. Paste the list from the back of the pack.",
+    avoid: "That doesn't look like a food to avoid. Try something like “mushrooms, peanuts”.",
+    gibberish: "We couldn't read that. Try a few plain words.",
+  };
+  const SUPPORT = {
+    code: "support",
+    message: "It sounds like things are really hard right now. You don't have to go through this alone, and talking to someone can help. Please reach out today:",
+    lines: ["If you are in danger now, call your local emergency number.", "India: Tele-MANAS, call 14416 (free, any time)",
+            "US: call or text 988", "UK and Ireland: Samaritans, call 116 123"],
+  };
+  function guardCheck(text, kind) {
+    const t = norm(text);
+    if (!t) return null;
+    if (SUPPORT_RE.test(t)) return SUPPORT;
+    if (kind !== "label" && NOT_FOOD_RE.test(t)) return { code: "not_food", message: GUARD_WORDS[kind] || GUARD_WORDS.food };
+    if (!/\p{L}{2,}/u.test(t) || /(.)\1{5,}/u.test(t)) return { code: "gibberish", message: GUARD_WORDS.gibberish };
+    return null;
+  }
+  function guardFor(path, body) {
+    const p = body || {};
+    const checks = {
+      "/api/parse": [[p.text, "food"]],
+      "/api/suggest": [[p.wish, "food"], [p.dislikes, "avoid"]],
+      "/api/adapt": [[p.request, "food"]],
+      "/api/week": [[p.profile && p.profile.dislikes, "avoid"]],
+      "/api/care/remedy": [[p.text, "remedy"]],
+      "/api/care/label": [[p.text, "label"]],
+      "/api/care/plan": (p.members || []).flatMap((m) => [[m.details, "remedy"], [m.wants, "remedy"]]),
+    }[path] || [];
+    for (const [text, kind] of checks) {
+      const g = text ? guardCheck(text, kind) : null;
+      if (g) return reply(422, { detail: g });
+    }
+    return null;
+  }
+
   window.__HP_PLAN__ = plan; // used by tests/test_preview.py
   const realFetch = window.fetch ? window.fetch.bind(window) : null;
   window.fetch = async (url, opts = {}) => {
@@ -309,6 +352,8 @@ SHIM = r"""
     if (!path.startsWith("/api/")) return realFetch(url, opts);
     const body = opts.body ? JSON.parse(opts.body) : {};
     await new Promise((r) => setTimeout(r, 250)); // feel like a real request
+    const guarded = guardFor(path, body);
+    if (guarded) return guarded;
     if (path === "/api/health") return reply(200, D.health);
     if (path === "/api/demo") return reply(200, D.demoList);
     const fam = path.match(/^\/api\/demo\/([a-z]+)$/);
@@ -343,7 +388,9 @@ def build(out: Path, standalone: bool = False) -> None:
     static = ROOT / "static"
     html = (static / "index.html").read_text(encoding="utf-8")
     body = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL).group(1)
-    body = re.sub(r'\s*<script src="/static/[\w.-]+\.js"></script>', "", body)
+    body = re.sub(r'\s*<script src="/static/[\w.-]+\.js(?:\?v=[\w.-]+)?"></script>', "", body)
+    # The tiny <head> script that picks home | plate | care before first paint (no flash of Plate).
+    boot = re.search(r'<script id="side-boot">.*?</script>', html, re.DOTALL).group(0)
     body = body.replace('<main id="main">', BANNER + '\n  <main id="main">', 1)
     css = (static / "styles.css").read_text(encoding="utf-8")
     # One self-contained file: embed the self-hosted fonts as data URIs.
@@ -364,6 +411,7 @@ def build(out: Path, standalone: bool = False) -> None:
     page = f"""<meta charset="utf-8">
 <title>Heritage</title>
 <meta name="description" content="Keep what works from home. Fix what doesn't.">
+{boot}
 <style>
 {css}
 </style>
@@ -377,7 +425,7 @@ def build(out: Path, standalone: bool = False) -> None:
         cut = page.index("</style>") + len("</style>")
         page = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
                 '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
-                f"{page[:cut]}\n</head>\n<body data-side=\"home\">\n{page[cut:]}\n</body>\n</html>\n")
+                f"{page[:cut]}\n</head>\n<body>\n{page[cut:]}\n</body>\n</html>\n")
     out.write_text(page, encoding="utf-8")
     print(f"Wrote {out} ({len(page) // 1024} KB)")
 

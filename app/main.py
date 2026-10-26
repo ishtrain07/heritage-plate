@@ -205,7 +205,7 @@ def suggest(body: SuggestIn, request: Request):
 def week(body: WeekIn, request: Request):
     """Personal dietitian week: calorie target from the profile, meals around the family's dishes."""
     _rate_limit(request, cost=5)  # one week plan is a long call, so it counts as several requests
-    check_input(body.profile.dislikes, "dislikes")
+    check_input(body.profile.dislikes, "dislikes", field="dislikes")
     recipes = [r.build() for r in body.recipes]
     result, trace = _guard(dietitian.plan_week, recipes, body.profile.model_dump(), body.language, body.week, body.household)
     return {"week": result, "trace": trace}
@@ -216,7 +216,7 @@ app.include_router(care.router)  # Heritage Care: /api/care/*
 
 @app.get("/")
 def index():
-    return FileResponse(ROOT / "static" / "index.html")
+    return FileResponse(ROOT / "static" / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")

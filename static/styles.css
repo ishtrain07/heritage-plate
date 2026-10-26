@@ -209,16 +209,47 @@ a { color: var(--accent-strong); text-underline-offset: 3px; }
 }
 .hero-facts svg { width: 16px; height: 16px; fill: none; stroke: var(--green); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
-/* example card: a real result from the demo, so the value is visible before any click */
+/* example card: three real results that take turns (app.js setupRotator), so the value shows before any click.
+   Only the plain backing layer is tilted. The card that carries text is never rotated: Chrome painted dark
+   boxes behind text lines on the rotated, shadowed layer. */
 .hero-card { margin: 0 12px 12px 0; position: relative; }
 .hero-card::before {
   content: ""; position: absolute; inset: 14px -12px -12px 14px; border-radius: 24px;
-  background: var(--accent-soft); transform: rotate(-2.5deg);
+  background: var(--paprika-soft, var(--accent-soft)); transform: rotate(-2.5deg);
 }
-.hero-card > div {
+.hero-card .ex-card, .hero-card > div {
   position: relative; padding: var(--s5); border-radius: 24px;
-  background: var(--surface); box-shadow: var(--shadow); transform: rotate(1deg);
+  background: var(--surface); box-shadow: var(--shadow);
 }
+.ex-stage { display: grid; }
+.ex-slide {
+  grid-area: 1 / 1; min-width: 0; opacity: 0; visibility: hidden; transform: translateX(14px);
+  transition: opacity .45s ease, transform .45s ease, visibility 0s linear .45s;
+}
+.ex-slide.was-on { transform: translateX(-14px); }
+.ex-slide.is-on { opacity: 1; visibility: visible; transform: none; transition: opacity .45s ease .1s, transform .45s ease .1s, visibility 0s; }
+.ex-why { font-size: 1.0625rem; margin-top: calc(var(--s2) * -1); }
+.ex-try-h { margin-top: var(--s3); font-size: var(--t-xs); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--green); }
+.ex-try { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s2); }
+.ex-try li { padding: 4px 12px; border-radius: 999px; background: var(--green-soft); color: var(--green-ink); font-weight: 650; font-size: var(--t-sm); }
+.ex-care .verdict { font-size: var(--t-sm); padding: 3px 12px 3px 4px; gap: 6px; }
+.ex-care .v-icon { width: 20px; height: 20px; font-size: .75rem; }
+.ex-days { list-style: none; margin: var(--s4) 0 0; padding: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.ex-days li { display: grid; place-items: center; height: 34px; border-radius: 10px; background: var(--green-soft); color: var(--green-ink); font-size: var(--t-xs); font-weight: 750; }
+.ex-controls { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); margin: var(--s3) -10px -12px; }
+.ex-dots { display: flex; }
+.ex-dot, .ex-pause {
+  display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%;
+  background: transparent; color: var(--muted); cursor: pointer;
+}
+.ex-dot::before { content: ""; width: 10px; height: 10px; border-radius: 999px; background: var(--line-strong); transition: width .2s, background .2s; }
+.ex-dot[aria-pressed="true"]::before { width: 24px; background: var(--paprika, var(--accent)); }
+.ex-dot:hover::before { background: var(--muted); }
+.ex-dot[aria-pressed="true"]:hover::before { background: var(--paprika-strong, var(--accent-strong)); }
+.ex-pause:hover { color: var(--ink); background: var(--chip); }
+.ex-pause svg { width: 18px; height: 18px; }
+.ex-pause .ic-play, .ex-rot.is-paused .ex-pause .ic-pause { display: none; }
+.ex-rot.is-paused .ex-pause .ic-play { display: block; }
 .hc-top { display: flex; justify-content: space-between; align-items: center; gap: var(--s2); }
 .hc-kicker { font-size: var(--t-xs); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .hc-name { font-family: var(--serif); font-size: 1.5rem; font-weight: 600; line-height: 1.2; margin: var(--s2) 0 var(--s4); }
@@ -1036,7 +1067,7 @@ body:has(#readyBar:not([hidden])) .toast, body:has(.dish-actions.is-sticky:not([
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
-  .hero-card > div, .hero-card::before { transform: none; }
+  .hero-card > div, .hero-card::before, .ex-slide, .ex-slide.was-on { transform: none; }
 }
 @media (forced-colors: active) {
   .tag, .btn, .seg span, .chip { border: 1px solid CanvasText; }
@@ -1061,17 +1092,20 @@ body:has(#readyBar:not([hidden])) .toast, body:has(.dish-actions.is-sticky:not([
    accent reachable inside Care (the Swap pill).
    ===================================================================== */
 :root { --paprika: var(--accent); --paprika-soft: var(--accent-soft); --paprika-strong: var(--accent-strong); }
-body[data-side="care"], .care-scope {
+/* Set on <body>, not :root, so --paprika above keeps Plate's colour inside Care. */
+html[data-side="care"] > body, body[data-side="care"], .care-scope {
   --accent: var(--green); --accent-strong: var(--green-ink); --accent-soft: var(--green-soft);
   --on-accent: var(--on-green); --brand-rim: var(--green);
 }
 
-/* which side shows */
-body[data-side="home"] #flowView, body[data-side="home"] #careView,
-body[data-side="plate"] #homeView, body[data-side="plate"] #careView,
-body[data-side="care"] #homeView, body[data-side="care"] #flowView { display: none; }
+/* Which side shows. <html data-side> is set by the inline script in <head> before first paint, so the
+   right side is the first thing drawn; care.js keeps <html> and <body> in step. No attribute (no JS): home. */
+[data-side="home"] #flowView, [data-side="home"] #careView,
+[data-side="plate"] #homeView, [data-side="plate"] #careView,
+[data-side="care"] #homeView, [data-side="care"] #flowView,
+html:not([data-side]) #flowView, html:not([data-side]) #careView { display: none; }
 .cb-open #homeView, .cb-open #careView { display: none !important; }
-body[data-side="care"] .side-plate, body:not([data-side="care"]) .side-care { display: none; }
+[data-side="care"] .side-plate, html:not([data-side="care"]) .side-care { display: none; }
 
 /* header switch */
 .top-inner { flex-wrap: wrap; }
@@ -1101,6 +1135,50 @@ body[data-side="care"] .side-plate, body:not([data-side="care"]) .side-care { di
 /* umbrella home */
 .home-hero { padding-bottom: var(--s7); }
 .home-hero h1 { max-width: 18ch; }
+.home-grid { display: grid; gap: var(--s6); align-items: center; }
+.home-ex { display: none; }
+@media (min-width: 860px) {
+  .home-grid { grid-template-columns: 1.25fr 1fr; gap: var(--s8); }
+  .home-ex { display: block; }
+}
+/* the 3 steps, so the whole idea lands in a few seconds */
+.steps3 { list-style: none; margin: var(--s5) 0 0; padding: 0; display: grid; gap: var(--s3); max-width: 40ch; }
+.steps3 li { display: flex; gap: var(--s3); align-items: flex-start; }
+.s3-n {
+  flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+  background: var(--accent); color: var(--on-accent); font-weight: 750; font-size: 1rem; line-height: 1;
+}
+.steps3 b { display: block; font-size: 1.125rem; line-height: 1.3; margin-top: 3px; }
+.s3-sub { display: block; color: var(--muted); font-size: var(--t-base); line-height: 1.4; }
+.steps-mini { list-style: none; margin: var(--s4) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px var(--s4); font-size: var(--t-sm); font-weight: 650; color: var(--ink); }
+.steps-mini li { display: inline-flex; align-items: center; gap: 8px; }
+.sm-n {
+  flex: none; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent-strong); font-size: .8125rem; font-weight: 800; line-height: 1;
+}
+@media (max-width: 519px) { .steps-mini { flex-direction: column; } }
+.door-sub { font-family: var(--sans); font-size: var(--t-sm); font-weight: 600; color: var(--muted); letter-spacing: 0; margin-left: 4px; }
+.home-sample { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2) var(--s4); margin-top: var(--s5); }
+.home-sample-sub { color: var(--muted); font-size: var(--t-sm); }
+@media (max-width: 520px) { .home-sample .btn { width: 100%; } }
+
+/* input guardrail: shown right under the field that was sent */
+.guard-slot:empty { display: none; }
+.guard-slot { margin-top: var(--s2); }
+.guard {
+  display: grid; gap: 4px; padding: 12px 16px; border-radius: var(--radius-sm);
+  background: var(--warn-soft); color: var(--warn-ink); border-left: 4px solid var(--saffron); font-weight: 600;
+}
+.guard-ex { font-weight: 500; }
+.guard .btn-link { min-height: 32px; text-align: left; overflow-wrap: anywhere; }
+.guard-support {
+  display: grid; gap: var(--s2); padding: var(--s4) var(--s5); border-radius: var(--radius-sm);
+  background: var(--surface-warm); color: var(--ink); border: 1.5px solid var(--line-strong); border-left: 6px solid var(--focus);
+}
+.guard-support .guard-msg { font-family: var(--serif); font-size: 1.1875rem; line-height: 1.45; }
+.guard-lines { margin: 0; padding-left: 20px; display: grid; gap: 4px; font-weight: 600; }
+.diet-note { margin-top: var(--s2); }
+.mic-hint.is-novoice { color: var(--warn-ink); background: var(--warn-soft); padding: 6px 12px; border-radius: 8px; font-weight: 600; }
 .home-hero h1 .accent { color: var(--accent); }
 .home-lede { max-width: 46ch; }
 .doors { display: grid; gap: var(--s4); margin-top: var(--s6); }
@@ -1289,3 +1367,53 @@ body[data-side="care"] .side-plate, body:not([data-side="care"]) .side-care { di
 @media (forced-colors: active) {
   .verdict, .chip-btn, .chip-add, .checked-badge > summary, .side-switch a[aria-current="page"] { border: 1px solid CanvasText; }
 }
+
+/* =====================================================================
+   Design pass (Oct 26): calmer and more premium, same behaviour.
+   One primary action per area, more air on an 8px rhythm, softer
+   shadows, 16/24px radii, quieter inner cards. Tokens first.
+   ===================================================================== */
+:root {
+  --radius: 24px;
+  --radius-sm: 16px;
+  --shadow: 0 1px 2px rgba(60, 40, 20, .04), 0 8px 24px -12px rgba(60, 40, 20, .10);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --shadow: 0 0 0 1px #2e251e, 0 12px 28px -14px rgba(0, 0, 0, .5); }
+}
+:root[data-theme="dark"] { --shadow: 0 0 0 1px #2e251e, 0 12px 28px -14px rgba(0, 0, 0, .5); }
+
+/* reading width and rhythm */
+.lede, .care-head .lede { max-width: 52ch; }
+.care-p, .sec-sub, .q-help { max-width: 65ch; }
+@media (min-width: 760px) { .flow { gap: var(--s8); } }
+.care-wrap { gap: var(--s6); }
+.care-card { gap: var(--s4); }
+@media (min-width: 701px) { .care-card { padding: var(--s6); } }
+
+/* Plate hero: one clear primary. "Suggest a dish" reads as a quiet link, not a third big button. */
+#heroSuggest {
+  background: none; border: 0; box-shadow: none; padding: 0 2px; min-height: 44px; width: auto;
+  color: var(--accent-strong); font-weight: 650; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 4px;
+}
+#heroSuggest:hover { background: none; text-decoration-thickness: 2.5px; transform: none; }
+@media (max-width: 520px) { #heroSuggest { justify-self: start; } }
+
+/* inner cards: no heavy side bars, just a soft fill and a hairline */
+.ing-card { border-left: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--s4) var(--s4) var(--s4); gap: var(--s2); }
+.ing-name { font-size: 1.1875rem; }
+.label-list li { border-radius: var(--radius-sm); padding: var(--s3) var(--s4); }
+.care-letter { border-radius: var(--radius); padding: var(--s6) var(--s5); }
+
+/* Care plan: each person breathes, so the long form reads as a few calm groups */
+.person { gap: var(--s4); }
+.person-fs { margin-top: var(--s1); }
+.person + .person { margin-top: var(--s2); }
+.care-people { gap: var(--s5); }
+.routine-slot .rc-h { margin-bottom: var(--s1); }
+.routine { gap: var(--s3); }
+
+/* softer step numbers and dividers */
+.care-disclaimer, .foot { border-top-color: var(--line); }
+.care-callout { border-radius: var(--radius-sm); }
+.doctor-notes { border-radius: var(--radius-sm); }

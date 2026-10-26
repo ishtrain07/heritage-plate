@@ -76,7 +76,7 @@ const SPEECH_LANG = {
   Tagalog: "fil-PH", Vietnamese: "vi-VN", Thai: "th-TH", Arabic: "ar-SA", Farsi: "fa-IR", Spanish: "es-ES",
   Portuguese: "pt-BR", Italian: "it-IT", French: "fr-FR", Polish: "pl-PL",
 };
-const VOICE_FALLBACK = "Voice works in Chrome and Safari. You can type it here instead.";
+const VOICE_FALLBACK = "Voice works in Chrome, Edge or Safari, so type instead.";
 
 const FAMILY_SHADES = 4; // .avatar.fam-1 … fam-4, coloured by theme tokens
 const DAY_NAMES = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
@@ -84,8 +84,15 @@ const SLOT_NAMES = { breakfast: "Breakfast", lunch: "Lunch", snack: "Snack", din
 const SLOT_ORDER = ["breakfast", "lunch", "snack", "dinner"];
 
 // The dietitian intake. Values match the /api/week Profile model.
-const DIETS = [["non_veg", "Everything"], ["pescatarian", "Fish, no meat"], ["eggetarian", "Vegetarian + eggs"], ["vegetarian", "Vegetarian"], ["vegan", "Vegan"]];
-const DIET_WORDS = { non_veg: "Eats everything", pescatarian: "Fish, no meat", eggetarian: "Vegetarian + eggs", vegetarian: "Vegetarian", vegan: "Vegan" };
+const DIETS = [["non_veg", "Everything"], ["pescatarian", "Fish, no meat"], ["eggetarian", "Vegetarian + eggs"], ["vegetarian", "Vegetarian"], ["vegan", "Vegan"],
+  ["halal", "Halal"], ["kosher", "Kosher-style"], ["jain", "Jain"]];
+const DIET_WORDS = { non_veg: "Eats everything", pescatarian: "Fish, no meat", eggetarian: "Vegetarian + eggs", vegetarian: "Vegetarian", vegan: "Vegan",
+  halal: "Halal", kosher: "Kosher-style", jain: "Jain" };
+// A short plain note under the diet chips, for the diets people read differently.
+const DIET_NOTES = {
+  kosher: "Kosher-style: no pork or shellfish, no meat with dairy. We can't check certification.",
+  jain: "Vegetarian, no onion, garlic or root vegetables.",
+};
 const HEALTH = [["diabetes", "Type 2 diabetes"], ["bp", "High blood pressure"], ["cholesterol", "High cholesterol"]];
 const GOALS = [
   ["maintain", "Eat well", "Balanced meals at their usual calories."],
@@ -274,6 +281,8 @@ function readableError(detail, status) {
       const field = Array.isArray(long.loc) ? long.loc.filter((x) => typeof x === "string").pop() : "";
       const max = Number(long.ctx?.max_length) || Number((String(long.msg || "").match(/at most (\d+)/) || [])[1]) || 0;
       const limit = max ? max.toLocaleString("en-US") : "";
+      if (field === "text" && max === 3000) return `That ingredient list is too long; keep it under ${limit} characters.`; // label check
+      if (field === "text" && max === 400) return `That remedy is too long; keep it under ${limit} characters.`;
       if (field === "text" || field === "source_text") return `That recipe is too long; keep it under ${limit || "2,000"} characters.`;
       if (field === "request") return `That ask is too long; keep it under ${limit || "200"} characters.`;
       if (field === "wish") return `That's a bit long; keep it under ${limit || "300"} characters.`;
@@ -315,9 +324,82 @@ async function api(path, body, timeoutMs = 120000, signal = null) {
   } finally { clearTimeout(timer); if (signal) signal.removeEventListener("abort", onCancel); }
   if (signal?.aborted) { const e = new Error("Cancelled."); e.cancelled = true; throw e; }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(readableError(data.detail, res.status));
+  if (!res.ok) {
+    const guard = res.status === 422 ? guardOf(data.detail) : null;
+    const e = new Error(guard ? guard.message : readableError(data.detail, res.status));
+    if (guard) e.guard = guard;
+    throw e;
+  }
   return data;
 }
+
+// ---------- input guardrail replies ----------
+// A 422 whose detail is {code, message, lines?} is the server saying "that isn't something we can work with"
+// (a normal validation 422 has a list as its detail). It's shown inline under the field that was sent, never
+// as a toast, and never with the person's own text echoed back.
+const GUARD_CODES = ["not_food", "off_topic", "gibberish", "support"];
+function guardOf(detail) {
+  if (!detail || typeof detail !== "object" || Array.isArray(detail) || !GUARD_CODES.includes(detail.code)) return null;
+  const msg = typeof detail.message === "string" ? detail.message.trim() : "";
+  const lines = Array.isArray(detail.lines) ? detail.lines.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim()).slice(0, 8) : [];
+  const fallback = detail.code === "support"
+    ? "It sounds like things are really hard right now. You don't have to face this alone. Please reach out to someone who can help today."
+    : "That doesn't look like something we can check. Please try again.";
+  return { code: detail.code, message: msg || fallback, lines };
+}
+
+// `ex` = an example to try (filled into the field on tap); `exLabel` = button words when the example is long.
+function guardHTML(g, ex = "", exLabel = "") {
+  if (g.code === "support") {
+    return `
+      <div class="guard guard-support" role="status">
+        <p class="guard-msg">${esc(g.message)}</p>
+        ${g.lines.length ? `<ul class="guard-lines">${g.lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
+      </div>`;
+  }
+  const tryIt = ex ? `<p class="guard-ex">Try something like <button type="button" class="btn-link guard-use" data-guard-example="${esc(ex)}">${esc(exLabel || `“${ex}”`)}</button></p>` : "";
+  return `<div class="guard" role="alert"><p class="guard-msg">${esc(g.message)}</p>${tryIt}</div>`;
+}
+
+function showGuard(slotId, fieldId, g, ex = "", exLabel = "") {
+  const slot = $(slotId);
+  if (!slot) return;
+  slot.dataset.field = fieldId || "";
+  slot.innerHTML = guardHTML(g, ex, exLabel);
+  const field = fieldId ? $(fieldId) : null;
+  if (field) {
+    if (g.code !== "support") field.setAttribute("aria-invalid", "true");
+    const ids = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter((x) => x && x !== slotId);
+    field.setAttribute("aria-describedby", [...ids, slotId].join(" "));
+  }
+  slot.scrollIntoView({ block: "nearest", behavior: reduceMotion() ? "auto" : "smooth" });
+}
+
+function clearGuard(slotId) {
+  const slot = $(slotId);
+  if (!slot || !slot.innerHTML) return;
+  const field = slot.dataset.field ? $(slot.dataset.field) : null;
+  if (field) {
+    field.removeAttribute("aria-invalid");
+    const ids = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter((x) => x && x !== slotId);
+    if (ids.length) field.setAttribute("aria-describedby", ids.join(" ")); else field.removeAttribute("aria-describedby");
+  }
+  slot.innerHTML = "";
+}
+
+// "Try something like …": fill the field with the example and clear the message.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-guard-example]");
+  if (!b) return;
+  const slot = b.closest(".guard-slot");
+  const field = slot?.dataset.field ? $(slot.dataset.field) : null;
+  if (slot) clearGuard(slot.id);
+  if (field) { field.value = b.dataset.guardExample; field.focus(); field.dispatchEvent(new Event("input", { bubbles: true })); }
+});
+// Typing again clears the message under that field.
+document.addEventListener("input", (e) => {
+  document.querySelectorAll(".guard-slot").forEach((slot) => { if (slot.dataset.field && slot.dataset.field === e.target.id) clearGuard(slot.id); });
+});
 
 function baseFields(r) {
   const out = {
@@ -907,7 +989,8 @@ function askBox(e) {
       <div class="chips" role="group" aria-label="Quick asks">
         ${chips.map((c) => `<button type="button" class="chip" data-chip="${esc(c)}"${dis}>${esc(c)}</button>`).join("")}
       </div>
-      ${e.askError ? `<p class="msg error" role="alert">${esc(e.askError)}</p>` : ""}
+      ${e.askGuard ? `<div class="guard-slot">${guardHTML(e.askGuard, e.askGuard.code === "support" ? "" : chips[0])}</div>`
+        : e.askError ? `<p class="msg error" role="alert">${esc(e.askError)}</p>` : ""}
     </form>`;
 }
 
@@ -938,7 +1021,7 @@ async function runAsks(e, list, draft) {
   const done = (next, note) => {
     e.prev = e.adapted;
     e.adapted = next;
-    e.asking = false; e.askDraft = ""; e.askError = "";
+    e.asking = false; e.askDraft = ""; e.askError = ""; e.askGuard = null;
     markCookbookChanged();
     renderCard(id);
     renderPlanStale();
@@ -954,7 +1037,7 @@ async function runAsks(e, list, draft) {
     return;
   }
   const token = {};
-  e.req = token; e.asking = true; e.askError = ""; e.askDraft = draft; e.open = true;
+  e.req = token; e.asking = true; e.askError = ""; e.askGuard = null; e.askDraft = draft; e.open = true;
   renderCard(id);
   const stale = () => findEntry(id) !== e || (e.origin !== "suggested" && condKey() !== key) || e.req !== token;
   try {
@@ -971,7 +1054,7 @@ async function runAsks(e, list, draft) {
     if (dropped > 0) toast(`Kept your latest ${asks.length} asks; the oldest ${dropped === 1 ? "one was" : `${dropped} were`} too long to send too.`);
   } catch (err) {
     if (stale()) return;
-    e.asking = false; e.askError = err.message;
+    e.asking = false; e.askError = err.message; e.askGuard = err.guard || null;
     renderCard(id);
   }
 }
@@ -1292,6 +1375,7 @@ async function submitComposer(btn) {
   const text = $("recipeText").value.trim();
   const msg = $("parseMsg");
   msg.className = "msg";
+  clearGuard("recipeGuard");
   if (text.length < 3) {
     msg.className = "msg error";
     msg.textContent = state.composerMode === "suggest" ? "Say or type what you'd like first." : "Say or type a recipe first.";
@@ -1336,9 +1420,15 @@ async function submitComposer(btn) {
     await adaptOne(id);
   } catch (err) {
     stop();
+    if (err.guard) { msg.className = "msg"; msg.textContent = ""; showGuard("recipeGuard", "recipeText", err.guard, recipeExample()); return; }
     msg.className = "msg error";
     msg.textContent = err.message;
   }
+}
+
+// What to try when the box held something that isn't a recipe.
+function recipeExample() {
+  return state.cuisine === "south_asian" ? "Mum's dal: 1 katori toor dal, 1 tomato, haldi, jeera, 1 spoon ghee" : `Family stew: ${EXAMPLES[state.cuisine] || EXAMPLES.other}`;
 }
 
 async function submitSuggest(btn, wish) {
@@ -1375,6 +1465,7 @@ async function submitSuggest(btn, wish) {
     saveBook();
   } catch (err) {
     stop();
+    if (err.guard) { msg.className = "msg"; msg.textContent = ""; showGuard("recipeGuard", "recipeText", err.guard, SUGGEST_EXAMPLE); return; }
     msg.className = "msg error";
     msg.textContent = err.message;
   }
@@ -1383,9 +1474,19 @@ async function submitSuggest(btn, wish) {
 // ---------- voice ----------
 const voice = { rec: null, listening: false, base: "" };
 
+// No speech recognition (e.g. Firefox): the mic stays, and says plainly to type instead.
+// `again` re-announces the line after a tap, since a status region only speaks when its text changes.
+function noVoiceHint(hint, again = false) {
+  hint.classList.add("is-novoice");
+  hint.closest(".mic-wrap")?.classList.add("no-voice");
+  if (!again) { hint.textContent = VOICE_FALLBACK; return; }
+  hint.textContent = "";
+  setTimeout(() => { hint.textContent = VOICE_FALLBACK; }, 60);
+}
+
 function updateMicHint() {
   const hint = $("micHint");
-  if (!voice.rec) { hint.textContent = VOICE_FALLBACK; return; }
+  if (!voice.rec) { noVoiceHint(hint); return; }
   hint.textContent = voice.listening
     ? `Listening in ${state.speechLang}. Tap Done when you've finished.`
     : `Listens in ${state.speechLang}. Check the words before you go on.`;
@@ -1401,7 +1502,7 @@ function setListening(on) {
 }
 
 function startListening() {
-  if (!voice.rec) { updateMicHint(); return; }
+  if (!voice.rec) { noVoiceHint($("micHint"), true); return; }
   if (voice.listening) return;
   const rec = voice.rec;
   voice.base = $("recipeText").value.trim();
@@ -1426,7 +1527,7 @@ function stopListening() {
 function setupVoice() {
   const mic = $("mic");
   mic.addEventListener("click", () => {
-    if (!voice.rec) { updateMicHint(); $("recipeText").focus(); return; }
+    if (!voice.rec) { noVoiceHint($("micHint"), true); $("recipeText").focus(); return; }
     if (voice.listening) stopListening(); else startListening();
   });
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1503,6 +1604,8 @@ function renderIntake() {
   $("pName").value = state.parentName;
   $("pLang").innerHTML = langs.map((l) => `<option value="${esc(l)}"${l === state.language ? " selected" : ""}>${esc(l)}</option>`).join("");
   $("pDiet").innerHTML = pickHTML("diet", DIETS, "radio", (v) => v === p.diet);
+  $("dietNote").textContent = DIET_NOTES[p.diet] || "";
+  clearGuard("avoidGuard");
   $("pCond").innerHTML = pickHTML("cond", HEALTH, "checkbox", (v) => p.conditions.includes(v));
   $("pGoal").innerHTML = pickHTML("goal", GOALS, "radio", (v) => v === p.goal);
   $("goalHelp").textContent = goalHelpText(p.goal);
@@ -1924,6 +2027,16 @@ async function makePlan() {
       announce("Stopped planning. Nothing was changed.");
       return;
     }
+    if (err.guard) {
+      // The foods-to-avoid box held something we can't use: back to the form, message under that box.
+      state.intakeOpen = true;
+      renderPlan();
+      renderIntake();
+      refreshButtons();
+      showGuard("avoidGuard", "pAvoid", err.guard, "mushrooms, peanuts");
+      $("pAvoid").focus({ preventScroll: true });
+      return;
+    }
     state.planError = true;
     state.planErrorMsg = err.message;
     renderPlan();
@@ -1948,6 +2061,15 @@ async function copyText(text) {
     ta.remove();
     return ok;
   }
+}
+
+// Shared links always open on the home page (#home), never on whichever side the sender was using.
+function homeLink() {
+  return /^https?:$/.test(location.protocol) ? `${location.origin}${location.pathname}#home` : "";
+}
+function withHomeLink(text) {
+  const link = homeLink();
+  return link ? `${text}\n\nMade with Heritage: ${link}` : text;
 }
 
 async function shareText(title, text) {
@@ -2172,10 +2294,16 @@ $("cookbook").addEventListener("submit", (e) => {
 });
 $("cookbook").addEventListener("input", (e) => {
   const f = e.target.closest("form[data-ask]");
-  if (f) { const entry = findEntry(f.dataset.ask); if (entry) entry.askDraft = e.target.value; }
+  if (!f) return;
+  const entry = findEntry(f.dataset.ask);
+  if (!entry) return;
+  entry.askDraft = e.target.value;
+  if (entry.askGuard || entry.askError) { entry.askGuard = null; entry.askError = ""; f.querySelector(".guard-slot, .msg.error")?.remove(); }
 });
 
 $("cookbook").addEventListener("click", (e) => {
+  const tryAsk = e.target.closest("form[data-ask] [data-guard-example]");
+  if (tryAsk) { e.stopPropagation(); askDish(tryAsk.closest("form[data-ask]").dataset.ask, tryAsk.dataset.guardExample); return; }
   const chip = e.target.closest("[data-chip]");
   if (chip) { askDish(chip.closest("form[data-ask]").dataset.ask, chip.dataset.chip); return; }
   const x = e.target.closest("[data-ask-remove]");
@@ -2260,6 +2388,7 @@ $("intakeForm").addEventListener("input", (e) => {
 });
 $("intakeForm").addEventListener("change", (e) => {
   if (e.target.name === "goal") $("goalHelp").textContent = goalHelpText(e.target.value);
+  if (e.target.name === "diet") $("dietNote").textContent = DIET_NOTES[e.target.value] || "";
   if (e.target.name === "sex") {
     $("pPregWrap").hidden = e.target.value !== "female";
     if (e.target.value !== "female") $("pPregnant").checked = false;
@@ -2334,7 +2463,7 @@ function onAction(e) {
   if (!b) return;
   const act = b.dataset.act;
   if (act === "print") printCookbook();
-  else if (act === "share") shareText(cookbookTitle(), cookbookText());
+  else if (act === "share") shareText(cookbookTitle(), withHomeLink(cookbookText()));
   else if (act === "share-note" && state.plan) shareText(noteLabel(state.plan), state.plan.message_for_parent || "");
   else if (act === "open-cookbook") openCookbook();
   else if (act === "close-cookbook") closeCookbook();
@@ -2423,6 +2552,83 @@ function setupTheme() {
   }
 }
 
+// ---------- example card: three real results take turns ----------
+// ~5 s each with a short crossfade. Pauses on hover, on keyboard focus, while off screen or in a hidden tab,
+// and for good with the pause button. Reduced motion: the first example stays, the dots still switch.
+// Not a live region, so screen readers aren't interrupted; hidden slides are inert.
+const ROTATE_MS = 5000;
+function setupRotator(root) {
+  const slides = Array.from(root.querySelectorAll(".ex-slide"));
+  const dots = Array.from(root.querySelectorAll(".ex-dot"));
+  const pauseBtn = root.querySelector("[data-pause]");
+  if (slides.length < 2) return;
+  let i = 0, timer = 0, hover = false, focus = false, seen = true;
+  let stopped = reduceMotion();
+  const show = (n) => {
+    const prev = i;
+    i = (n + slides.length) % slides.length;
+    slides.forEach((s, k) => {
+      const on = k === i;
+      s.classList.toggle("is-on", on);
+      s.classList.toggle("was-on", !on && k === prev && prev !== i);
+      s.setAttribute("aria-hidden", String(!on));
+      s.inert = !on;
+    });
+    dots.forEach((d, k) => d.setAttribute("aria-pressed", String(k === i)));
+  };
+  const running = () => !stopped && !hover && !focus && seen && !document.hidden;
+  const arm = () => {
+    clearTimeout(timer);
+    if (running()) timer = setTimeout(() => { show(i + 1); arm(); }, ROTATE_MS);
+  };
+  const syncPause = () => {
+    if (!pauseBtn) return;
+    pauseBtn.hidden = reduceMotion();
+    pauseBtn.setAttribute("aria-pressed", String(stopped));
+    pauseBtn.setAttribute("aria-label", stopped ? "Play the examples" : "Pause the examples");
+    root.classList.toggle("is-paused", stopped);
+  };
+  root.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") { hover = true; arm(); } });
+  root.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") { hover = false; arm(); } });
+  root.addEventListener("focusin", () => { focus = true; arm(); });
+  root.addEventListener("focusout", (e) => { if (!root.contains(e.relatedTarget)) { focus = false; arm(); } });
+  dots.forEach((d) => d.addEventListener("click", () => { show(Number(d.dataset.go)); arm(); }));
+  pauseBtn?.addEventListener("click", () => { stopped = !stopped; syncPause(); arm(); });
+  document.addEventListener("visibilitychange", arm);
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver((entries) => { seen = entries.some((x) => x.isIntersecting); arm(); }).observe(root);
+  }
+  const rm = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+  rm?.addEventListener?.("change", () => { stopped = rm.matches; if (stopped) show(0); syncPause(); arm(); });
+  show(0);
+  syncPause();
+  arm();
+}
+
+function setupRotators() {
+  const plateCard = document.querySelector("#flowView [data-rotator]");
+  // The home page gets its own copy of the same card (shown on wider screens).
+  document.querySelectorAll("[data-rotator-copy]").forEach((slot) => {
+    if (plateCard && !slot.children.length) slot.innerHTML = plateCard.outerHTML;
+  });
+  document.querySelectorAll("[data-rotator]").forEach(setupRotator);
+}
+
+// Home's "Try a sample family": one tap opens Plate and loads the first sample family.
+async function trySampleFamily() {
+  await new Promise((r) => setTimeout(r, 50)); // let the switch to Plate (hashchange) happen first
+  for (let n = 0; n < 60 && !state.familiesLoaded; n += 1) await new Promise((r) => setTimeout(r, 100));
+  const btn = $("families").querySelector("[data-family]");
+  scrollToEl($("samples"));
+  if (!btn) { $("samples").focus({ preventScroll: true }); return; }
+  if (btn.getAttribute("aria-pressed") !== "true") btn.click();
+  else { scrollToEl($("dishes")); $("dishesTitle").focus({ preventScroll: true }); }
+}
+$("homeSample").addEventListener("click", () => {
+  if (location.hash !== "#plate") location.hash = "plate";
+  trySampleFamily();
+});
+
 // ---------- start ----------
 async function loadFamilies() {
   const box = $("families");
@@ -2436,6 +2642,7 @@ async function loadFamilies() {
 
 async function init() {
   setupTheme();
+  setupRotators();
   fillSelects();
   setupVoice();
   if (!navigator.share) document.querySelectorAll(".share-btn").forEach((b) => { b.textContent = "Copy as text"; });

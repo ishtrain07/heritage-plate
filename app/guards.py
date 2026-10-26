@@ -44,8 +44,10 @@ EXAMPLES = {"recipe": "Try a family recipe, e.g. “Mum's dal: 1 cup toor dal, 1
             "dislikes": "List foods to leave out, e.g. “mushrooms, peanuts”."}
 
 
-def reject(code: str, message: str, lines: list[str] | None = None) -> HTTPException:
+def reject(code: str, message: str, lines: list[str] | None = None, field: str = "") -> HTTPException:
     detail: dict = {"code": code, "message": message}
+    if field:
+        detail["field"] = field
     if lines:
         detail["lines"] = lines
     return HTTPException(status_code=422, detail=detail)
@@ -57,7 +59,7 @@ def support_error() -> HTTPException:
                   "emergency number.", SUPPORT_LINES)
 
 
-def check_input(text: str, kind: str) -> str:
+def check_input(text: str, kind: str, field: str = "") -> str:
     """Refuse text that is harmful, not food (for food fields) or gibberish, before it reaches the model."""
     text = (text or "").strip()
     if not text:
@@ -65,10 +67,10 @@ def check_input(text: str, kind: str) -> str:
     if SUPPORT.search(text):
         raise support_error()
     if kind in FOOD_KINDS and NOT_FOOD.search(text):
-        raise reject("not_food", "That doesn't look like food. " + EXAMPLES[kind])
+        raise reject("not_food", "That doesn't look like food. " + EXAMPLES[kind], field=field)
     letters = [c.lower() for c in text if c.isalpha()]
     if len(letters) < 3 or len(set(letters)) < 3 or (len(letters) >= 12 and len(set(letters)) / len(letters) < 0.12):
-        raise reject("gibberish", "We couldn't make sense of that. " + EXAMPLES.get(kind, ""))
+        raise reject("gibberish", "We couldn't make sense of that. " + EXAMPLES.get(kind, ""), field=field)
     return text
 
 

@@ -553,7 +553,7 @@ def plan(body: PlanIn, request: Request):
     """A skin & hair routine for each family member, from checked ingredients only."""
     _rate_limit(request, cost=2)
     for m in body.members:
-        check_input(f"{m.wants} {m.details}", "details")
+        check_input(f"{m.wants} {m.details}", "details", field="details")
     result, trace = _guard(care_plan, [m.model_dump() for m in body.members], body.country, _check_language(body.language))
     return {"result": result, "trace": trace}
 

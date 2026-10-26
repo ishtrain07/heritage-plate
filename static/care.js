@@ -125,7 +125,7 @@ function micFor({ btn, box, hint, msg, idle }) {
   const label = btn.querySelector(".mic-label");
   const lang = () => careLanguage();
   function updateHint() {
-    if (!m.rec) { hint.textContent = VOICE_FALLBACK; return; }
+    if (!m.rec) { noVoiceHint(hint); return; }
     hint.textContent = m.listening ? `Listening in ${lang()}. Tap Done when you've finished.` : `Listens in ${lang()}. Check the words before you go on.`;
   }
   function set(on) {
@@ -136,7 +136,7 @@ function micFor({ btn, box, hint, msg, idle }) {
     updateHint();
   }
   function start() {
-    if (!m.rec) { updateHint(); box.focus(); return; }
+    if (!m.rec) { noVoiceHint(hint, true); box.focus(); return; }
     if (m.listening) return;
     m.base = box.value.trim();
     m.rec.lang = SPEECH_LANG[lang()] || "en-IN";
@@ -272,6 +272,8 @@ function stopAllMics() {
 function setSide(side) {
   const changed = care.side !== side;
   care.side = side;
+  // Both carry it: <html> is set before first paint by the inline script in index.html, <body> by us.
+  document.documentElement.dataset.side = side;
   document.body.dataset.side = side;
   document.querySelectorAll("[data-side-link]").forEach((a) => {
     if (a.dataset.sideLink === side) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
@@ -421,6 +423,7 @@ async function checkRemedy(textOverride) {
   const text = box.value.trim();
   const msg = $("careMsg");
   msg.className = "msg"; msg.textContent = "";
+  clearGuard("careGuard");
   care.mic?.stop();
   if (text.length < 3) {
     msg.className = "msg warn";
@@ -448,6 +451,7 @@ async function checkRemedy(textOverride) {
     out.querySelector(".remedy-name")?.focus({ preventScroll: true });
   } catch (err) {
     stop();
+    if (err.guard) { out.innerHTML = ""; showGuard("careGuard", "careText", err.guard, CARE_EXAMPLES[0][1]); return; }
     careError(out, err.message, "check");
   } finally {
     care.remedyRunning = false;
@@ -663,6 +667,7 @@ async function makeCarePlan() {
   if (care.planRunning) return;
   const msg = $("carePlanMsg");
   msg.className = "msg"; msg.textContent = "";
+  clearGuard("carePlanGuard");
   // Save any edit still waiting on the debounce.
   clearTimeout(care.saveTimer);
   $("carePeople").querySelectorAll("[data-person]").forEach((card) => { const m = readPerson(card); if (m) upsertMember(m); });
@@ -696,6 +701,7 @@ async function makeCarePlan() {
     $("planOutTitle")?.focus({ preventScroll: true });
   } catch (err) {
     stop();
+    if (err.guard) { out.innerHTML = ""; showGuard("carePlanGuard", "", err.guard); return; }
     careError(out, err.message, "plan");
   } finally {
     care.planRunning = false;
@@ -753,6 +759,7 @@ async function checkLabel() {
   const text = $("labelText").value.trim();
   const msg = $("labelMsg");
   msg.className = "msg"; msg.textContent = "";
+  clearGuard("labelGuard");
   if (text.length < 3) {
     msg.className = "msg warn"; msg.textContent = "Paste the ingredients list first, or use the example.";
     $("labelText").focus();
@@ -772,6 +779,7 @@ async function checkLabel() {
     scrollToEl(out);
   } catch (err) {
     stop();
+    if (err.guard) { out.innerHTML = ""; showGuard("labelGuard", "labelText", err.guard, LABEL_EXAMPLE, "the example list"); return; }
     careError(out, err.message, "label");
   }
 }
@@ -887,10 +895,11 @@ function onCareClick(e) {
   if (!b) return;
   const act = b.dataset.careAct;
   if (act === "check") checkRemedy();
-  else if (act === "example") checkRemedy(b.dataset.text || "");
+  else if (act === "example") { clearGuard("careGuard"); checkRemedy(b.dataset.text || ""); }
   else if (act === "save-remedy") saveRemedy();
   else if (act === "another") {
     care.remedy = null; renderRemedy();
+    clearGuard("careGuard");
     $("careText").value = "";
     window.scrollTo(0, 0);
     $("careText").focus();
@@ -905,7 +914,7 @@ function onCareClick(e) {
   else if (act === "edit-plan") {
     const first = $("carePeople").querySelector('[data-field="name"]');
     if (first) { scrollToEl($("carePeople")); first.focus({ preventScroll: true }); }
-  } else if (act === "label-example") { $("labelText").value = LABEL_EXAMPLE; $("labelText").focus(); }
+  } else if (act === "label-example") { clearGuard("labelGuard"); $("labelText").value = LABEL_EXAMPLE; $("labelText").focus(); }
   else if (act === "label") checkLabel();
 }
 

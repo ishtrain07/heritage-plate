@@ -11,9 +11,25 @@
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="/static/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/styles.css">
+  <!-- Pick the side (home | plate | care) before first paint, so Plate never flashes. care.js keeps it in step. -->
+  <script id="side-boot">
+    (function () {
+      var h = location.hash.replace(/^#/, ""), s = "home";
+      if (h === "plate") s = "plate";
+      else if (h === "care" || h === "care-plan" || h === "care-label") s = "care";
+      else if (h !== "home") {
+        try {
+          var f = JSON.parse(localStorage.getItem("hp-family-v2") || "null");
+          if (f && (f.mode === "plate" || f.mode === "care")) s = f.mode;
+          else if (!f && localStorage.getItem("hp-cookbook-v1")) s = "plate";
+        } catch (e) { /* storage blocked: home */ }
+      }
+      document.documentElement.setAttribute("data-side", s);
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/styles.css?v=20261026">
 </head>
-<body data-side="home">
+<body>
   <a class="skip" href="#main">Skip to the app</a>
 
   <header class="top">
@@ -46,22 +62,35 @@
     <div id="homeView" class="home-view">
       <section class="hero home-hero" aria-labelledby="homeTitle">
         <div class="wrap">
-          <p class="eyebrow">For families who look after each other</p>
-          <h1 id="homeTitle" tabindex="-1">Keep what works from home.<br><span class="accent">Fix what doesn't.</span></h1>
-          <p class="lede home-lede">Your family's recipes made lighter, and an honest take on your home remedies. In your words, in any language.</p>
+          <div class="home-grid">
+            <div class="home-copy">
+              <p class="eyebrow">For families who look after each other</p>
+              <h1 id="homeTitle" tabindex="-1">Keep what works from home.<br><span class="accent">Fix what doesn't.</span></h1>
+              <ol class="steps3" aria-label="How it works, in 3 steps">
+                <li><span class="s3-n" aria-hidden="true">1</span><span><b>Say a recipe or a home remedy</b><span class="s3-sub">in any language</span></span></li>
+                <li><span class="s3-n" aria-hidden="true">2</span><span><b>We check it</b><span class="s3-sub">against food tables and cited sources</span></span></li>
+                <li><span class="s3-n" aria-hidden="true">3</span><span><b>Get your plan</b><span class="s3-sub">a lighter recipe, a week of meals and a family care plan</span></span></li>
+              </ol>
+            </div>
+            <div class="home-ex" data-rotator-copy></div>
+          </div>
           <div class="doors">
             <article class="door door-plate" aria-labelledby="doorPlateTitle">
               <span class="door-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg></span>
-              <h2 id="doorPlateTitle">Food</h2>
+              <h2 id="doorPlateTitle">Plate <span class="door-sub">food</span></h2>
               <p>Mum's recipe, lighter, with a week of meals.</p>
               <a class="btn btn-primary btn-cta" href="#plate">Start with a recipe</a>
             </article>
             <article class="door door-care care-scope" aria-labelledby="doorCareTitle">
               <span class="door-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M5 19 13 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
-              <h2 id="doorCareTitle">Skin &amp; hair</h2>
+              <h2 id="doorCareTitle">Care <span class="door-sub">skin &amp; hair</span></h2>
               <p>Is haldi, coconut oil or lemon actually helping?</p>
               <a class="btn btn-primary btn-cta" href="#care">Check a home remedy</a>
             </article>
+          </div>
+          <div class="home-sample">
+            <button id="homeSample" class="btn btn-outline btn-cta" type="button">Try a sample family</button>
+            <span class="home-sample-sub">One tap: see a family's dishes made lighter. No typing.</span>
           </div>
           <p class="trust">Food numbers from food tables <span aria-hidden="true">·</span> Remedies assessed by AI, dangerous ones always flagged <span aria-hidden="true">·</span> Safer options from cited sources <span aria-hidden="true">·</span> No ads, no brands</p>
         </div>
@@ -75,6 +104,11 @@
             <p class="eyebrow">Family recipes, made healthier</p>
             <h1 id="heroTitle">Your family's recipes.<br><span class="accent">Made lighter, still home.</span></h1>
             <p class="lede">Say Mum's recipe the way she says it. We give it back lighter, with amounts, steps and a week of meals. Built for families cooking for a parent with diabetes, blood pressure or cholesterol.</p>
+            <ol class="steps-mini" aria-label="How it works">
+              <li><span class="sm-n" aria-hidden="true">1</span>Say a recipe</li>
+              <li><span class="sm-n" aria-hidden="true">2</span>We check it against food tables</li>
+              <li><span class="sm-n" aria-hidden="true">3</span>Get it lighter, plus a week of meals</li>
+            </ol>
             <div class="cta-row">
               <button id="heroSay" class="btn btn-primary btn-cta" type="button">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1a7 7 0 0 0 6-6.9h-2Z" fill="currentColor"/></svg>
@@ -87,17 +121,52 @@
             <p class="hero-week">Just want a healthy week of meals? <button id="heroWeek" class="btn-link" type="button">Plan my week</button></p>
             <p class="trust">Numbers from food tables, not guesses <span aria-hidden="true">·</span> Any cuisine <span aria-hidden="true">·</span> Free</p>
           </div>
-          <figure class="hero-card" aria-label="Example result: Mum's aloo paratha has 62 grams of sugar-raising carbs per serving before and 47 grams after, 25 percent less.">
-            <div aria-hidden="true">
-              <div class="hc-top"><span class="hc-kicker">Example · Breakfast</span><span class="tag tag-win">25% less</span></div>
-              <p class="hc-name">Mum's aloo paratha</p>
-              <p class="nums"><span class="nums-was">62</span><span class="nums-arrow">→</span><span class="nums-now">47<span class="nums-unit">g</span></span></p>
-              <p class="nums-label">sugar-raising carbs per serving</p>
-              <div class="cmp">
-                <div class="cmp-row"><span>Before</span><span class="cmp-bar"><span style="width:100%"></span></span><span class="cmp-v">62 g</span></div>
-                <div class="cmp-row is-now"><span>Now</span><span class="cmp-bar"><span style="width:76%"></span></span><span class="cmp-v">47 g</span></div>
+          <!-- Three real examples that take turns (app.js setupRotators). The same card is copied onto the home page. -->
+          <figure class="hero-card ex-rot" data-rotator aria-label="Examples of what you get back">
+            <div class="ex-card">
+            <div class="ex-stage">
+              <div class="ex-slide is-on" data-slide="0">
+                <div class="hc-top"><span class="hc-kicker">Example · Lighter recipe</span><span class="tag tag-win">25% less</span></div>
+                <p class="hc-name">Mum's aloo paratha</p>
+                <p class="nums"><span class="sr-only">Sugar-raising carbs per serving: was </span><span class="nums-was">62</span><span class="nums-arrow" aria-hidden="true">→</span><span class="sr-only"> now </span><span class="nums-now">47<span class="nums-unit">g</span></span></p>
+                <p class="nums-label" aria-hidden="true">sugar-raising carbs per serving</p>
+                <div class="cmp" aria-hidden="true">
+                  <div class="cmp-row"><span>Before</span><span class="cmp-bar"><span style="width:100%"></span></span><span class="cmp-v">62 g</span></div>
+                  <div class="cmp-row is-now"><span>Now</span><span class="cmp-bar"><span style="width:76%"></span></span><span class="cmp-v">47 g</span></div>
+                </div>
+                <p class="hc-swap"><span class="tick" aria-hidden="true">✓</span><span>Half the potato swapped for cauliflower. Same paratha, same Sunday.</span></p>
               </div>
-              <p class="hc-swap"><span class="tick">✓</span><span>Half the potato swapped for cauliflower. Same paratha, same Sunday.</span></p>
+              <div class="ex-slide ex-care care-scope" data-slide="1">
+                <div class="hc-top"><span class="hc-kicker">Example · Home remedy</span><span class="verdict v-stop"><span class="v-icon" aria-hidden="true">✕</span>Stop</span></div>
+                <p class="hc-name">“Nimbu on dark spots”</p>
+                <p class="ex-why">Lemon plus sun can burn and darken skin.</p>
+                <p class="ex-try-h">Try instead</p>
+                <ul class="ex-try">
+                  <li>Sunscreen every morning</li>
+                  <li>Azelaic acid</li>
+                </ul>
+                <p class="hc-swap"><span class="tick" aria-hidden="true">✓</span><span>Safer options from cited sources.</span></p>
+              </div>
+              <div class="ex-slide" data-slide="2">
+                <div class="hc-top"><span class="hc-kicker">Example · Week plan</span><span class="tag tag-quiet">7 days</span></div>
+                <p class="hc-name">Nani's week of meals</p>
+                <p class="nums"><span class="nums-now plain">1,650<span class="nums-unit"> kcal</span></span></p>
+                <p class="nums-label">about, each day</p>
+                <ol class="ex-days" aria-hidden="true"><li>M</li><li>T</li><li>W</li><li>T</li><li>F</li><li>S</li><li>S</li></ol>
+                <p class="hc-swap"><span class="tick" aria-hidden="true">✓</span><span>7 days, about 1,650 kcal a day, one shopping list.</span></p>
+              </div>
+            </div>
+            <div class="ex-controls">
+              <div class="ex-dots" role="group" aria-label="Pick an example">
+                <button type="button" class="ex-dot" data-go="0" aria-label="Lighter recipe example" aria-pressed="true"></button>
+                <button type="button" class="ex-dot" data-go="1" aria-label="Home remedy example" aria-pressed="false"></button>
+                <button type="button" class="ex-dot" data-go="2" aria-label="Week plan example" aria-pressed="false"></button>
+              </div>
+              <button type="button" class="ex-pause" data-pause aria-pressed="false" aria-label="Pause the examples">
+                <svg class="ic-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14M16 5v14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
+                <svg class="ic-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5.5v13l10.5-6.5Z" fill="currentColor"/></svg>
+              </button>
+            </div>
             </div>
           </figure>
         </div>
@@ -148,6 +217,7 @@
 
           <label id="recipeTextLabel" class="sr-only" for="recipeText">The recipe: dish name, then what goes in</label>
           <textarea id="recipeText" rows="5" maxlength="2000" placeholder="Or type or paste it here: dish name, then what goes in. Home measures are fine."></textarea>
+          <div id="recipeGuard" class="guard-slot"></div>
 
           <div class="composer-row">
             <div class="stepper" role="group" aria-labelledby="servesLabel">
@@ -217,7 +287,8 @@
 
             <fieldset class="q">
               <legend class="q-h">What do they eat?</legend>
-              <div id="pDiet" class="pick"></div>
+              <div id="pDiet" class="pick pick-diet"></div>
+              <p id="dietNote" class="q-help diet-note" aria-live="polite"></p>
             </fieldset>
 
             <fieldset class="q">
@@ -234,6 +305,7 @@
             <div class="q">
               <label class="q-h" for="pAvoid">Anything to avoid? <span class="opt">optional</span></label>
               <input id="pAvoid" type="text" maxlength="200" autocomplete="off" placeholder="e.g. mushrooms, peanuts">
+              <div id="avoidGuard" class="guard-slot"></div>
             </div>
 
             <details id="pTarget" class="q target">
@@ -327,6 +399,11 @@
             <p class="eyebrow">Heritage Care · skin &amp; hair</p>
             <h1 id="careTitle" tabindex="-1">The remedies you grew up with.<br><span class="accent">Kept, tweaked or swapped.</span></h1>
             <p class="lede">Say it the way it's said at home. We tell you what the evidence says and what actually does the job.</p>
+            <ol class="steps-mini" aria-label="How it works">
+              <li><span class="sm-n" aria-hidden="true">1</span>Say a home remedy</li>
+              <li><span class="sm-n" aria-hidden="true">2</span>We check it against cited sources</li>
+              <li><span class="sm-n" aria-hidden="true">3</span>Keep, tweak or swap it, plus a family plan</li>
+            </ol>
           </div>
           <div class="composer care-box">
             <div class="mic-wrap">
@@ -340,6 +417,7 @@
             </div>
             <label class="sr-only" for="careText">The remedy, the way it's said at home</label>
             <textarea id="careText" rows="3" maxlength="400" placeholder="Or type it the way it's said at home"></textarea>
+            <div id="careGuard" class="guard-slot"></div>
             <div class="care-row">
               <p id="careExLabel" class="field-label">Or tap one</p>
               <div id="careExamples" class="pick chip-row" role="group" aria-labelledby="careExLabel"></div>
@@ -381,6 +459,7 @@
           </div>
           <p class="care-sample"><button type="button" class="btn btn-quiet" data-care-act="sample">Try a sample family</button></p>
           <div id="carePeople" class="care-people"></div>
+          <div id="carePlanGuard" class="guard-slot"></div>
           <div class="care-add-row">
             <button type="button" class="btn btn-outline" data-care-act="add-person"><span aria-hidden="true">+</span> Add someone</button>
           </div>
@@ -412,6 +491,7 @@
           <div class="composer care-box">
             <label class="field-label" for="labelText">Paste the ingredients list</label>
             <textarea id="labelText" rows="4" maxlength="3000" placeholder="Aqua, Glycerin, Niacinamide, Parfum…"></textarea>
+            <div id="labelGuard" class="guard-slot"></div>
             <p class="care-ex-line"><button type="button" class="btn-link" data-care-act="label-example">Use an example</button></p>
             <fieldset class="care-row care-fs">
               <legend class="field-label">For whom?</legend>
@@ -469,8 +549,8 @@
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js"></script>
-  <script src="/static/app.js"></script>
-  <script src="/static/care.js"></script>
+  <script src="/static/family.js?v=20261026"></script>
+  <script src="/static/app.js?v=20261026"></script>
+  <script src="/static/care.js?v=20261026"></script>
 </body>
 </html>
