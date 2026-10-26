@@ -1417,3 +1417,102 @@ html:not([data-side]) #flowView, html:not([data-side]) #careView { display: none
 .care-disclaimer, .foot { border-top-color: var(--line); }
 .care-callout { border-radius: var(--radius-sm); }
 .doctor-notes { border-radius: var(--radius-sm); }
+
+/* =====================================================================
+   Polish pass (Oct 27): fixes and finish before the judges see it.
+   Builds on the design pass above; same tokens, same behaviour.
+   ===================================================================== */
+
+/* Plate's ingredient names were picking up Care's serif card title (shared .ing-name). Body text again. */
+.ing-list .ing-name { font-family: var(--sans); font-weight: 400; font-size: inherit; line-height: 1.45; }
+.ing-list .ing-amt { line-height: 1.45; }
+
+/* Display type: a touch more air between words at large optical sizes. */
+.hero h1 { letter-spacing: -.02em; line-height: 1.06; }
+@media (min-width: 860px) { #flowView .hero h1 { font-size: clamp(2.375rem, 4.6vw, 3.5rem); } }
+.nowrap { white-space: nowrap; }
+.care-head h1 { letter-spacing: -.015em; }
+
+/* Home on phones: show the real example (the hero moment) instead of only words; steps stay short. */
+@media (max-width: 859px) {
+  .home-ex { display: block; max-width: 460px; }
+  .home-grid { gap: var(--s5); }
+}
+@media (max-width: 519px) {
+  .steps3 { gap: var(--s2); margin-top: var(--s4); }
+  .steps3 b { font-size: var(--t-base); margin-top: 4px; }
+  .s3-sub { font-size: var(--t-sm); }
+  .s3-n { width: 28px; height: 28px; font-size: .9375rem; }
+}
+
+/* Cards: no thick bent top borders; the icon tile and the button carry the side colour. */
+.door, .intake { border-top: 1px solid var(--line); }
+.door { transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+@media (hover: hover) { .door:hover { transform: translateY(-2px); border-color: var(--line-strong); box-shadow: var(--shadow), 0 16px 32px -20px rgba(60, 40, 20, .35); } }
+.door h2 { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 4px; }
+
+/* Plate hero: two buttons, then one quiet group of other ways in (was three stacked links). */
+.hero-alt { margin-top: var(--s4); display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s4); }
+.hero-alt-h { color: var(--muted); font-weight: 600; }
+.hero-alt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--s4); }
+.hero-alt-list .text-link { margin-top: 0; }
+.hero-alt-list .btn-link { font-size: inherit; padding: 0; }
+#heroSuggest { padding: 0; }
+@media (max-width: 519px) {
+  .hero-alt { display: grid; gap: 0; }
+  .hero-alt-list { display: grid; justify-items: start; gap: 0; }
+}
+
+/* Trust: short items separated by a dot that never starts a line. */
+.trust-row { display: flex; flex-wrap: wrap; gap: 2px 0; }
+.trust-row > span + span::before { content: "·"; margin: 0 var(--s2); color: var(--line-strong); }
+
+/* Home trust badges: four short, scannable reasons. */
+.trust-badges { list-style: none; margin: var(--s6) 0 0; padding: var(--s5) 0 0; border-top: 1px solid var(--line); display: grid; gap: var(--s3) var(--s5); }
+@media (min-width: 600px) { .trust-badges { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1000px) { .trust-badges { grid-template-columns: repeat(4, 1fr); } }
+.trust-badges li { display: grid; grid-template-columns: 24px 1fr; gap: var(--s3); align-items: start; color: var(--muted); font-size: var(--t-sm); line-height: 1.45; }
+.trust-badges b { color: var(--ink); font-weight: 650; }
+.trust-badges svg { width: 22px; height: 22px; fill: none; stroke: var(--green); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; margin-top: 1px; }
+
+/* "Gill family · for Mum ·": drop the dangling dot when the goal chips wrap to their own line. */
+#dishesWho > span[aria-hidden="true"]:last-child { display: none; }
+#dishesSub { row-gap: var(--s2); }
+.goal-inline { flex: 1 1 100%; }
+
+/* Support reply: calm, readable, help one tap away. Regular weight, not a wall of bold. */
+.guard-support { padding: var(--s4) var(--s5); border: 1px solid var(--line); border-left: 4px solid var(--focus); background: var(--surface); box-shadow: var(--shadow); }
+.guard-support .guard-msg { font-weight: 400; font-size: 1.125rem; line-height: 1.5; }
+.guard-lines { font-weight: 500; padding-left: 0; list-style: none; gap: var(--s1); }
+.guard-lines li { padding: 2px 0; }
+.guard-tel { color: var(--focus); font-weight: 700; text-underline-offset: 3px; display: inline-block; min-height: 24px; }
+.guard { font-weight: 500; }
+.guard-msg { font-weight: 600; }
+.guard-support .guard-msg { font-weight: 400; }
+
+/* Doctor first: a warm, serious edge (not the blue focus colour, which means "keyboard focus"). */
+.care-callout-doctor { border-left-color: var(--error-ink); }
+.care-callout-doctor .callout-h > span { color: var(--error-ink); }
+
+/* Label check: an at-a-glance tally before the details, and coloured section heads. */
+.label-tally { list-style: none; margin: calc(var(--s2) * -1) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--s2); }
+.label-tally li { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: var(--t-sm); font-weight: 600; background: var(--chip); color: var(--ink); }
+.label-tally b { font-family: var(--serif); font-size: 1.125rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.label-tally .lt-help { background: var(--green-soft); color: var(--green-ink); }
+.label-tally .lt-watch { background: var(--warn-soft); color: var(--warn-ink); }
+.label-tally .lt-stop { background: var(--error-soft); color: var(--error-ink); }
+.rc-h-good, .rc-h-watch { display: flex; align-items: center; gap: 8px; }
+.rc-h-good::before, .rc-h-watch::before { content: ""; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.rc-h-good { color: var(--green); }
+.rc-h-good::before { background: var(--green-bar); }
+.rc-h-watch { color: var(--warn-ink); }
+.rc-h-watch::before { background: var(--saffron); }
+
+/* Tactile press on every button, so taps feel answered (no motion when reduced). */
+.btn:active:not(:disabled), .chip:active:not(:disabled), .chip-btn:active, .pick-opt:active span { transform: scale(.98); }
+.chip, .chip-btn { transition: border-color .15s, background .15s, color .15s, transform .1s; }
+
+/* Remedy result: the verdict is the headline moment, give it room. */
+.verdict-row .verdict:first-child { font-size: 1.125rem; padding: 8px 18px 8px 10px; }
+.verdict-row .verdict:first-child .v-icon { width: 26px; height: 26px; }
+.care-for { font-size: var(--t-sm); }

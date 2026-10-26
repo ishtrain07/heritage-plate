@@ -39,7 +39,7 @@ def test_not_food_is_refused(client, url, body):
         recipe = client.post("/api/parse", json={"text": "Dal: 1 cup toor dal, 1 onion, 2 tomatoes, 1 tsp ghee"}).json()["recipe"]
         body = {"recipe": recipe, "request": "add some detergent to it"}
     d = _detail(client.post(url, json=body))
-    assert d["code"] == "not_food" and "Try" in d["message"]
+    assert d["code"] == "not_food" and d["message"]
 
 
 @pytest.mark.parametrize("text", ["aaaaaaaaaaaa", "!!! 123 ???", "zzzzzzzzzzzzzzzzzzzzzzzzzzzzz"])

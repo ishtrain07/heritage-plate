@@ -27,7 +27,7 @@
       document.documentElement.setAttribute("data-side", s);
     })();
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261026">
+  <link rel="stylesheet" href="/static/styles.css?v=20261027">
 </head>
 <body>
   <a class="skip" href="#main">Skip to the app</a>
@@ -92,7 +92,12 @@
             <button id="homeSample" class="btn btn-outline btn-cta" type="button">Try a sample family</button>
             <span class="home-sample-sub">One tap: see a family's dishes made lighter. No typing.</span>
           </div>
-          <p class="trust">Food numbers from food tables <span aria-hidden="true">·</span> Remedies assessed by AI, dangerous ones always flagged <span aria-hidden="true">·</span> Safer options from cited sources <span aria-hidden="true">·</span> No ads, no brands</p>
+          <ul class="trust-badges" aria-label="Why you can trust it">
+            <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19V5m0 14h16M8 15v-4m4 4V8m4 7v-6" /></svg><span><b>Real numbers</b> from IFCT and USDA food tables</span></li>
+            <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg><span><b>Dangerous remedies</b> always flagged, by rules in code</span></li>
+            <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 4h9l3 3v13H6z"/><path d="M9 11h6M9 15h6"/></svg><span><b>Safer options</b> from cited sources</span></li>
+            <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg><span><b>No ads, no brands,</b> <span class="nowrap">no sign-up</span></span></li>
+          </ul>
         </div>
       </section>
     </div>
@@ -115,11 +120,16 @@
                 <span>Say a recipe</span>
               </button>
               <button id="heroType" class="btn btn-outline btn-cta" type="button">Type or paste one</button>
-              <button id="heroSuggest" class="btn btn-quiet btn-cta" type="button">Suggest a dish for me</button>
             </div>
-            <a id="heroSample" class="text-link" href="#samples">No recipe handy? Try a sample family <span aria-hidden="true">↓</span></a>
-            <p class="hero-week">Just want a healthy week of meals? <button id="heroWeek" class="btn-link" type="button">Plan my week</button></p>
-            <p class="trust">Numbers from food tables, not guesses <span aria-hidden="true">·</span> Any cuisine <span aria-hidden="true">·</span> Free</p>
+            <div class="hero-alt">
+              <p class="hero-alt-h">No recipe handy?</p>
+              <ul class="hero-alt-list">
+                <li><a id="heroSample" class="text-link" href="#samples">Try a sample family <span aria-hidden="true">↓</span></a></li>
+                <li><button id="heroSuggest" class="btn-link" type="button">Suggest a dish</button></li>
+                <li><button id="heroWeek" class="btn-link" type="button">Plan a week of meals</button></li>
+              </ul>
+            </div>
+            <p class="trust trust-row"><span>Numbers from food tables, not guesses</span><span>Any cuisine</span><span class="nowrap">Free, no sign-up</span></p>
           </div>
           <!-- Three real examples that take turns (app.js setupRotators). The same card is copied onto the home page. -->
           <figure class="hero-card ex-rot" data-rotator aria-label="Examples of what you get back">
@@ -549,8 +559,8 @@
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js?v=20261026"></script>
-  <script src="/static/app.js?v=20261026"></script>
-  <script src="/static/care.js?v=20261026"></script>
+  <script src="/static/family.js?v=20261027"></script>
+  <script src="/static/app.js?v=20261027"></script>
+  <script src="/static/care.js?v=20261027"></script>
 </body>
 </html>

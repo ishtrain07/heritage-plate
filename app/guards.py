@@ -68,16 +68,16 @@ def check_input(text: str, kind: str, field: str = "") -> str:
     if SUPPORT.search(text):
         raise support_error()
     if kind in FOOD_KINDS and NOT_FOOD.search(text):
-        raise reject("not_food", "That doesn't look like food. " + EXAMPLES[kind], field=field)
+        raise reject("not_food", "That doesn't look like food.", field=field)
     letters = [c.lower() for c in text if c.isalpha()]
     if len(letters) < 2 or (len(letters) > 4 and len(set(letters)) < 3) or (len(letters) >= 12 and len(set(letters)) < 5):
-        raise reject("gibberish", "We couldn't make sense of that. " + EXAMPLES.get(kind, ""), field=field)
+        raise reject("gibberish", "We couldn't make sense of that.", field=field)
     return text
 
 
 def off_topic_error(kind: str) -> HTTPException:
     what = {"recipe": "a recipe", "ask": "a change to this dish", "wish": "a dish idea", "remedy": "a skin or hair remedy"}
-    return reject("off_topic", f"That doesn't look like {what.get(kind, 'what this box is for')}. " + EXAMPLES.get(kind, ""))
+    return reject("off_topic", f"That doesn't look like {what.get(kind, 'what this box is for')}.")
 
 
 # Simple per-client limit on model-backed endpoints (protects credits on a public demo URL).

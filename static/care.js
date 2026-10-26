@@ -126,6 +126,7 @@ function micFor({ btn, box, hint, msg, idle }) {
   const lang = () => careLanguage();
   function updateHint() {
     if (!m.rec) { noVoiceHint(hint); return; }
+    hint.classList.remove("is-novoice"); hint.closest(".mic-wrap")?.classList.remove("no-voice");
     hint.textContent = m.listening ? `Listening in ${lang()}. Tap Done when you've finished.` : `Listens in ${lang()}. Check the words before you go on.`;
   }
   function set(on) {
@@ -368,7 +369,7 @@ function redFlagsCallout(flags) {
   const list = (flags || []).filter(Boolean);
   if (!list.length) return "";
   return `
-    <div class="care-callout" role="note">
+    <div class="care-callout care-callout-doctor" role="note">
       <p class="callout-h"><span aria-hidden="true">⚕</span> Worth a doctor's visit first</p>
       <ul>${list.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
     </div>`;
@@ -736,17 +737,23 @@ function renderLabel() {
   box.innerHTML = `
     <article class="care-card label-card" aria-labelledby="labelOutTitle">
       <h2 id="labelOutTitle" class="care-h2" tabindex="-1">Read ${esc(r.count)} ingredient${r.count === 1 ? "" : "s"}</h2>
+      <ul class="label-tally" aria-label="At a glance">
+        ${danger.length ? `<li class="lt-stop"><b>${danger.length}</b> ${danger.length === 1 ? "needs" : "need"} a doctor</li>` : ""}
+        ${helps.length ? `<li class="lt-help"><b>${helps.length}</b> help${helps.length === 1 ? "s" : ""}</li>` : ""}
+        ${watch.length ? `<li class="lt-watch"><b>${watch.length}</b> to watch</li>` : ""}
+        ${!danger.length && !watch.length ? `<li class="lt-help">Nothing on our watch list</li>` : ""}
+      </ul>
       ${r.fits?.length && whoName ? `<p class="label-fit"><span class="verdict v-keep"><span class="v-icon" aria-hidden="true">✓</span>Good fit</span> for ${esc(whoName)}: ${esc(r.fits.map((x) => x.toLowerCase()).join(", "))}</p>` : ""}
       ${danger.length ? `<div class="care-callout care-callout-danger" role="note"><p class="callout-h"><span aria-hidden="true">✕</span> Don't use this without a doctor</p><ul>${danger.map((x) => `<li><b>${esc(x.name)}</b>${x.position ? ` <span class="pos">#${esc(x.position)} on the list</span>` : ""}${x.why ? `<span class="label-sub">${esc(x.why)}</span>` : ""}</li>`).join("")}</ul></div>` : ""}
       ${warnings.length ? `<div class="care-callout care-callout-warn" role="note"><p class="callout-h"><span aria-hidden="true">!</span> ${whoName ? `Not ideal for ${esc(whoName)}` : "Worth knowing"}</p><ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></div>` : ""}
       <div class="label-cols">
         <div>
-          <h3 class="rc-h">Helps with</h3>
+          <h3 class="rc-h rc-h-good">Helps with</h3>
           ${helps.length ? `<ul class="label-list">${helps.map((a) => `<li><b>${esc(a.name)}</b> <span class="pos">#${esc(a.position)} on the list</span><span class="label-sub">${esc((a.helps || []).map((c) => concerns[c] || c).join(" · "))}</span>${a.how ? `<span class="label-sub">${esc(a.how)}</span>` : ""}</li>`).join("")}</ul>`
             : `<p class="care-p muted">No proven actives we know of. It may still be a fine basic product.</p>`}
         </div>
         <div>
-          <h3 class="rc-h">Watch out</h3>
+          <h3 class="rc-h rc-h-watch">Watch out</h3>
           ${watch.length ? `<ul class="label-list">${watch.map((x) => `<li><b>${esc(x.name)}</b> <span class="pos">#${esc(x.position)} on the list</span>${x.high ? ` <span class="tag-high">in the first five</span>` : ""}<span class="label-sub">${esc(x.why)}</span></li>`).join("")}</ul>`
             : `<p class="care-p muted">Nothing on our watch list.</p>`}
         </div>

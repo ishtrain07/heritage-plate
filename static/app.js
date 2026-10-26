@@ -348,13 +348,20 @@ function guardOf(detail) {
   return { code: detail.code, message: msg || fallback, lines };
 }
 
+// Helpline lines: the number becomes a tap-to-call link and a bare site a link, so help is one tap away.
+function supportLine(line) {
+  return esc(line)
+    .replace(/\b(\d{3}(?: \d{3})?|\d{4,6})\b(?=\s*(?:\(|$))/, (n) => `<a class="guard-tel" href="tel:${n.replace(/\s/g, "")}">${n}</a>`)
+    .replace(/\b([a-z0-9-]+\.(?:com|org|net))\b/i, (d) => `<a class="guard-tel" href="https://${d}" target="_blank" rel="noopener">${d}</a>`);
+}
+
 // `ex` = an example to try (filled into the field on tap); `exLabel` = button words when the example is long.
 function guardHTML(g, ex = "", exLabel = "") {
   if (g.code === "support") {
     return `
       <div class="guard guard-support" role="status">
         <p class="guard-msg">${esc(g.message)}</p>
-        ${g.lines.length ? `<ul class="guard-lines">${g.lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}
+        ${g.lines.length ? `<ul class="guard-lines">${g.lines.map((l) => `<li>${supportLine(l)}</li>`).join("")}</ul>` : ""}
       </div>`;
   }
   const tryIt = ex ? `<p class="guard-ex">Try something like <button type="button" class="btn-link guard-use" data-guard-example="${esc(ex)}">${esc(exLabel || `“${ex}”`)}</button></p>` : "";
@@ -1055,6 +1062,7 @@ async function runAsks(e, list, draft) {
   } catch (err) {
     if (stale()) return;
     e.asking = false; e.askError = err.message; e.askGuard = err.guard || null;
+    if (e.askGuard?.code === "support") e.askDraft = ""; // don't leave the hard words sitting in the box
     renderCard(id);
   }
 }
@@ -1487,6 +1495,7 @@ function noVoiceHint(hint, again = false) {
 function updateMicHint() {
   const hint = $("micHint");
   if (!voice.rec) { noVoiceHint(hint); return; }
+  hint.classList.remove("is-novoice"); hint.closest(".mic-wrap")?.classList.remove("no-voice");
   hint.textContent = voice.listening
     ? `Listening in ${state.speechLang}. Tap Done when you've finished.`
     : `Listens in ${state.speechLang}. Check the words before you go on.`;
@@ -1774,7 +1783,7 @@ function weekSummary(plan) {
       <p class="wk-who">${profileWords(plan).map(esc).join(" · ")}${who ? ` · ${esc(who)}` : ""}</p>
       <div class="wk-cal">
         <p class="wk-big"><span class="wk-about">About</span> ${esc(kcal(avg.kcal))}<span class="wk-unit"> kcal a day</span></p>
-        <p class="wk-target">${target ? `Target ${esc(kcal(target))} kcal a day, set from age, height, weight and activity` : "Daily calories shown per day. Add age, height and weight for a personal target."}</p>
+        <p class="wk-target">${target ? `Target ${esc(kcal(target))} kcal a day, set from age, height, weight and activity` : "Normal portions. Add age, height and weight for a personal target."}</p>
         ${bodyLine(t.body) ? `<p class="wk-body">${esc(bodyLine(t.body))}</p>` : ""}
       </div>
       <dl class="wk-stats">${stats.join("")}</dl>

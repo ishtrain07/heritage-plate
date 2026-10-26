@@ -161,7 +161,7 @@ def parse(body: ParseIn, request: Request):
     check_input(body.text, "recipe")
     recipe, trace = _guard(engine.parse_recipe, body.text, body.servings, body.cuisine)
     if not any(i["matched"] for i in recipe["ingredients"]):
-        raise reject("off_topic", "We couldn't find any ingredients. " + EXAMPLES["recipe"])
+        raise reject("off_topic", "We couldn't find any ingredients. Try listing them with amounts.")
     return {"recipe": recipe, "trace": trace}
 
 
