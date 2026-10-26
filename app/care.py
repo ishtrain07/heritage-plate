@@ -28,7 +28,7 @@ COUNTRIES = {"IN": "India", "US": "United States", "GB": "United Kingdom", "CA":
              "PH": "Philippines", "MX": "Mexico", "CN": "China", "AE": "United Arab Emirates", "OTHER": "elsewhere"}
 # Symptoms that need a doctor or pharmacist before any routine (checked in code, before the model).
 _LOSS = r"(hair ?loss|hair ?fall|losing|falling out|fall(?:ing)? out|thinning|bald)"
-_PATCH = r"(patchy|bald patch\w*|in patches|sudden|suddenly|in clumps|clumps)"
+_PATCH = r"(patchy|bald patch\w*|in patches|patch(?:es)? of|sudden|suddenly|in clumps|clumps)"
 # (key, pattern, message, concerns held back). The regex is a floor; the model can add keys for other languages.
 RED_FLAGS = [
     ("hair_loss_patches",
@@ -43,7 +43,7 @@ RED_FLAGS = [
      "A mole or spot that is new, changes, grows or bleeds should be checked by a doctor soon.", set()),
     ("infection",
      (r"\bspread\w* (rash|redness|red)\b|\b(rash|redness)\b[^.]{0,30}\bspread|\b(blister|blisters|pus|oozing|infected|infection)\b"
-     r"|\b(rash|hives)\b[^.]{0,30}\b(fever|swollen|swelling)\b|\b(fever|swollen|swelling)\b[^.]{0,30}\b(rash|hives)\b|\b(lips?|face|tongue) (is |are )?swell\w*"),
+     r"|\b(rash|hives)\b[^.]{0,30}\b(fever|swollen|swelling)\b|\b(fever|swollen|swelling)\b[^.]{0,30}\b(rash|hives)\b|\b(lips?|face|tongue) (is |are )?(swell\w*|swollen)|\bswollen (lips?|face|tongue)\b"),
      "Spreading, blistering, oozing or swollen skin can be an infection or allergy. See a doctor or pharmacist today.", set()),
     ("burn", r"\b(burn|burns|burned|burnt|burning|sunburn\w*|chemical burn)\b",
      "For a burn, cool it under running water for 20 minutes and get it checked if it blisters or is large.", set()),
@@ -202,7 +202,7 @@ def _mock_remedy(text: str) -> dict:
                           "Demo mode only knows a few remedies. The full app checks any remedy with the AI.", "better": [], "how_better": ""}]}
 
 
-INGESTED = re.compile(r"\b(drank|drunk|swallowed|swallow|ingested|ate|pee? liya|kha liya)\b", re.IGNORECASE)
+INGESTED = re.compile(r"\b(drank|drunk|swallowed|ingested|pee? liya|kha liya)\b", re.IGNORECASE)
 
 
 def _stop_rule(remedy: str, said: str = "") -> tuple[str, str, bool] | None:
@@ -211,6 +211,7 @@ def _stop_rule(remedy: str, said: str = "") -> tuple[str, str, bool] | None:
         if re.search(pattern, remedy or "", re.IGNORECASE):
             if INGESTED.search(f"{remedy} {said}"):  # swallowed, not on skin: that's an emergency
                 instead = "If any was swallowed, call your local poison centre or emergency number now; don't make them vomit."
+                offer = False  # no skin products in an emergency
             return why, instead, offer
     return None
 

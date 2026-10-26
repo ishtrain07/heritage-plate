@@ -260,3 +260,14 @@ def test_pool_chlorine_does_not_stop_coconut_oil(client):
 def test_swallowed_chemical_gets_emergency_advice():
     assert "poison centre" in care._stop_rule("bleach", "my son accidentally drank some bleach")[1]
     assert not care.PHOTOTOXIC.search("sublime slime")
+
+
+@pytest.mark.parametrize("text,key", [("patches of hair loss on my scalp", "hair_loss_patches"),
+                                      ("swollen lips after henna", "infection"), ("lips swollen after new lipstick", "infection")])
+def test_red_flags_round_two(text, key):
+    assert key in care.red_flag_keys(text)
+
+
+def test_swallowed_gets_no_products_and_ate_is_not_swallowed():
+    assert care._stop_rule("toothpaste", "my son swallowed toothpaste")[2] is False
+    assert "poison" not in care._stop_rule("toothpaste on the pimple", "I ate spicy food, then put toothpaste on the pimple")[1]

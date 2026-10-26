@@ -96,7 +96,8 @@ GROUPS = {
 }
 
 
-PLANT_LOOKALIKES = re.compile(r"\beggplants?\b|\b(coconut|almond|soy|soya|oat|rice|peanut|cashew|cocoa|shea|nut|seed)s? "
+WHOLE_WORDS = {"ham", "rum", "sake", "yam", "beet"}  # as prefixes they'd catch rumali roti, hamachi, beetroot (listed separately)
+PLANT_LOOKALIKES = re.compile(r"\beggplants?\b|\bbutternut\b|\bcream of tartar\b|\b(coconut|almond|soy|soya|oat|rice|peanut|cashew|cocoa|shea|nut|seed)s? "
                               r"(milk|butter|cream|yogurt|yoghurt|cheese|curd)\b|\boyster(?= mushrooms?\b)")
 
 
@@ -106,7 +107,7 @@ def _animal_word(name: str, groups: tuple[str, ...]) -> bool:
         return False
     lower = PLANT_LOOKALIKES.sub(" ", lower)  # eggplant, coconut milk, oyster mushrooms: plants
     # Short words must be whole words ("rum" not "rumali", "ham" not "hamachi"); longer ones may be prefixes ("anchov").
-    return any(re.search(rf"\b{w}(s|es)?\b" if len(w) <= 4 else rf"\b{w}", lower) for g in groups for w in WORDS[g])
+    return any(re.search(rf"\b{w}(s|es)?\b" if w in WHOLE_WORDS else rf"\b{w}", lower) for g in groups for w in WORDS[g])
 
 
 def allowed(items: list[str], diet: str, avoid: set[str]) -> bool:

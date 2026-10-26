@@ -136,3 +136,20 @@ def test_diet_words_after_review():
     assert a(["chicken", "coconut milk"], "kosher", set()) and a(["coconut milk"], "vegan", set())
     assert a(["oyster mushrooms"], "vegetarian", set()) and not a(["oyster mushrooms"], "jain", set())
     assert not a(["beetroot"], "jain", set()) and not a(["prawns"], "vegetarian", set())
+
+
+@pytest.mark.parametrize("text,support", [
+    ("I want to cut myself with a blade", True), ("I've been hurting myself on purpose", True), ("I keep cutting myself", True),
+    ("sometimes I think about ending my life", True), ("I took an overdose", True), ("main khud ko khatam karna chahta hoon", True),
+    ("I want to end it with a squeeze of lemon", False), ("I keep cutting myself while shaving", False),
+])
+def test_support_regex_round_two(text, support):
+    from app.guards import SUPPORT
+    assert bool(SUPPORT.search(text)) == support
+
+
+def test_diet_compounds_round_two():
+    a = dietitian.allowed
+    assert not a(["fishcakes"], "vegetarian", set()) and not a(["crabmeat"], "kosher", set()) and not a(["lardons"], "halal", set())
+    assert not a(["mayonnaise dressing"], "vegetarian", set())
+    assert a(["butternut squash"], "vegan", set()) and a(["chicken", "butternut squash"], "kosher", set())
