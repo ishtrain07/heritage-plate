@@ -76,3 +76,9 @@ def test_common_foods_are_counted(name, food):
 def test_compound_names_are_not_counted_as_their_parts():
     found = {f.name for f, _ in nutrition.find_mentions("chicken stock, rice vinegar, rice flour, peanut butter")}
     assert found == {"vinegar", "rice flour", "peanut butter"}  # rice vinegar is vinegar; no chicken, rice or butter
+
+
+def test_global_foods_are_counted():
+    from app import nutrition as n
+    names = {f.name for f, _ in n.find_mentions(n.normalize("pozole hominy, saltfish, kamote tops, chaulai, arbi, scotch bonnet, guajillo"))}
+    assert {"hominy", "salt cod", "sweet potato leaves", "amaranth leaves", "taro", "green chili", "chili powder"} <= names

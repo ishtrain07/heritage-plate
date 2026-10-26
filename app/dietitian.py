@@ -16,14 +16,15 @@ from pathlib import Path
 from . import engine, llm, nutrition, prompts
 
 DAYS = engine.DAYS
-MEAT = {"bacon", "chicken", "chicken breast", "goat meat", "ground beef", "lamb", "pork"}
-FISH = {"cod", "fish", "salmon", "shrimp", "tuna", "fish sauce", "oyster sauce", "kimchi"}
+MEAT = {"bacon", "chicken", "chicken breast", "goat meat", "ground beef", "lamb", "pork", "chorizo", "ground turkey"}
+FISH = {"cod", "fish", "salmon", "shrimp", "tuna", "fish sauce", "oyster sauce", "kimchi", "salt cod", "tilapia", "sardines", "mackerel"}
 EGG = {"egg", "egg white", "egg noodles", "mayonnaise"}
 DAIRY = {"cheddar cheese", "heavy cream", "khoa", "mozzarella cheese", "paneer", "parmesan cheese", "queso fresco",
-         "sour cream", "whole milk", "yogurt", "butter", "ghee", "cottage cheese", "buttermilk", "sweetened condensed milk"}
-PORK = {"pork", "bacon"}
+         "sour cream", "whole milk", "yogurt", "butter", "ghee", "cottage cheese", "buttermilk", "sweetened condensed milk", "feta cheese"}
+PORK = {"pork", "bacon", "chorizo"}
 SHELLFISH = {"shrimp", "oyster sauce"}
-ROOTS = {"onion", "spring onion", "garlic", "potato", "sweet potato", "carrot", "cassava", "ginger", "true yam", "mushrooms", "shiitake"}
+ROOTS = {"onion", "spring onion", "garlic", "potato", "sweet potato", "carrot", "cassava", "ginger", "true yam", "mushrooms", "shiitake",
+         "taro", "beetroot", "turnip", "parsnip", "leek", "daikon", "lotus root", "jicama"}
 EXCLUDES = {
     "non_veg": set(),
     "pescatarian": MEAT,

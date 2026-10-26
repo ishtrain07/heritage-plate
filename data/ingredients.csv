@@ -90,7 +90,7 @@ lettuce,romaine|cos lettuce,vegetable,150,USDA,11251
 cucumber,kheera|pipino|pepino,vegetable,200,USDA,11205
 avocado,aguacate|butter fruit,vegetable,150,USDA,09037
 kimchi,,vegetable,150,USDA,11118
-green chili,hari mirch|chili|chilli|chillies|chilies|green chilli|green chillies|green chilies|jalapeno|serrano|siling haba,vegetable,10,IFCT,G001
+green chili,hari mirch|chili|chilli|chillies|chilies|green chilli|green chillies|green chilies|jalapeno|serrano|siling haba|scotch bonnet|habanero|serrano|siling labuyo,vegetable,10,IFCT,G001
 garlic,lahsun|lehsun|bawang|ajo,vegetable,10,IFCT,G011
 ginger,adrak|luya|jengibre,vegetable,10,IFCT,G014
 lemongrass,tanglad|sereh,vegetable,15,USDA,11972
@@ -128,7 +128,7 @@ vinegar,sirka|suka|white vinegar|cider vinegar,sauce,15,USDA,02048
 spices,masala|garam masala|curry powder|sabzi masala|chaat masala,spice,10,USDA,02015
 cumin,jeera|zeera|comino|cumin seeds,spice,5,USDA,02014
 turmeric,haldi|luyang dilaw,spice,3,USDA,02043
-chili powder,red chili powder|lal mirch|mirch powder|paprika|chile powder,spice,5,USDA,02009
+chili powder,red chili powder|lal mirch|mirch powder|paprika|chile powder|guajillo|chile guajillo|chili guajillo|ancho chile|dried chili|dried chillies,spice,5,USDA,02009
 cinnamon,dalchini|canela,spice,3,USDA,02010
 salt,namak|asin|sal,spice,8,USDA,02047
 urad dal,black gram dal|udad dal|urad|mash dal|ulundu,legume,200,IFCT,B003
@@ -160,3 +160,47 @@ sweetened condensed milk,condensed milk|milkmaid|leche condensada,dairy,100,USDA
 mayonnaise,mayo,fat,30,USDA,04025
 ketchup,tomato ketchup|catsup|banana ketchup,sauce,30,USDA,11935
 dark chocolate,chocolate,sweetener,30,USDA,19904
+masa harina,masa|masa flour|corn masa|harina de maiz,grain,250,USDA,20317
+hominy,pozole corn|posole|nixtamal|mote|maiz pozolero|maíz pozolero|pozole hominy,grain,250,USDA,20330
+soba noodles,soba|buckwheat noodles,grain,200,USDA,20114
+breadfruit,ulu|lemai|rimas|kathal-bhel,vegetable,300,USDA,09059
+taro,arbi|gabi|kochu|dasheen|eddo,vegetable,250,USDA,11518
+nopales,nopal|cactus paddles|cactus,vegetable,200,USDA,11963
+chayote,sayote|chow chow|christophene|cho-cho,vegetable,250,USDA,11149
+tomatillo,tomatillos|green tomato salsa verde,vegetable,200,USDA,11954
+jicama,singkamas|yam bean|mishrikand,vegetable,200,USDA,11603
+jalapeno,jalapeño|jalapenos,vegetable,20,USDA,11979
+daikon,mooli|mulli|labanos|white radish|radish,vegetable,200,USDA,11430
+lotus root,kamal kakdi|nadru|renkon,vegetable,200,USDA,11254
+bamboo shoots,bamboo shoot|labong|bans,vegetable,150,USDA,11026
+amaranth leaves,callaloo|chaulai|thotakura|kulitis|bayam,vegetable,200,USDA,11003
+sweet potato leaves,kamote tops|camote tops|talbos ng kamote,vegetable,150,USDA,11505
+beetroot,beet|beets|chukandar,vegetable,200,USDA,11080
+turnip,turnips|shalgam|shalgum,vegetable,200,USDA,11564
+parsnip,parsnips,vegetable,200,USDA,11298
+leek,leeks,vegetable,150,USDA,11246
+kale,curly kale|lacinato kale,vegetable,150,USDA,11233
+red cabbage,purple cabbage,vegetable,200,USDA,11112
+brussels sprouts,brussel sprouts,vegetable,200,USDA,11098
+asparagus,asparagus spears,vegetable,200,USDA,11011
+artichoke,artichokes|artichoke hearts,vegetable,200,USDA,11007
+sauerkraut,choucroute|kiseli kupus,vegetable,150,USDA,11439
+lentils,green lentils|brown lentils|whole masoor|lentejas,legume,200,USDA,16069
+fava beans,broad beans|ful medames|habas|bakla,legume,200,USDA,16052
+navy beans,haricot beans|white beans|baked beans beans,legume,200,USDA,16037
+hummus,houmous|hommus,legume,100,USDA,16137
+feta cheese,feta,dairy,100,USDA,01019
+olives,black olives|green olives|zaitoon,fat,50,USDA,09193
+salt cod,saltfish|bacalao|bacalhau|bacalhau salgado,protein,200,USDA,15018
+tilapia,tilapia fillet|pla nil,protein,300,USDA,15261
+sardines,sardine|tinapa|mathi|chaala,protein,150,USDA,15088
+mackerel,bangda|tenggiri|saba|ikan kembung,protein,300,USDA,15046
+chorizo,chouriço|longaniza,protein,150,USDA,07019
+ground turkey,turkey mince|minced turkey|turkey,protein,400,USDA,05305
+papaya,papita|papaw|lechosa,fruit,200,USDA,09226
+guava,amrood|bayabas|guayaba,fruit,150,USDA,09139
+pineapple,ananas|pinya|piña,fruit,200,USDA,09266
+watermelon,tarbooz|pakwan|sandia,fruit,300,USDA,09326
+pear,pears|nashpati|peras,fruit,180,USDA,09252
+blueberries,blueberry,fruit,100,USDA,09050
+strawberries,strawberry|fresas,fruit,150,USDA,09316
