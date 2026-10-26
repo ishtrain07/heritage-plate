@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 os.environ["MOCK"] = "1"
+os.environ.setdefault("RATE_LIMIT", "1000000")  # precomputing makes many requests from one client
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -54,7 +55,17 @@ CARE_SAMPLE = [
     {"name": "Priya", "age": 29, "sex": "female", "pregnant": True, "concerns": ["acne", "dark_spots"], "skin_type": "oily",
      "wants": "", "details": "", "allergies": ""},
 ]
-CARE_CHIPS = ["besan haldi ka lep", "nimbu on dark spots", "coconut oil in hair every night", "toothpaste on a pimple"]
+CARE_CHIPS = ["besan haldi ka lep", "nimbu on dark spots", "coconut oil in hair every night", "toothpaste on a pimple",
+              "haldi on acne"]  # the last is home's "Is haldi good for acne?" shortcut (HALDI_EXAMPLE in care.js)
+# Must match PLATE_EXAMPLES and SUGGEST_EXAMPLE in static/app.js: Plate's "Or tap one" chips (the first is also
+# home's "Make Mum's dal diabetes-friendly" shortcut) and home's "Suggest a healthy dish" shortcut.
+PLATE_EXAMPLES = [
+    "Mum's dal chawal: 1 katori toor dal, 2 katori rice, 1 tomato, haldi, jeera, 1 spoon ghee",
+    "Aloo paratha: 3 katori atta, 2 boiled aloo, ghee on top",
+    "Chicken adobo: 1 kg chicken, half cup soy sauce, half cup vinegar, garlic, 3 cups rice",
+    "Beef stew: 500 g beef, 3 potatoes, 2 carrots, 1 onion, a spoon of butter",
+]
+SUGGEST_EXAMPLE = "a quick high-protein dinner with spinach"
 LABEL_EXAMPLE = ("Aqua, Glycerin, Niacinamide, Parfum, Alcohol Denat., Cetearyl Alcohol, Salicylic Acid, "
                  "Lavandula Angustifolia Oil")
 
@@ -66,6 +77,30 @@ def check_care_sample() -> None:
     for t in CARE_CHIPS:
         assert f'"{t}"' in js, f"CARE_EXAMPLES out of step with care.js: {t}"
     assert LABEL_EXAMPLE in js, "LABEL_EXAMPLE out of step with care.js"
+
+
+def check_plate_examples() -> None:
+    js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    for t in PLATE_EXAMPLES:
+        assert json.dumps(t) in js, f"PLATE_EXAMPLES out of step with app.js: {t}"
+    assert json.dumps(SUGGEST_EXAMPLE) in js, "SUGGEST_EXAMPLE out of step with app.js"
+
+
+def precompute_plate_examples(client: TestClient) -> dict:
+    """Plate's example chips and home's shortcuts, so they work offline: parse once, then every health focus."""
+    check_plate_examples()
+    own = []
+    for text in PLATE_EXAMPLES:
+        parsed = client.post("/api/parse", json={"text": text, "servings": 4, "cuisine": "south_asian"}).json()
+        recipe = parsed["recipe"]
+        adapt = {c: client.post("/api/adapt", json={"recipe": {**recipe, "id": "x"}, "condition": c, "cuisine": "south_asian"}).json()
+                 for c in CONDITIONS}
+        own.append({"text": text, "parse": parsed, "adapt": adapt})
+    suggest = {}
+    for c in CONDITIONS:
+        body = {"wish": SUGGEST_EXAMPLE, "conditions": [c], "cuisine": "south_asian", "servings": 4, "diet": "non_veg", "dislikes": ""}
+        suggest[c] = client.post("/api/suggest", json=body).json()
+    return {"own": own, "suggest": suggest, "suggestWish": SUGGEST_EXAMPLE}
 
 
 def canon_member(m: dict) -> str:
@@ -134,6 +169,7 @@ def precompute() -> dict:
         "tips": engine.FALLBACK_TIPS,
         "days": list(engine.DAYS),
         "care": precompute_care(client),
+        "plateEx": precompute_plate_examples(client),
     }
 
 
@@ -147,6 +183,14 @@ SHIM = r"""
   const known = {};
   for (const fam of Object.values(D.families)) for (const r of fam.recipes) known[sig(r)] = r;
   for (const res of Object.values(D.adapt)) known[sig(res.recipe)] = res.recipe;
+  // Plate's example chips (and home's shortcuts): matched by text, then by ingredients (the page gives them its own id).
+  const norm0 = (t) => String(t || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const ingSig = (r) => JSON.stringify((r.ingredients || []).map((i) => [i.item, round1(i.grams)]));
+  const ownParse = {}, ownAdapt = {};
+  for (const ex of D.plateEx.own) {
+    ownParse[norm0(ex.text)] = ex.parse;
+    ownAdapt[ingSig(ex.parse.recipe)] = ex.adapt;
+  }
 
   const mockTrace = (step, tier) => [{ step, tier, model: `mock (Nemotron ${tier[0].toUpperCase()}${tier.slice(1)} when live)`, ms: 0, tokens: null, fallback: false, cached: false }];
   const reply = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -361,7 +405,14 @@ SHIM = r"""
     if (path === "/api/adapt") {
       const r = body.recipe || {};
       const hit = known[sig(r)] && D.adapt[`${r.id}|${body.condition || "diabetes"}`];
-      return hit ? reply(200, hit) : notInPreview();
+      if (hit) return reply(200, hit);
+      const own = !body.request && ownAdapt[ingSig(r)];
+      if (own && own[body.condition || "diabetes"]) {
+        const res = JSON.parse(JSON.stringify(own[body.condition || "diabetes"]));
+        res.recipe.id = r.id;
+        return reply(200, res);
+      }
+      return notInPreview();
     }
     if (path.startsWith("/api/care/")) return careRoute(path, body) || reply(404, { detail: "Not found." });
     if (path === "/api/plan") return plan(body);
@@ -374,13 +425,22 @@ SHIM = r"""
                         ...(res.week.notes || [])];
       return reply(200, res);
     }
-    if (path === "/api/parse" || path === "/api/suggest") return notInPreview();
+    if (path === "/api/parse") {
+      const hit = Number(body.servings) === 4 && ownParse[norm0(body.text)];
+      return hit ? reply(200, JSON.parse(JSON.stringify(hit))) : notInPreview();
+    }
+    if (path === "/api/suggest") {
+      const S = D.plateEx.suggest;
+      const conds = body.conditions || ["everyday"];
+      const hit = norm0(body.wish) === norm0(D.plateEx.suggestWish) && !String(body.dislikes || "").trim() && (S[conds.join("+")] || S[conds[0]]);
+      return hit ? reply(200, JSON.parse(JSON.stringify(hit))) : notInPreview();
+    }
     return reply(404, { detail: "Not found." });
   };
 })();
 """
 
-BANNER = """<div class="preview-banner" role="note">Preview of demo mode: the four demo families run fully in your browser,
+BANNER = """<div class="preview-banner" role="note">Preview of demo mode: the four demo families, the example recipes and home's shortcuts run fully in your browser,
 using numbers precomputed by the real engine, plus Care's example remedies, sample family and label check. Your own recipes and remedies need the full app.</div>"""
 
 

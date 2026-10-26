@@ -746,13 +746,14 @@ function renderSections() {
   // The "Plan my week" button under the dishes only starts things; once there's a week, the week has its own buttons.
   const planBtnShown = !state.plan && !state.intakeOpen && !state.planning;
   $("dishes").hidden = n === 0;
-  $("composer").hidden = !state.composerOpen;
+  $("composer").hidden = false; // the input card: always on Plate's first screen
   $("dishActions").hidden = n === 0 || state.composerOpen;
   $("plan").hidden = !planBtnShown;
   $("dishActions").classList.toggle("is-sticky", planBtnShown);
   $("intake").hidden = !state.intakeOpen || state.planning;
   $("week").hidden = !(state.plan || state.planning || state.planError);
   $("readyBar").hidden = !(state.plan && !state.planning);
+  if (typeof renderPlateXlink === "function") renderPlateXlink(); // care.js: the small "skin or hair?" card
 }
 
 // ---------- families ----------
@@ -808,7 +809,7 @@ async function loadFamily(id, btn) {
     const famEntries = (fam.recipes || []).map((r) => ({ id: String(r.id || uid()), base: r, adapted: null, status: "idle", error: "", open: null, origin: fam.id }));
     state.recipes = [...own, ...famEntries].slice(0, MAX_DISHES);
     state.plan = null; state.planStale = false; state.planError = false; state.cookbookVersion += 1; state.week = 1;
-    state.composerOpen = false; state.editingId = null;
+    resetComposer();
     $("adaptProgress").hidden = true;
     $("parseMsg").textContent = "";
     syncControls();
@@ -1115,6 +1116,13 @@ function dishCard(e, index) {
       <p class="nums-label">${esc(c.nutrient)} per serving, as cooked now</p>`;
   }
 
+  // Same anatomy as Care's result card: headline chip, then what changes, then where it comes from.
+  const quick = adapted && !plainSuggested ? (r.changes || []).slice(0, 3) : [];
+  const whatChanges = quick.length ? `
+    <div class="rc-quick"><p class="rc-h">What changes</p>
+      <ul class="quick-list">${quick.map((ch) => `<li><span class="tick" aria-hidden="true">✓</span><span>${esc(ch.what)}</span></li>`).join("")}</ul></div>` : "";
+  const trust = adapted ? `<p class="trust-chip"><span aria-hidden="true">✓</span> Numbers from food tables</p>` : "";
+
   let status = "";
   if (isBusy) status = `<p class="working"><span class="spinner" aria-hidden="true"></span><span>Making it lighter<span class="dots"></span><span class="working-sub">Keeping the taste, trimming the ${esc(c.nutrient)}</span></span></p>`;
   else if (e.status === "error") status = `<p class="msg error" role="alert">${esc(e.error)}</p>`;
@@ -1160,7 +1168,7 @@ function dishCard(e, index) {
           </div>
           ${methodBlock(r)}
           ${portion ? `<div class="portion"><p class="portion-h">Portion</p><p>${esc(portion)}</p></div>` : ""}
-          ${changes.length ? `<div class="rc-block"><h4 class="rc-h">What we changed</h4><ul class="changes">${changes.map((ch) => `
+          ${changes.length ? `<div class="rc-block"><h4 class="rc-h">Why these changes</h4><ul class="changes">${changes.map((ch) => `
             <li><span class="tick" aria-hidden="true">✓</span><span>${esc(ch.what)}<span class="why">${esc(ch.why)}</span></span></li>`).join("")}</ul></div>` : ""}
           ${why}
           ${askBox(e)}
@@ -1203,7 +1211,9 @@ function dishCard(e, index) {
         ${condTags}
         ${numbers}
         ${secondary}
+        ${whatChanges}
         ${adapted ? askedLine(e) : ""}
+        ${trust}
         ${status}
         ${retry}
       </div>
@@ -1335,7 +1345,28 @@ function recipeAsText(r) {
 }
 
 const SUGGEST_EXAMPLE = "a quick high-protein dinner with spinach";
-function micIdleLabel() { return state.composerMode === "suggest" ? "Tap and say what you'd like" : "Tap and say it the way she says it"; }
+// "Or tap one" on Plate's input card, like Care's example remedies: one tap and it runs.
+// scripts/build_preview.py precomputes these (and the home shortcut's dal), so keep the two in step.
+const PLATE_EXAMPLES = [
+  ["Mum's dal chawal", "Mum's dal chawal: 1 katori toor dal, 2 katori rice, 1 tomato, haldi, jeera, 1 spoon ghee"],
+  ["Aloo paratha", "Aloo paratha: 3 katori atta, 2 boiled aloo, ghee on top"],
+  ["Chicken adobo", "Chicken adobo: 1 kg chicken, half cup soy sauce, half cup vinegar, garlic, 3 cups rice"],
+  ["Beef stew", "Beef stew: 500 g beef, 3 potatoes, 2 carrots, 1 onion, a spoon of butter"],
+];
+function renderPlateExamples() {
+  $("plateExamples").innerHTML = PLATE_EXAMPLES.map(([label, text]) =>
+    `<button type="button" class="chip-btn" data-plate-example="${esc(text)}">${esc(label)}</button>`).join("");
+}
+// Fill the card with an example recipe and make it lighter, exactly as if it had been typed.
+function runPlateExample(text) {
+  if ($("parse").hasAttribute("aria-busy")) return;
+  if (state.composerMode !== "recipe" || state.editingId) resetComposer();
+  clearGuard("recipeGuard");
+  $("servings").value = 4;
+  $("recipeText").value = text;
+  submitComposer($("parse"));
+}
+function micIdleLabel() { return state.composerMode === "suggest" ? "Say what you'd like" : "Say a recipe"; }
 
 // The composer has two jobs: a family recipe to make lighter, or a wish for a new dish ("suggest").
 function setComposerMode(mode) {
@@ -1344,13 +1375,33 @@ function setComposerMode(mode) {
   state.composerMode = suggest ? "suggest" : "recipe";
   const box = $("recipeText");
   box.maxLength = suggest ? 300 : 2000;
-  box.rows = suggest ? 3 : 5;
-  box.placeholder = suggest ? `e.g. ${SUGGEST_EXAMPLE}` : "Or type or paste it here: dish name, then what goes in. Home measures are fine.";
+  box.rows = suggest ? 3 : 4;
+  box.placeholder = suggest ? `e.g. ${SUGGEST_EXAMPLE}` : "Or type or paste it: dish name, then what goes in. Home measures are fine.";
   $("recipeTextLabel").textContent = suggest ? "What would you like to eat?" : "The recipe: dish name, then what goes in";
   $("goalLegend").firstChild.textContent = suggest ? "Suggest it for " : "Make it lighter for ";
   $("composer").classList.toggle("is-suggest", suggest);
   syncControls();
   if (!voice.listening) $("mic").querySelector(".mic-label").textContent = micIdleLabel();
+}
+
+// The input card is always there. Its own title and Cancel show only for the other jobs (editing a dish,
+// suggesting a new one); in its usual job the page headline is its title.
+function composerChrome() {
+  const suggest = state.composerMode === "suggest";
+  const editing = Boolean(state.editingId && findEntry(state.editingId));
+  const alt = editing || suggest;
+  $("composer").classList.toggle("is-alt", alt);
+  $("composerClose").hidden = !alt;
+  $("composerTitle").textContent = editing ? "Edit the recipe" : suggest ? "What would you like?" : "Tell us the recipe";
+  if (!$("parse").hasAttribute("aria-busy")) $("parse").textContent = editing ? "Update and make it lighter" : suggest ? "Suggest a dish" : "Make it lighter";
+}
+
+// Back to the card's usual job (a family recipe to make lighter), e.g. after a dish was added.
+function resetComposer() {
+  state.composerOpen = false;
+  state.editingId = null;
+  if (state.composerMode !== "recipe") setComposerMode("recipe");
+  composerChrome();
 }
 
 function openComposer({ mode = "type", editId = null } = {}) {
@@ -1359,9 +1410,7 @@ function openComposer({ mode = "type", editId = null } = {}) {
   setComposerMode(editing ? "recipe" : mode === "suggest" ? "suggest" : "recipe");
   state.composerOpen = true;
   state.editingId = editing ? editing.id : null;
-  const suggest = state.composerMode === "suggest";
-  $("composerTitle").textContent = editing ? "Edit the recipe" : suggest ? "What would you like?" : "Tell us the recipe";
-  $("parse").textContent = editing ? "Update and make it lighter" : suggest ? "Suggest a dish" : "Make it lighter";
+  composerChrome();
   if (editing) {
     $("recipeText").value = recipeAsText(editing.base);
     $("servings").value = Math.min(20, Math.max(1, Math.round(num(editing.base.servings)) || 4));
@@ -1378,11 +1427,12 @@ function openComposer({ mode = "type", editId = null } = {}) {
 
 function closeComposer() {
   stopListening();
-  state.composerOpen = false;
-  state.editingId = null;
+  const wasEditing = Boolean(state.editingId);
+  resetComposer();
+  if (wasEditing) $("recipeText").value = "";
   refreshButtons();
   if (state.recipes.length) { scrollToEl($("dishes")); $("dishesTitle").focus({ preventScroll: true }); }
-  else { window.scrollTo({ top: 0, behavior: reduceMotion() ? "auto" : "smooth" }); $("heroSay").focus({ preventScroll: true }); }
+  else { window.scrollTo({ top: 0, behavior: reduceMotion() ? "auto" : "smooth" }); $("recipeText").focus({ preventScroll: true }); }
 }
 
 async function submitComposer(btn) {
@@ -1424,7 +1474,7 @@ async function submitComposer(btn) {
     markCookbookChanged();
     $("recipeText").value = "";
     msg.className = "msg"; msg.textContent = "";
-    state.composerOpen = false; state.editingId = null;
+    resetComposer();
     renderResume();
     renderCookbook();
     renderPlanStale();
@@ -1470,7 +1520,7 @@ async function submitSuggest(btn, wish) {
     markCookbookChanged();
     $("recipeText").value = "";
     msg.className = "msg"; msg.textContent = "";
-    state.composerOpen = false;
+    resetComposer();
     renderResume();
     renderCookbook();
     renderPlanStale();
@@ -1679,7 +1729,7 @@ function readIntake() {
 
 function openIntake() {
   if (!state.profileSet && !state.profileTouched) state.profile = defaultProfile();
-  if (state.composerOpen) { stopListening(); state.composerOpen = false; state.editingId = null; }
+  if (state.composerOpen) { stopListening(); resetComposer(); }
   state.intakeOpen = true;
   renderIntake();
   refreshButtons();
@@ -1692,7 +1742,7 @@ function closeIntake() {
   refreshButtons();
   if (state.plan) { scrollToEl($("week")); $("weekTitle").focus({ preventScroll: true }); }
   else if (state.recipes.length) { scrollToEl($("dishes")); $("dishesTitle").focus({ preventScroll: true }); }
-  else { window.scrollTo({ top: 0, behavior: reduceMotion() ? "auto" : "smooth" }); $("heroSay").focus({ preventScroll: true }); }
+  else { window.scrollTo({ top: 0, behavior: reduceMotion() ? "auto" : "smooth" }); $("recipeText").focus({ preventScroll: true }); }
 }
 
 function submitIntake() {
@@ -2242,8 +2292,6 @@ $("goalChips").addEventListener("change", (e) => { if (e.target.name === "goalCh
 $("cuisine").addEventListener("change", (e) => { state.cuisine = e.target.value; syncControls(); saveBook(); });
 $("speechLang").addEventListener("change", (e) => { state.speechLang = e.target.value; updateMicHint(); });
 
-$("heroSay").addEventListener("click", () => openComposer({ mode: "say" }));
-$("heroType").addEventListener("click", () => openComposer({ mode: "type" }));
 $("heroSuggest").addEventListener("click", () => openComposer({ mode: "suggest" }));
 $("heroWeek").addEventListener("click", openIntake);
 $("composerSkip").addEventListener("click", openIntake);
@@ -2253,6 +2301,10 @@ $("heroSample").addEventListener("click", (e) => {
   $("samples").focus({ preventScroll: true });
 });
 $("composerClose").addEventListener("click", closeComposer);
+$("plateExamples").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-plate-example]");
+  if (b) runPlateExample(b.dataset.plateExample);
+});
 $("addAnother").addEventListener("click", () => openComposer({ mode: "type" }));
 
 $("families").addEventListener("click", (e) => {
@@ -2268,10 +2320,10 @@ $("resume").addEventListener("click", (e) => {
   if (b.dataset.resume === "clear") {
     clearBook(); state.saved = null; renderResume();
     announce("Cleared the saved family book.");
-    $("heroSay").focus({ preventScroll: true });
+    $("recipeText").focus({ preventScroll: true });
     return;
   }
-  if (!restoreBook(d)) { $("heroSay").focus({ preventScroll: true }); return; }
+  if (!restoreBook(d)) { $("recipeText").focus({ preventScroll: true }); return; }
   if (b.dataset.resume === "add") { openComposer({ mode: "type" }); return; }
   if (state.recipes.some((x) => !x.adapted)) {
     // Something changed since last time (e.g. a dish never finished): make it lighter first.
@@ -2353,7 +2405,7 @@ function removeDish(id) {
   // The dish open in "Edit the recipe" is gone, so the editor closes rather than making a new dish.
   if (state.editingId === id) {
     stopListening();
-    state.composerOpen = false; state.editingId = null;
+    resetComposer();
     $("recipeText").value = "";
     $("parseMsg").className = "msg"; $("parseMsg").textContent = "";
   }
@@ -2361,7 +2413,7 @@ function removeDish(id) {
   renderCookbook(); renderPlan();
   saveBook();
   if (state.recipes.length) $("dishesTitle").focus({ preventScroll: true });
-  else $("heroSay").focus();
+  else $("recipeText").focus();
   const name = current(entry).name;
   announce(`Removed ${name}. Undo is in the message at the bottom of the screen.`);
   toast(`Removed ${name}.`, {
@@ -2569,6 +2621,7 @@ function setupTheme() {
 }
 
 // ---------- example card: three real results take turns ----------
+// The source card sits beside Plate's input card; home and Care get copies (Care's starts on the remedy).
 // ~5 s each with a short crossfade. Pauses on hover, on keyboard focus, while off screen or in a hidden tab,
 // and for good with the pause button. Reduced motion: the first example stays, the dots still switch.
 // Not a live region, so screen readers aren't interrupted; hidden slides are inert.
@@ -2578,7 +2631,8 @@ function setupRotator(root) {
   const dots = Array.from(root.querySelectorAll(".ex-dot"));
   const pauseBtn = root.querySelector("[data-pause]");
   if (slides.length < 2) return;
-  let i = 0, timer = 0, hover = false, focus = false, seen = true;
+  const start = Math.min(slides.length - 1, Number(root.parentElement?.dataset.start) || 0); // Care's copy opens on its own example
+  let i = start, timer = 0, hover = false, focus = false, seen = true;
   let stopped = reduceMotion();
   const show = (n) => {
     const prev = i;
@@ -2615,15 +2669,14 @@ function setupRotator(root) {
     new IntersectionObserver((entries) => { seen = entries.some((x) => x.isIntersecting); arm(); }).observe(root);
   }
   const rm = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
-  rm?.addEventListener?.("change", () => { stopped = rm.matches; if (stopped) show(0); syncPause(); arm(); });
-  show(0);
+  rm?.addEventListener?.("change", () => { stopped = rm.matches; if (stopped) show(start); syncPause(); arm(); });
+  show(start);
   syncPause();
   arm();
 }
 
 function setupRotators() {
   const plateCard = document.querySelector("#flowView [data-rotator]");
-  // The home page gets its own copy of the same card (shown on wider screens).
   document.querySelectorAll("[data-rotator-copy]").forEach((slot) => {
     if (plateCard && !slot.children.length) slot.innerHTML = plateCard.outerHTML;
   });
@@ -2659,6 +2712,7 @@ async function loadFamilies() {
 async function init() {
   setupTheme();
   setupRotators();
+  renderPlateExamples();
   fillSelects();
   setupVoice();
   if (!navigator.share) document.querySelectorAll(".share-btn").forEach((b) => { b.textContent = "Copy as text"; });

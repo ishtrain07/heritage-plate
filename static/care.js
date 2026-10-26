@@ -28,6 +28,8 @@ const CARE_SAMPLE = [
   { name: "Mum", age: 54, sex: "female", pregnant: false, concerns: ["dark_spots", "dry"], skin_type: "dry", wants: "", details: "", allergies: "" },
   { name: "Priya", age: 29, sex: "female", pregnant: true, concerns: ["acne", "dark_spots"], skin_type: "oily", wants: "", details: "", allergies: "" },
 ];
+// Home's "Is haldi good for acne?" shortcut: runs like an example chip (precomputed in the preview too).
+const HALDI_EXAMPLE = "haldi on acne";
 const LABEL_EXAMPLE = "Aqua, Glycerin, Niacinamide, Parfum, Alcohol Denat., Cetearyl Alcohol, Salicylic Acid, Lavandula Angustifolia Oil";
 const VERDICTS = {
   keep: { word: "Keep", icon: "✓" },
@@ -41,6 +43,13 @@ const CARE_LINES = {
   remedy: ["Checking what the evidence says…", "Looking for safer options…", "Choosing what does the job…"],
   label: ["Reading the label…"],
 };
+// A person's short status line on home ("diabetes · dry skin").
+const COND_WORDS = { diabetes: "diabetes", bp: "blood pressure", cholesterol: "cholesterol" };
+const COND_PICK = [["diabetes", "Diabetes"], ["bp", "Blood pressure"], ["cholesterol", "Cholesterol"]];
+const CONCERN_SHORT = {
+  acne: "acne", oily: "oily skin", dry: "dry skin", sensitive: "sensitive skin", dark_spots: "dark spots", sun: "sun care",
+  dandruff: "dandruff", thinning_hair: "thinning hair", dry_hair: "dry hair", body_dry: "dry skin on the body",
+};
 const CARE_DISCLAIMER = "General skincare information, not medical advice. If something hurts, spreads or changes, see a doctor.";
 
 const care = {
@@ -48,6 +57,8 @@ const care = {
   screen: "care",
   library: null,
   remedyWho: "",      // member id, "" = anyone
+  plateWho: "",       // who Plate's input card is for (member id)
+  famAdding: false,   // home's "Add someone" form is open
   labelWho: "",
   remedy: null,       // {text, who, result, saved}
   remedyRunning: false,
@@ -193,11 +204,16 @@ function whoChipsHTML(name, selected) {
 function renderWho() {
   if (care.remedyWho && !findMember(care.remedyWho)) care.remedyWho = "";
   if (care.labelWho && !findMember(care.labelWho)) care.labelWho = "";
+  if (care.plateWho && !findMember(care.plateWho)) care.plateWho = "";
   $("careWho").innerHTML = whoChipsHTML("careWhoPick", care.remedyWho);
   $("labelWho").innerHTML = whoChipsHTML("labelWhoPick", care.labelWho);
+  $("plateWho").innerHTML = whoChipsHTML("plateWhoPick", care.plateWho);
+  renderPlateXlink();
 }
+const WHO_HOLDERS = { careWhoPick: "careWho", labelWhoPick: "labelWho", plateWhoPick: "plateWho" };
+function whoHolder(forName) { return $(WHO_HOLDERS[forName] || "careWho"); }
 function quickAddForm(forName) {
-  const holder = forName === "labelWhoPick" ? $("labelWho") : $("careWho");
+  const holder = whoHolder(forName);
   const add = holder.querySelector(".chip-add");
   if (!add) return;
   const form = document.createElement("span");
@@ -209,13 +225,15 @@ function quickAddForm(forName) {
   form.querySelector("input").focus();
 }
 function quickAddSave(forName) {
-  const holder = forName === "labelWhoPick" ? $("labelWho") : $("careWho");
+  const holder = whoHolder(forName);
   const input = holder.querySelector(".quick-add input");
   const name = (input?.value || "").trim();
   if (!name) { input?.focus(); return; }
   const m = upsertMember({ name, care: {} });
   if (!m) { toast("Your family book holds up to 6 people."); return; }
-  if (forName === "labelWhoPick") care.labelWho = m.id; else care.remedyWho = m.id;
+  if (forName === "labelWhoPick") care.labelWho = m.id;
+  else if (forName === "plateWhoPick") care.plateWho = m.id;
+  else care.remedyWho = m.id;
   renderWho();
   renderPeople();
   holder.querySelector(`input[value="${CSS.escape(m.id)}"]`)?.focus();
@@ -307,7 +325,10 @@ function route(initial = false) {
     if (side === "plate") title.setAttribute("tabindex", "-1");
     title.focus({ preventScroll: true });
   }
-  if (side === "home") document.title = "Heritage: family recipes made lighter, home remedies checked";
+  if (side === "home") {
+    document.title = "Heritage: family recipes made lighter, home remedies checked";
+    if (changed || initial) renderHomeFamily();
+  }
   else if (side === "plate") document.title = "Heritage Plate: your family's recipes, made lighter";
 }
 
@@ -414,6 +435,9 @@ function renderRemedy() {
           : `<button type="button" class="btn btn-primary" data-care-act="save-remedy">Save to family book</button>`}
         <button type="button" class="btn-link" data-care-act="another">Check another</button>
       </div>
+      ${xlinkHTML({ to: "plate", go: "xlink-week", id: who ? who.id : "",
+        title: who ? `Plan meals for ${memberLabel(who, careMembers().indexOf(who))}` : "Plan meals for the family",
+        sub: "A week of meals for diabetes, blood pressure or cholesterol" })}
     </div>`;
 }
 
@@ -896,6 +920,196 @@ function careCloseBook() {
   return true;
 }
 
+// ---------- one family, two sides: home's family, shortcuts and the light cross-links ----------
+const ICONS = {
+  plate: `<svg class="ic" viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></svg>`,
+  care: `<svg class="ic" viewBox="0 0 24 24" focusable="false"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14Z"/><path d="M5 19 13 11"/></svg>`,
+};
+
+// Change side without a hashchange of our own, so the shortcut's next step (focus, prefill) isn't undone by route().
+// Back still works: going back between hashes fires hashchange, which routes as usual.
+function goTo(hash) {
+  if (location.hash !== `#${hash}`) history.pushState(null, "", `#${hash}`);
+  route(false);
+}
+
+function memberLine(m) {
+  return [...(m.conditions || []).map((c) => COND_WORDS[c]), ...(m.care?.concerns || []).map((c) => CONCERN_SHORT[c] || c),
+    ...(m.pregnant ? ["pregnant"] : [])].filter(Boolean);
+}
+
+function famAddFormHTML() {
+  return `
+    <form class="fam-form" data-fam-form novalidate>
+      <label class="field"><span class="field-label">What you call them</span>
+        <input id="famName" type="text" maxlength="30" autocomplete="off" placeholder="Mum, Dad, Nani, me…"></label>
+      <fieldset class="fam-fs"><legend class="field-label">Any of these? <span class="opt">optional</span></legend>
+        <div class="pick pick-sm">${COND_PICK.map(([v, l]) => `<label class="pick-opt"><input type="checkbox" name="famCond" value="${v}"><span>${l}</span></label>`).join("")}</div>
+      </fieldset>
+      <p id="famMsg" class="msg" role="status" aria-live="polite"></p>
+      <div class="fam-form-btns">
+        <button type="submit" class="btn btn-primary btn-small">Add to the family</button>
+        <button type="button" class="btn-link" data-fam-act="cancel">Cancel</button>
+      </div>
+    </form>`;
+}
+
+function renderHomeFamily() {
+  const box = $("famBody");
+  if (!box) return;
+  const ms = careMembers();
+  const list = ms.map((m, i) => {
+    const name = memberLabel(m, i);
+    const bits = memberLine(m);
+    return `
+      <li class="fam-person">
+        <span class="avatar fam-${(i % 4) + 1}" aria-hidden="true">${esc((name[0] || "?").toUpperCase())}</span>
+        <span class="fam-text">
+          <span class="fam-name">${esc(name)}${m.age != null ? `<span class="fam-age">, ${esc(m.age)}</span>` : ""}</span>
+          <span class="fam-status">${bits.length ? esc(bits.join(" · ")) : "No details yet"}</span>
+        </span>
+        <span class="fam-acts">
+          <button type="button" class="fam-go" data-fam-go="meals" data-id="${esc(m.id)}">${ICONS.plate}<span>Meals<span class="sr-only"> for ${esc(name)}</span></span></button>
+          <button type="button" class="fam-go care-scope" data-fam-go="care" data-id="${esc(m.id)}">${ICONS.care}<span>Skin &amp; hair<span class="sr-only"> for ${esc(name)}</span></span></button>
+        </span>
+      </li>`;
+  }).join("");
+  const add = ms.length >= FAMILY_MAX ? ""
+    : care.famAdding ? famAddFormHTML()
+    : `<button type="button" class="chip-add fam-add" data-fam-act="add"><span aria-hidden="true">+</span> Add someone</button>`;
+  box.innerHTML = `${ms.length ? `<ul class="fam-list">${list}</ul>`
+    : `<p class="fam-empty"><b>Start with one person:</b> Mum, Dad or you.</p>`}${add}`;
+}
+
+function famAddSave() {
+  const input = $("famName");
+  const name = (input?.value || "").trim();
+  if (!name) {
+    const msg = $("famMsg");
+    msg.className = "msg warn"; msg.textContent = "Add a name first, like Mum or Dad.";
+    input?.focus();
+    return;
+  }
+  const conditions = [...document.querySelectorAll('#famBody input[name="famCond"]:checked')].map((x) => x.value);
+  const m = upsertMember({ name, conditions, care: {} });
+  if (!m) { toast("Your family book holds up to 6 people."); return; }
+  care.famAdding = false;
+  renderHomeFamily();
+  renderWho();
+  announce(`Added ${name}.`);
+  ($("famBody").querySelector(`[data-fam-go="meals"][data-id="${CSS.escape(m.id)}"]`) || $("famBody").querySelector(".fam-add"))?.focus();
+}
+
+function onHomeFamilyClick(e) {
+  const act = e.target.closest("[data-fam-act]")?.dataset.famAct;
+  if (act === "add") { care.famAdding = true; renderHomeFamily(); $("famName")?.focus(); return; }
+  if (act === "cancel") { care.famAdding = false; renderHomeFamily(); $("famBody").querySelector(".fam-add")?.focus(); return; }
+  const go = e.target.closest("[data-fam-go]");
+  if (go) { if (go.dataset.famGo === "meals") goMealsFor(go.dataset.id); else goCareFor(go.dataset.id); }
+}
+
+// Plate's week for one person: their name, health and body details go into the intake, ready to plan.
+function goMealsFor(id) {
+  const m = findMember(id);
+  if (m) care.plateWho = m.id;
+  goTo("plate");
+  renderWho();
+  if (m && m.conditions.length) setConditions(m.conditions); // Plate is now for them: same as picking them in "For whom?"
+  openIntake();
+  if (!m) return;
+  if (m.name) $("pName").value = m.name.slice(0, 20);
+  if (m.conditions.length) document.querySelectorAll('#pCond input[name="cond"]').forEach((x) => { x.checked = m.conditions.includes(x.value); });
+  if (m.age != null && !$("pAge").value) $("pAge").value = m.age;
+  const sex = m.sex && document.querySelector(`#pSex input[value="${m.sex}"]`);
+  if (sex && !document.querySelector("#pSex input:checked")) { sex.checked = true; $("pPregWrap").hidden = m.sex !== "female"; }
+  if (m.pregnant && m.sex === "female") $("pPregnant").checked = true;
+}
+
+// Care's remedy check for one person.
+function goCareFor(id) {
+  care.remedyWho = findMember(id) ? id : "";
+  care.screen = "care";
+  goTo("care");
+  renderWho();
+  $("careText").focus({ preventScroll: true });
+}
+
+// Home's "what you can do" shortcuts, and the cross-links. Each lands on the right screen, ready to go.
+function runShortcut(kind, id) {
+  if (kind === "plate-dal") {
+    goTo("plate");
+    setConditions(["diabetes"]);
+    scrollToEl($("composer"));
+    runPlateExample(PLATE_EXAMPLES[0][1]);
+  } else if (kind === "plate-week") {
+    goTo("plate");
+    openIntake();
+  } else if (kind === "plate-suggest") {
+    goTo("plate");
+    if ($("parse").hasAttribute("aria-busy")) { openComposer({ mode: "suggest" }); return; }
+    openComposer({ mode: "suggest" });
+    $("recipeText").value = SUGGEST_EXAMPLE;
+    submitComposer($("parse"));
+  } else if (kind === "care-remedy") {
+    care.screen = "care";
+    goTo("care");
+    checkRemedy(HALDI_EXAMPLE);
+  } else if (kind === "care-plan") {
+    goTo("care-plan");
+  } else if (kind === "care-label") {
+    goTo("care-label");
+    const box = $("labelText");
+    if (!box.value.trim()) box.value = LABEL_EXAMPLE;
+    box.focus();
+    box.select();
+  } else if (kind === "xlink-care") goCareFor(id);
+  else if (kind === "xlink-week") goMealsFor(id);
+}
+
+function onShortcutClick(e) {
+  const a = e.target.closest("[data-go]");
+  if (!a || e.button > 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // new tab: let the link work
+  e.preventDefault();
+  runShortcut(a.dataset.go, a.dataset.id || "");
+}
+
+// One small card after a result, pointing to the other side for the same person. Not an ad: one card, no badge.
+function xlinkHTML({ to, go, id, title, sub }) {
+  return `
+    <a class="xlink${to === "care" ? " care-scope" : " plate-scope"}" href="#${to}" data-go="${go}" data-id="${esc(id || "")}">
+      <span class="xlink-ic" aria-hidden="true">${ICONS[to]}</span>
+      <span class="xlink-t"><b>${esc(title)}</b><span class="xlink-sub">${esc(sub)}</span></span>
+      <span class="xlink-arrow" aria-hidden="true">→</span>
+    </a>`;
+}
+
+function plateWhoMember() {
+  const named = typeof state !== "undefined" ? state.parentName.trim() : "";
+  return findMember(care.plateWho) || (named ? careMembers().find((m) => m.fromPlate && m.name === named) : null) || null;
+}
+
+// After a Plate result: "Mum's skin or hair? Check a home remedy".
+function renderPlateXlink() {
+  const slot = $("plateXlink");
+  if (!slot || typeof state === "undefined") return;
+  const show = state.recipes.some((e) => e.adapted);
+  const m = plateWhoMember();
+  const name = m ? memberLabel(m, careMembers().indexOf(m)) : state.parentName.trim();
+  const key = show ? `${m ? m.id : ""}|${name}` : "";
+  if (slot.dataset.key === key) return; // called on every Plate render: only touch the DOM when it changes
+  slot.dataset.key = key;
+  slot.innerHTML = show ? xlinkHTML({ to: "care", go: "xlink-care", id: m ? m.id : "",
+    title: name ? `${name}'s skin or hair?` : "Skin or hair worries at home?", sub: "Check a home remedy, like haldi or coconut oil" }) : "";
+}
+
+// Plate's "For whom?": picking someone with a health condition makes the dishes lighter for it.
+function pickPlateWho(id) {
+  care.plateWho = id;
+  const m = findMember(id);
+  if (m && m.conditions.length) setConditions(m.conditions);
+  renderPlateXlink();
+}
+
 // ---------- events ----------
 function onCareClick(e) {
   const b = e.target.closest("[data-care-act]");
@@ -947,12 +1161,30 @@ function setupCare() {
     if ($("how").open || document.body.classList.contains("cb-open")) return;
     e.stopPropagation();
     if (care.mic?.listening) care.mic.stop();
-    else {
+    else if (care.famAdding && $("homeFamily").contains(document.activeElement)) {
+      care.famAdding = false; renderHomeFamily(); $("famBody").querySelector(".fam-add")?.focus();
+    } else {
       const qa = document.activeElement?.closest?.(".quick-add");
       if (qa) renderWho();
     }
   }, true);
   care.mic = micFor({ btn: $("careMic"), box: $("careText"), hint: $("careMicHint"), msg: $("careMsg"), idle: "Say a remedy" });
+  // One family, two sides.
+  document.addEventListener("click", onShortcutClick);
+  $("homeFamily").addEventListener("click", onHomeFamilyClick);
+  $("homeFamily").addEventListener("submit", (e) => { e.preventDefault(); famAddSave(); });
+  const plateWho = $("plateWho");
+  plateWho.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-care-act]");
+    if (b?.dataset.careAct === "quick-add") quickAddForm(b.dataset.for);
+    else if (b?.dataset.careAct === "quick-add-save") quickAddSave(b.dataset.for);
+  });
+  plateWho.addEventListener("change", (e) => { if (e.target.name === "plateWhoPick") pickPlateWho(e.target.value); });
+  plateWho.addEventListener("keydown", (e) => {
+    if (!e.target.closest(".quick-add")) return;
+    if (e.key === "Enter") { e.preventDefault(); quickAddSave("plateWhoPick"); }
+    if (e.key === "Escape") { e.stopPropagation(); renderWho(); plateWho.querySelector(".chip-add")?.focus(); }
+  });
 }
 
 async function loadCareLibrary() {
