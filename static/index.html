@@ -27,7 +27,7 @@
       document.documentElement.setAttribute("data-side", s);
     })();
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261028">
+  <link rel="stylesheet" href="/static/styles.css?v=20261028b">
 </head>
 <body>
   <a class="skip" href="#main">Skip to the app</a>
@@ -327,7 +327,7 @@
             </fieldset>
 
             <fieldset class="q">
-              <legend class="q-h">What's the goal?</legend>
+              <legend class="q-h">What are the goals? <span class="opt">pick any</span></legend>
               <div id="pGoal" class="pick"></div>
               <p id="goalHelp" class="q-help" aria-live="polite"></p>
             </fieldset>
@@ -338,8 +338,8 @@
               <div id="avoidGuard" class="guard-slot"></div>
             </div>
 
-            <details id="pTarget" class="q target">
-              <summary><span class="target-sum"><span class="target-title">Get a personal calorie target</span><span class="opt">optional · 30 seconds</span></span><span class="chev" aria-hidden="true"></span></summary>
+            <div id="pTarget" class="q target is-open">
+              <h3 class="q-h target-h">About them <span class="opt">for a personal calorie target</span></h3>
               <div class="target-body">
                 <fieldset class="q-sub">
                   <legend class="field-label">Sex</legend>
@@ -379,7 +379,7 @@
                 </fieldset>
                 <p class="q-help">Only used to work out a daily calorie target. Saved on this device, not on our server.</p>
               </div>
-            </details>
+            </div>
 
             <div class="q q-row">
               <label class="switch">
@@ -571,10 +571,10 @@
         <li><span class="how-n" aria-hidden="true">1</span><span><b>Reads your recipe</b><span class="how-sub">Home measures like “2 katori” become estimated grams.</span></span></li>
         <li><span class="how-n" aria-hidden="true">2</span><span><b>Suggests lighter swaps and writes the steps</b><span class="how-sub">Or suggests a new dish that fits, when you ask for one.</span></span></li>
         <li><span class="how-n" aria-hidden="true">3</span><span><b>Plans the week</b><span class="how-sub">Around your dishes, with a shopping list and a note for the person you cook for.</span></span></li>
-        <li><span class="how-n how-n-care" aria-hidden="true">4</span><span><b>Care: checks home remedies and plans skin &amp; hair routines</b><span class="how-sub">Remedies are assessed by AI. The safer options come from our library of ingredients with cited sources. Safety rules (dangerous remedies, warning signs, pregnancy, prescription-only) are applied in code. Label checks are read in code, with no AI.</span></span></li>
+        <li><span class="how-n how-n-care" aria-hidden="true">4</span><span><b>Care: checks home remedies and plans skin &amp; hair routines</b><span class="how-sub">Remedies are assessed by AI. Safer options come from ingredients with cited sources, and safety rules for dangerous remedies, warning signs, pregnancy and prescription-only items always apply. Label checks compare each ingredient with that list.</span></span></li>
       </ol>
       <p class="how-numbers">Numbers are computed in code from IFCT 2017 and USDA food tables, never by the AI.</p>
-      <p class="how-target">The daily calorie target is worked out in code from age, height, weight and activity (the Mifflin-St Jeor equation), adjusted for the goal and never below 1,200 kcal for women or 1,500 for men. Every planned meal is checked against the diet and the food tables, and portions are scaled so each day lands near the target.</p>
+      <p class="how-target">The daily calorie target is worked out from age, height, weight and activity (the Mifflin-St Jeor equation), adjusted for the goal and never below 1,200 kcal for women or 1,500 for men. Every planned meal is checked against the diet and the food tables, and portions are scaled so each day lands near the target.</p>
       <div class="how-why">
         <h3>Why this helps</h3>
         <p>When a parent is told to change their diet, families are often handed a generic diet sheet. Home food starts to feel off-limits and someone ends up cooking two meals. We keep your family's own dishes and make them lighter: swap, don't ban.</p>
@@ -587,8 +587,8 @@
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js?v=20261028"></script>
-  <script src="/static/app.js?v=20261028"></script>
-  <script src="/static/care.js?v=20261028"></script>
+  <script src="/static/family.js?v=20261028b"></script>
+  <script src="/static/app.js?v=20261028b"></script>
+  <script src="/static/care.js?v=20261028b"></script>
 </body>
 </html>

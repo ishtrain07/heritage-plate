@@ -469,7 +469,7 @@ async function busy(btn, label, fn) {
 function defaultProfile() {
   return {
     diet: "non_veg", conditions: conds().filter((c) => c !== "everyday"),
-    goal: "maintain", dislikes: "", sex: null, age: null, height_cm: null, weight_kg: null, activity: "light",
+    goal: "maintain", goals: ["maintain"], dislikes: "", sex: null, age: null, height_cm: null, weight_kg: null, activity: "light",
     ethnicity: null, pregnant: false, snacks: true,
   };
 }
@@ -485,6 +485,11 @@ function cleanProfile(p) {
     diet: pick(p.diet, DIETS, d.diet),
     conditions: Array.isArray(p.conditions) ? HEALTH.map(([k]) => k).filter((k) => p.conditions.includes(k)) : d.conditions,
     goal: pick(p.goal, GOALS, d.goal),
+    goals: (() => { // several goals; "Eat well" only on its own
+      const g = (Array.isArray(p.goals) ? p.goals : [p.goal]).filter((k) => GOALS.some(([x]) => x === k));
+      const rest = [...new Set(g)].filter((k) => k !== "maintain");
+      return rest.length ? rest : ["maintain"];
+    })(),
     dislikes: String(p.dislikes || "").slice(0, 200),
     sex: p.sex === "female" || p.sex === "male" ? p.sex : null,
     age: age === null ? null : Math.round(age),
@@ -1632,6 +1637,16 @@ function pickHTML(name, options, type, isOn) {
 }
 
 function goalHelpText(goal) { return (GOALS.find(([k]) => k === goal) || GOALS[0])[2]; }
+function goalsHelp(goals) { return goals.map(goalHelpText).join(" "); }
+function checkedGoals() { return Array.from($("intakeForm").querySelectorAll('input[name="goal"]:checked')).map((x) => x.value); }
+// "Eat well" means no special goal, so it can't sit alongside the others.
+function onGoalToggle(input) {
+  const boxes = $("intakeForm").querySelectorAll('input[name="goal"]');
+  if (input.checked && input.value === "maintain") boxes.forEach((b) => { if (b !== input) b.checked = false; });
+  else if (input.checked) boxes.forEach((b) => { if (b.value === "maintain") b.checked = false; });
+  if (!checkedGoals().length) boxes.forEach((b) => { if (b.value === "maintain") b.checked = true; });
+  $("goalHelp").textContent = goalsHelp(checkedGoals());
+}
 
 function setHeightFromCm() {
   const cm = num($("pHeight").value);
@@ -1673,8 +1688,8 @@ function renderIntake() {
   $("dietNote").textContent = DIET_NOTES[p.diet] || "";
   clearGuard("avoidGuard");
   $("pCond").innerHTML = pickHTML("cond", HEALTH, "checkbox", (v) => p.conditions.includes(v));
-  $("pGoal").innerHTML = pickHTML("goal", GOALS, "radio", (v) => v === p.goal);
-  $("goalHelp").textContent = goalHelpText(p.goal);
+  $("pGoal").innerHTML = pickHTML("goal", GOALS, "checkbox", (v) => p.goals.includes(v));
+  $("goalHelp").textContent = goalsHelp(p.goals);
   $("pAvoid").value = p.dislikes;
   $("pSex").innerHTML = pickHTML("sex", SEXES, "radio", (v) => v === p.sex);
   $("pAge").value = p.age ?? "";
@@ -1708,7 +1723,8 @@ function readIntake() {
   const p = cleanProfile({
     diet: checked("diet"),
     conditions: Array.from(form.querySelectorAll('input[name="cond"]:checked')).map((x) => x.value),
-    goal: checked("goal"),
+    goal: checkedGoals()[0] || "maintain",
+    goals: checkedGoals(),
     dislikes: $("pAvoid").value.trim(),
     sex: checked("sex"),
     age: val("pAge"),
@@ -1804,7 +1820,7 @@ function portionWord(s) {
 function keyNumbers(plan) {
   const conds = plan.profile?.conditions || [];
   const keys = conds.map((c) => KEY_NUMBERS[c]).filter(Boolean);
-  if (plan.profile?.goal === "steady_sugar" && !conds.includes("diabetes")) keys.unshift(KEY_NUMBERS.diabetes);
+  if ((plan.profile?.goals || [plan.profile?.goal]).includes("steady_sugar") && !conds.includes("diabetes")) keys.unshift(KEY_NUMBERS.diabetes);
   if (!keys.length) keys.push(["fiber_g", "Fibre", "g"]);
   return keys;
 }
@@ -1813,8 +1829,7 @@ function profileWords(plan) {
   const p = plan.profile || {};
   const bits = [DIET_WORDS[p.diet] || DIET_WORDS.non_veg];
   (p.conditions || []).forEach((c) => { const h = HEALTH.find(([k]) => k === c); if (h) bits.push(h[1]); });
-  const g = GOALS.find(([k]) => k === p.goal);
-  if (g && g[0] !== "maintain") bits.push(g[1]);
+  (p.goals || [p.goal]).forEach((k) => { const g = GOALS.find(([x]) => x === k); if (g && g[0] !== "maintain") bits.push(g[1]); });
   return bits;
 }
 
@@ -2450,12 +2465,11 @@ $("intakeForm").addEventListener("input", (e) => {
   else if (id === "pFt" || id === "pIn") setHeightFromFtIn();
   else if (id === "pWeight") setLbFromKg();
   else if (id === "pLb") setKgFromLb();
-  if (e.target.name === "goal") $("goalHelp").textContent = goalHelpText(e.target.value);
   const msg = $("intakeMsg");
   if (msg.classList.contains("error")) { msg.className = "msg"; msg.textContent = ""; }
 });
 $("intakeForm").addEventListener("change", (e) => {
-  if (e.target.name === "goal") $("goalHelp").textContent = goalHelpText(e.target.value);
+  if (e.target.name === "goal") onGoalToggle(e.target);
   if (e.target.name === "diet") $("dietNote").textContent = DIET_NOTES[e.target.value] || "";
   if (e.target.name === "sex") {
     $("pPregWrap").hidden = e.target.value !== "female";

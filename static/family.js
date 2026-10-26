@@ -128,7 +128,10 @@ function cleanFamily(d) {
   out.language = typeof d.language === "string" && d.language.length <= 30 ? d.language : "English";
   out.country = CARE_COUNTRY_KEYS.includes(d.country) ? d.country : "";
   const seen = new Set();
-  out.members = fList(d.members, FAMILY_MAX).map(cleanMember).filter((m) => m && !seen.has(m.id) && seen.add(m.id));
+  const names = new Set(); // one person per name: drops accidental duplicates like "Nidi, Nidi"
+  const nameKey = (m) => (m.name || "").trim().toLowerCase();
+  out.members = fList(d.members, FAMILY_MAX).map(cleanMember)
+    .filter((m) => m && !seen.has(m.id) && seen.add(m.id) && (!nameKey(m) || (!names.has(nameKey(m)) && names.add(nameKey(m)))));
   out.plate = fIsObj(d.plate) && d.plate.v === 1 ? d.plate : null;
   if (d.migratedFrom === 1) out.migratedFrom = 1;
   const cb = fIsObj(d.careBook) ? d.careBook : {};
@@ -235,7 +238,24 @@ function upsertMember(m) {
   const f = readFamily();
   const clean = cleanMember(m);
   if (!clean) return null;
-  const i = f.members.findIndex((x) => x.id === clean.id);
+  let i = f.members.findIndex((x) => x.id === clean.id);
+  const key = clean.name.toLowerCase();
+  if (i < 0 && key) { // adding someone who's already here (same name): update them instead of a duplicate
+    i = f.members.findIndex((x) => x.name.trim().toLowerCase() === key);
+    if (i >= 0) {
+      const old = f.members[i];
+      const merged = cleanMember({
+        ...old, id: old.id,
+        age: clean.age ?? old.age, sex: clean.sex || old.sex, pregnant: clean.pregnant || old.pregnant,
+        conditions: [...new Set([...old.conditions, ...clean.conditions])],
+        allergies: clean.allergies || old.allergies,
+        care: { ...old.care, concerns: clean.care.concerns.length ? clean.care.concerns : old.care.concerns },
+      });
+      f.members[i] = merged;
+      persistFamily();
+      return merged;
+    }
+  }
   if (i >= 0) f.members[i] = clean;
   else if (f.members.length < FAMILY_MAX) f.members.push(clean);
   else return null;

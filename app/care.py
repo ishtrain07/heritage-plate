@@ -181,6 +181,40 @@ def _blocked_by_allergy(active: dict, allergies: str) -> bool:
     return any(re.search(rf"\b{re.escape(w)}\b", n) for w in words for n in names)
 
 
+# ---------- the family's language ----------
+
+def _translate(texts: list[str], language: str) -> tuple[list[str], list[dict]]:
+    """Our checked library and safety sentences are written in English; show them in the family's language too.
+    One small call per answer (cached); if it fails, the English stays."""
+    if not language or language == "English" or not llm.is_live() or not any(texts):
+        return texts, []
+    unique = list(dict.fromkeys(t for t in texts if t))
+    try:
+        data, trace = llm.chat_json("super", prompts.TRANSLATE.format(language=language),
+                                    json.dumps(unique, ensure_ascii=False), step="Translate", max_tokens=4000)
+    except llm.LLMError:
+        return texts, []
+    out = data.get("texts")
+    if not isinstance(out, list) or len(out) != len(unique) or not all(isinstance(t, str) and t.strip() for t in out):
+        return texts, [trace]
+    done = dict(zip(unique, out))
+    return [done.get(t, t) for t in texts], [trace]
+
+
+CARD_FIELDS = ("how", "cautions", "find", "pregnancy_note")
+
+
+def _localize(cards: list[dict], extra: list[str], language: str) -> tuple[list[str], list[dict]]:
+    """Translate the cards' library text in place; returns the translated `extra` strings and any trace."""
+    texts = [c[f] for c in cards for f in CARD_FIELDS] + extra
+    done, traces = _translate(texts, language)
+    it = iter(done)
+    for c in cards:
+        for f in CARD_FIELDS:
+            c[f] = next(it)
+    return list(it), traces
+
+
 # ---------- remedy check ----------
 
 def _mock_remedy(text: str) -> dict:
@@ -268,11 +302,16 @@ def check_remedy(text: str, member: dict, country: str, language: str) -> tuple[
         stop = _stop_rule(remedy_text, text)
         if stop:  # dangerous: code decides, whatever the model said
             cards = cards if stop[2] else []  # e.g. no acne creams offered for kerosene on lice
-            verdict, evidence, why, how = "stop", "none", stop[0] + (" " + why if verdict == "stop" else ""), stop[1]
+            # Our fixed sentences go first; the model's text (already in the family's language) only if it agreed.
+            pre_why, pre_how = stop[0], stop[1]
+            why, how = (why if verdict == "stop" else ""), ""
+            verdict, evidence = "stop", "none"
         elif any(PHOTOTOXIC.search(t) for t in own):
             if verdict == "keep":
                 verdict = "care"  # citrus on skin + sun can burn
-            how = (how + " " if how else "") + CITRUS_TIP
+            pre_why, pre_how = "", CITRUS_TIP
+        else:
+            pre_why = pre_how = ""
         sources = _remedy_sources(*own)
         remedies.append({
             "remedy": remedy_text,
@@ -280,6 +319,7 @@ def check_remedy(text: str, member: dict, country: str, language: str) -> tuple[
             "evidence": evidence,
             "why": why[:600],
             "how_better": how[:400],
+            "_pre": (pre_why, pre_how),
             "better": cards[:3],
             "notes": notes[:3],
             "safety_rule": bool(stop),
@@ -288,13 +328,25 @@ def check_remedy(text: str, member: dict, country: str, language: str) -> tuple[
         })
     stop = _stop_rule(text)
     if stop and not any(r["safety_rule"] for r in remedies):  # the model skipped the dangerous one
-        remedies.insert(0, {"remedy": text[:120], "verdict": "stop", "evidence": "none", "why": stop[0], "how_better": stop[1],
-                            "better": [], "notes": [], "safety_rule": True, "checked": False, "sources": []})
+        remedies.insert(0, {"remedy": text[:120], "verdict": "stop", "evidence": "none", "why": "", "how_better": "",
+                            "_pre": (stop[0], stop[1]), "better": [], "notes": [], "safety_rule": True, "checked": False,
+                            "sources": []})
     if not remedies:
         raise llm.LLMError("Check a remedy: no usable answer")
-    notes = child_holds(member)[1]
-    return {"remedies": remedies, "red_flags": flags + notes, "red_flag_keys": flag_keys,
-            "note": _text(data.get("note_for_family"), 400)}, [trace]
+    flags = flags + child_holds(member)[1]
+    cards = [c for r in remedies for c in r["better"]]
+    extra = [*flags, *(n for r in remedies for n in r["notes"]), *(t for r in remedies for t in r["_pre"])]
+    done, more = _localize(cards, extra, language)
+    flags, rest = done[:len(flags)], done[len(flags):]
+    for r in remedies:
+        r["notes"], rest = rest[:len(r["notes"])], rest[len(r["notes"]):]
+    for r in remedies:  # our sentence first (safety), then the model's
+        (pre_why, pre_how), rest = rest[:2], rest[2:]
+        r["why"] = " ".join(t for t in (pre_why, r["why"]) if t)[:700]
+        r["how_better"] = (pre_how if r["safety_rule"] else " ".join(t for t in (r["how_better"], pre_how) if t))[:500]
+        del r["_pre"]
+    return {"remedies": remedies, "red_flags": flags, "red_flag_keys": flag_keys,
+            "note": _text(data.get("note_for_family"), 400)}, [trace, *more]
 
 
 # ---------- family care plan ----------
@@ -426,8 +478,16 @@ def care_plan(members: list[dict], country: str, language: str) -> tuple[dict, l
             item["for"].append(p["name"])
     if language and not note:
         note = "Here's a simple plan for everyone's skin and hair. Start one new product at a time, and see a doctor about anything marked."
+    cards = [c for p in plans for c in p["ingredients"]]
+    extra = [t for p in plans for t in (*p["red_flags"], *p["doctor_notes"])] + [s["find"] for s in shopping.values()]
+    done, more = _localize(cards, extra, language)
+    for p in plans:
+        n1, n2 = len(p["red_flags"]), len(p["doctor_notes"])
+        p["red_flags"], p["doctor_notes"], done = done[:n1], done[n1:n1 + n2], done[n1 + n2:]
+    for s in shopping.values():
+        s["find"], done = done[0], done[1:]
     return {"people": plans, "shopping": list(shopping.values()), "note_for_family": note if language else "",
-            "language": language, "country": country}, [trace]
+            "language": language, "country": country}, [trace, *more]
 
 
 # ---------- label check (code only, no model) ----------

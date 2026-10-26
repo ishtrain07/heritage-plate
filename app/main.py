@@ -81,6 +81,7 @@ class Profile(BaseModel):
     diet: Literal["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan", "halal", "kosher", "jain"] = "non_veg"
     conditions: list[Literal["diabetes", "bp", "cholesterol"]] = Field(default_factory=list, max_length=3)
     goal: Literal["maintain", "lose_weight", "belly_fat", "steady_sugar", "build_muscle"] = "maintain"
+    goals: list[Literal["maintain", "lose_weight", "belly_fat", "steady_sugar", "build_muscle"]] = Field(default_factory=list, max_length=5)
     dislikes: str = Field(default="", max_length=200)
     sex: Literal["female", "male"] | None = None
     age: int | None = Field(default=None, ge=1, le=120)

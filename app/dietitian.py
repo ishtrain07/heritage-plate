@@ -160,12 +160,19 @@ def body_check(profile: dict) -> dict | None:
             "healthy_range_kg": [round(18.5 * m2), round((over - 0.1) * m2)]}
 
 
+def goals_of(profile: dict) -> list[str]:
+    """Several goals can be picked; "maintain" (eat well) only counts when it's the only one."""
+    goals = [g for g in (profile.get("goals") or [profile.get("goal") or "maintain"]) if g in GOALS]
+    return [g for g in goals if g != "maintain"] or ["maintain"]
+
+
 def calorie_target(profile: dict) -> tuple[int | None, float | None, list[str]]:
     """Mifflin-St Jeor resting energy x activity, adjusted for goal, age and body. Returns (kcal, protein_g, notes)."""
     notes: list[str] = []
-    goal = profile.get("goal", "maintain")
-    losing = goal in ("lose_weight", "belly_fat")
-    if goal == "belly_fat":
+    goals = goals_of(profile)
+    losing = bool({"lose_weight", "belly_fat"} & set(goals))
+    muscle = "build_muscle" in goals
+    if "belly_fat" in goals:
         notes.append("Fat can't be lost from one spot. Belly fat goes down with overall fat loss, so this plan "
                      "aims for a steady calorie deficit; regular walking and strength exercise help most.")
     if profile.get("pregnant"):
@@ -186,7 +193,7 @@ def calorie_target(profile: dict) -> tuple[int | None, float | None, list[str]]:
     floor = 1500 if sex == "male" else 1200
     older = age >= 65
     # Protein aims in g/kg: 0.8 adult RDA; 1.0-1.2 for over-65s (PROT-AGE); 1.2 while losing; 1.6 for muscle.
-    per_kg = 1.6 if goal == "build_muscle" else 1.2 if losing else 1.0 if older else 0.8
+    per_kg = 1.6 if muscle else 1.2 if losing else 1.0 if older else 0.8
     target = tdee
     if losing:
         if body["band"] == "low":
@@ -194,7 +201,10 @@ def calorie_target(profile: dict) -> tuple[int | None, float | None, list[str]]:
                          "maintenance instead of cutting. Please check with a doctor.")
             per_kg = 1.0 if older else 0.8
         else:
-            cut = 250 if body["band"] == "healthy" else 300 if older else 500
+            cut = 250 if body["band"] == "healthy" or muscle else 300 if older else 500
+            if muscle:
+                notes.append("Losing fat while building muscle: a small calorie deficit, plenty of protein, and "
+                             "strength exercise two or three times a week.")
             if body["band"] == "healthy":
                 low, high = body["healthy_range_kg"]
                 notes.append(f"Weight is already in the healthy range ({low}-{high} kg by {body['cutoffs']} cut-offs), "
@@ -205,7 +215,7 @@ def calorie_target(profile: dict) -> tuple[int | None, float | None, list[str]]:
             target = max(tdee - cut, floor)
             if tdee - cut < floor:
                 notes.append(f"Calories are kept at {floor} a day, the usual safe minimum without medical supervision.")
-    elif goal == "build_muscle":
+    elif muscle:
         target = tdee + 250
     elif older:
         notes.append("Over 65, aim for some protein at every meal to help keep muscle.")
@@ -419,10 +429,11 @@ def _shopping(days: list[dict], recipes: list[dict], household: int) -> list[dic
 def plan_week(recipes: list[dict], profile: dict, language: str = "", week: int = 1, household: int = 1) -> tuple[dict, list[dict]]:
     diet = profile.get("diet", "non_veg")
     conditions = [c for c in profile.get("conditions", []) if c in CONDITION_TEXT]
-    goal = profile.get("goal", "maintain")
+    goals = goals_of(profile)
+    goal = goals[0]
     avoid, unknown = avoid_items(profile.get("dislikes", ""))
     slots = ["breakfast", "lunch", "snack", "dinner"] if profile.get("snacks", True) else ["breakfast", "lunch", "dinner"]
-    focus = "net_carbs_g" if "diabetes" in conditions or goal == "steady_sugar" else (
+    focus = "net_carbs_g" if "diabetes" in conditions or "steady_sugar" in goals else (
         "sodium_mg" if "bp" in conditions else "sat_fat_g" if "cholesterol" in conditions else "kcal")
     target, protein, notes = calorie_target(profile)
     if unknown:
@@ -442,7 +453,7 @@ def plan_week(recipes: list[dict], profile: dict, language: str = "", week: int 
         brief = {
             "diet": DIET_LABELS.get(diet, diet),
             "health": [CONDITION_TEXT[c] for c in conditions] or ["none given"],
-            "goal": GOALS.get(goal, goal),
+            "goal": "; ".join(GOALS.get(g, g) for g in goals),
             "dislikes_or_allergies": profile.get("dislikes", "")[:200],
             "daily_kcal_target": target,
             "kcal_per_meal": {s: round((target or 1900) * split[s]) for s in slots},
@@ -484,7 +495,7 @@ def plan_week(recipes: list[dict], profile: dict, language: str = "", week: int 
     return {
         "target": {"kcal": target, "protein_g": protein, "method": "Mifflin-St Jeor x activity" if target else None,
                    "body": body_check(profile) if not profile.get("pregnant") else None},
-        "profile": {"diet": diet, "goal": goal, "conditions": conditions},
+        "profile": {"diet": diet, "goal": goal, "goals": goals, "conditions": conditions},
         "days": days,
         "average": avg,
         "shopping_list": _shopping(days, recipes, household),

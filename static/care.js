@@ -150,6 +150,8 @@ function micFor({ btn, box, hint, msg, idle }) {
   function start() {
     if (!m.rec) { noVoiceHint(hint, true); box.focus(); return; }
     if (m.listening) return;
+    try { stopListening(); } catch { /* Plate's mic: only one can listen at a time */ }
+    m.heard = false;
     m.base = box.value.trim();
     m.rec.lang = SPEECH_LANG[lang()] || "en-IN";
     msg.className = "msg"; msg.textContent = "";
@@ -174,6 +176,7 @@ function micFor({ btn, box, hint, msg, idle }) {
     rec.maxAlternatives = 1;
     rec.onresult = (ev) => {
       const said = Array.from(ev.results).map((r) => r[0]?.transcript || "").join(" ").replace(/\s+/g, " ").trim();
+      if (said) m.heard = true;
       box.value = ((m.base ? m.base + " " : "") + said).slice(0, Number(box.maxLength) > 0 ? box.maxLength : 400);
     };
     rec.onerror = (ev) => {
@@ -185,7 +188,9 @@ function micFor({ btn, box, hint, msg, idle }) {
         "network": "Voice typing needs an internet connection. Please type instead.",
         "language-not-supported": `Voice typing doesn't support ${lang()} in this browser. Try English, or type instead.`,
       };
-      if (ev.error !== "aborted") { msg.className = "msg error"; msg.textContent = reasons[ev.error] || "Voice typing stopped. Please try again or type instead."; }
+      // A pause after real words ends with "no-speech": that's not a failure, the words are in the box.
+      const quiet = ev.error === "aborted" || (ev.error === "no-speech" && m.heard);
+      if (!quiet) { msg.className = "msg error"; msg.textContent = reasons[ev.error] || "Voice typing stopped. Please try again or type instead."; }
       set(false);
     };
     rec.onend = () => set(false);
@@ -362,7 +367,7 @@ function verdictPill(v) {
 
 function sourcesBadge(item) {
   const src = (item.sources || []).filter((s) => s && (s.name || s.url));
-  if (!item.checked || !src.length) return `<p class="ai-badge">AI-assessed, not in our checked library</p>`;
+  if (!item.checked || !src.length) return "";
   return `
     <details class="checked-badge">
       <summary><span aria-hidden="true">✓</span> Backed by ${src.length} source${src.length === 1 ? "" : "s"}</summary>
@@ -784,7 +789,7 @@ function renderLabel() {
             : `<p class="care-p muted">Nothing on our watch list.</p>`}
         </div>
       </div>
-      <p class="care-p muted label-note">Ingredients are listed from most to least. Read in code from our checked list, with no AI.</p>
+      <p class="care-p muted label-note">Ingredients are listed from most to least, so the first five matter most.</p>
     </article>`;
 }
 
@@ -945,6 +950,13 @@ function famAddFormHTML() {
     <form class="fam-form" data-fam-form novalidate>
       <label class="field"><span class="field-label">What you call them</span>
         <input id="famName" type="text" maxlength="30" autocomplete="off" placeholder="Mum, Dad, Nani, me…"></label>
+      <div class="fam-row">
+        <label class="field fam-age-f"><span class="field-label">Age <span class="opt">optional</span></span>
+          <input id="famAge" type="number" inputmode="numeric" min="0" max="120" step="1"></label>
+        <fieldset class="fam-fs"><legend class="field-label">Sex <span class="opt">optional</span></legend>
+          <div class="pick pick-sm">${[["female", "Female"], ["male", "Male"]].map(([v, l]) => `<label class="pick-opt"><input type="radio" name="famSex" value="${v}"><span>${l}</span></label>`).join("")}</div>
+        </fieldset>
+      </div>
       <fieldset class="fam-fs"><legend class="field-label">Any of these? <span class="opt">optional</span></legend>
         <div class="pick pick-sm">${COND_PICK.map(([v, l]) => `<label class="pick-opt"><input type="checkbox" name="famCond" value="${v}"><span>${l}</span></label>`).join("")}</div>
       </fieldset>
@@ -993,7 +1005,9 @@ function famAddSave() {
     return;
   }
   const conditions = [...document.querySelectorAll('#famBody input[name="famCond"]:checked')].map((x) => x.value);
-  const m = upsertMember({ name, conditions, care: {} });
+  const ageRaw = ($("famAge")?.value || "").trim();
+  const sex = document.querySelector('#famBody input[name="famSex"]:checked')?.value || null;
+  const m = upsertMember({ name, conditions, age: ageRaw === "" ? null : Number(ageRaw), sex, care: {} });
   if (!m) { toast("Your family book holds up to 6 people."); return; }
   care.famAdding = false;
   renderHomeFamily();

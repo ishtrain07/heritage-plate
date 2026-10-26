@@ -157,3 +157,14 @@ def test_protein_sides_go_on_main_meals_one_each(client):
 def test_dislikes_match_whole_words_and_groups(text, kept, banned):
     avoid, _ = dietitian.avoid_items(text)
     assert banned <= avoid and not (kept & avoid)
+
+
+
+def test_several_goals_lose_and_build_muscle():
+    from app import dietitian
+    p = {"sex": "male", "age": 35, "height_cm": 175, "weight_kg": 90, "activity": "light", "goals": ["lose_weight", "build_muscle"]}
+    kcal, protein, notes = dietitian.calorie_target(p)
+    single, _, _ = dietitian.calorie_target({**p, "goals": ["lose_weight"]})
+    assert protein == round(1.6 * 90) and kcal > single and any("building muscle" in n for n in notes)
+    assert dietitian.goals_of({"goals": ["maintain", "steady_sugar"]}) == ["steady_sugar"]
+    assert dietitian.goals_of({"goal": "belly_fat"}) == ["belly_fat"]

@@ -1700,3 +1700,9 @@ button.text-link { background: none; border: 0; padding: 0; font: inherit; font-
 /* the example card beside each side's input card follows that side's accent */
 .side-aside .hero-card::before { background: var(--accent-soft); }
 .side-aside .ex-dot[aria-pressed="true"]::before { background: var(--accent); }
+
+/* "About them" (sex, age, height, weight) is always visible, not hidden in a disclosure */
+.target.is-open { padding: var(--s4); }
+.target-h { margin: 0 0 var(--s2); }
+.fam-row { display: flex; flex-wrap: wrap; gap: var(--s3) var(--s4); align-items: flex-end; }
+.fam-age-f input { width: 7rem; }
