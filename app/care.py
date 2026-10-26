@@ -28,13 +28,13 @@ COUNTRIES = {"IN": "India", "US": "United States", "GB": "United Kingdom", "CA":
              "PH": "Philippines", "MX": "Mexico", "CN": "China", "AE": "United Arab Emirates", "OTHER": "elsewhere"}
 # Symptoms that need a doctor or pharmacist before any routine (checked in code, before the model).
 _LOSS = r"(hair ?loss|hair ?fall|losing|falling out|fall(?:ing)? out|thinning|bald)"
-_PATCH = r"(patch|patches|patchy|sudden|suddenly|clumps)"
+_PATCH = r"(patchy|bald patch\w*|in patches|sudden|suddenly|in clumps|clumps)"
 # (key, pattern, message, concerns held back). The regex is a floor; the model can add keys for other languages.
 RED_FLAGS = [
     ("hair_loss_patches",
      rf"\bbald (patch|patches|spot|spots)\b|\balopecia\b|\b(guchh\w*|gucch\w*|ganje? (dhabb|patch)\w*|mechones|calvas?|kalbo)\b|\b{_PATCH}\b[^.]{{0,40}}\b{_LOSS}|\b{_LOSS}\b[^.]{{0,40}}\b{_PATCH}\b",
      "Sudden or patchy hair loss can have medical causes (thyroid, iron, alopecia areata). See a doctor first.", {"thinning_hair"}),
-    ("deep_acne", r"\b(cystic|cysts?|nodules?|boils?|painful (lumps|spots|pimples|bumps)|deep,? painful)\b",
+    ("deep_acne", r"\b(cystic|cysts?|nodules?|(a|have|has|got) boils?|boils? on|painful (lumps|spots|pimples|bumps)|deep,? painful)\b",
      "Deep, painful acne needs a doctor's treatment; creams alone won't be enough.", {"acne"}),
     ("acne_scars", r"\b(scarring|scars?)\b",
      "Acne scars can be treated by a dermatologist; the routine here helps prevent new marks.", set()),
@@ -42,7 +42,8 @@ RED_FLAGS = [
      r"\bnew mole\b|\b(mole|moles)\b[^.]{0,40}\b(chang\w*|grow\w*|bigger|bleed\w*|itch\w*|irregular|uneven)|\b(bleeding|changing|growing) (mole|spot)\b",
      "A mole or spot that is new, changes, grows or bleeds should be checked by a doctor soon.", set()),
     ("infection",
-     r"\bspread\w* (rash|redness|red)\b|\b(rash|redness)\b[^.]{0,30}\bspread|\b(blister|blisters|pus|oozing|fever|swollen|swelling|infected|infection)\b",
+     (r"\bspread\w* (rash|redness|red)\b|\b(rash|redness)\b[^.]{0,30}\bspread|\b(blister|blisters|pus|oozing|infected|infection)\b"
+     r"|\b(rash|hives)\b[^.]{0,30}\b(fever|swollen|swelling)\b|\b(fever|swollen|swelling)\b[^.]{0,30}\b(rash|hives)\b|\b(lips?|face|tongue) (is |are )?swell\w*"),
      "Spreading, blistering, oozing or swollen skin can be an infection or allergy. See a doctor or pharmacist today.", set()),
     ("burn", r"\b(burn|burns|burned|burnt|burning|sunburn\w*|chemical burn)\b",
      "For a burn, cool it under running water for 20 minutes and get it checked if it blisters or is large.", set()),
@@ -51,13 +52,13 @@ RED_FLAG_KEYS = {k for k, *_ in RED_FLAGS}
 SKIN_CONCERNS = {"acne", "oily", "dry", "sensitive", "dark_spots", "sun"}
 STRONG_ACTIVES = ("adapalene", "retinol", "benzoyl_peroxide", "glycolic_acid")
 CITRUS = r"(lemons?|limes?|nimbu|nimboo|nimbo|limbu|lebu|limon|limón|limão|citron|zitrone|kalamansi|calamansi|citrus|bergamot|grapefruit|柠檬)"
-PHOTOTOXIC = re.compile(rf"(?<!slaked ){CITRUS}(?!\w)", re.IGNORECASE)
+PHOTOTOXIC = re.compile(rf"(?<!slaked )(?<!\w){CITRUS}(?!\w)", re.IGNORECASE)
 # Remedies we always answer "stop" to, whatever the model says (pattern, why, what to do instead, offer better options).
 STOP_RULES = [
     (r"\b(kerosene|kerosine|mitti ka tel|petrol|gasoline|diesel|turpentine)\b",
      "Kerosene, petrol and turpentine are poisons: they burn skin, the fumes are harmful and they catch fire.",
      "For lice, use wet combing with conditioner or a lice lotion from a pharmacy.", False),
-    (r"\b(bleach|chlorine|harpic|phenyle?|toilet cleaner)\b",
+    (r"\b(bleach|harpic|phenyle?|toilet cleaner)\b",
      "Bleach and cleaning chemicals burn skin and eyes; never put them on skin or hair.", "Rinse with plenty of water if it touched skin.", False),
     (r"\b(mercury|calomel|mercurous|mercuric)\b",
      "Mercury in creams is toxic and banned in many countries; it can damage the kidneys and nerves.", "Stop the cream and see a doctor if you've used it for a while.", False),
@@ -201,9 +202,15 @@ def _mock_remedy(text: str) -> dict:
                           "Demo mode only knows a few remedies. The full app checks any remedy with the AI.", "better": [], "how_better": ""}]}
 
 
-def _stop_rule(*texts: str) -> tuple[str, str, bool] | None:
+INGESTED = re.compile(r"\b(drank|drunk|swallowed|swallow|ingested|ate|pee? liya|kha liya)\b", re.IGNORECASE)
+
+
+def _stop_rule(remedy: str, said: str = "") -> tuple[str, str, bool] | None:
+    """Stop rules match the remedy itself; `said` (the family's whole text) only adds the swallowed case."""
     for pattern, why, instead, offer in STOP_RULES:
-        if any(re.search(pattern, t or "", re.IGNORECASE) for t in texts):
+        if re.search(pattern, remedy or "", re.IGNORECASE):
+            if INGESTED.search(f"{remedy} {said}"):  # swallowed, not on skin: that's an emergency
+                instead = "If any was swallowed, call your local poison centre or emergency number now; don't make them vomit."
             return why, instead, offer
     return None
 
@@ -257,7 +264,7 @@ def check_remedy(text: str, member: dict, country: str, language: str) -> tuple[
         why, how = _text(r.get("why"), 500), _text(r.get("how_better"), 300)
         # One remedy alone: judge it on the family's own words too; several: only on the model's name for it.
         own = [remedy_text, text] if len(raw) == 1 else [remedy_text]
-        stop = _stop_rule(*own)
+        stop = _stop_rule(remedy_text, text)
         if stop:  # dangerous: code decides, whatever the model said
             cards = cards if stop[2] else []  # e.g. no acne creams offered for kerosene on lice
             verdict, evidence, why, how = "stop", "none", stop[0] + (" " + why if verdict == "stop" else ""), stop[1]

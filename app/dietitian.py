@@ -73,7 +73,7 @@ WORDS = {
     "pork": ("pork", "bacon", "ham", "lard", "gelatin", "salami", "pepperoni", "chorizo", "prosciutto", "pancetta"),
     "alcohol": ("wine", "beer", "rum", "brandy", "whisky", "vodka", "sake", "mirin", "liqueur", "alcohol"),
     "shellfish": ("prawn", "shrimp", "crab", "lobster", "oyster", "squid", "clam", "mussel", "scallop"),
-    "root": ("onion", "garlic", "potato", "carrot", "beet", "radish", "turnip", "yam", "ginger", "mushroom", "shallot", "leek"),
+    "root": ("onion", "garlic", "potato", "carrot", "beet", "beetroot", "radish", "turnip", "yam", "ginger", "mushroom", "shallot", "leek"),
 }
 DIET_WORDS = {"non_veg": (), "pescatarian": ("meat",), "eggetarian": ("meat", "fish"),
               "vegetarian": ("meat", "fish", "egg"), "vegan": ("meat", "fish", "egg", "dairy"),
@@ -96,12 +96,17 @@ GROUPS = {
 }
 
 
+PLANT_LOOKALIKES = re.compile(r"\beggplants?\b|\b(coconut|almond|soy|soya|oat|rice|peanut|cashew|cocoa|shea|nut|seed)s? "
+                              r"(milk|butter|cream|yogurt|yoghurt|cheese|curd)\b|\boyster(?= mushrooms?\b)")
+
+
 def _animal_word(name: str, groups: tuple[str, ...]) -> bool:
     lower = name.lower()
     if "vegetable" in lower or "veg " in lower:  # "vegetable stock" is fine
         return False
-    lower = re.sub(r"\beggplants?\b", " ", lower)  # a vegetable, not an egg
-    return any(re.search(rf"\b{w}", lower) for g in groups for w in WORDS[g])
+    lower = PLANT_LOOKALIKES.sub(" ", lower)  # eggplant, coconut milk, oyster mushrooms: plants
+    # Short words must be whole words ("rum" not "rumali", "ham" not "hamachi"); longer ones may be prefixes ("anchov").
+    return any(re.search(rf"\b{w}(s|es)?\b" if len(w) <= 4 else rf"\b{w}", lower) for g in groups for w in WORDS[g])
 
 
 def allowed(items: list[str], diet: str, avoid: set[str]) -> bool:

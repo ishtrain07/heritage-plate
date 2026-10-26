@@ -25,15 +25,16 @@ class OffTopic(Exception):
 SUPPORT_LINES = ["India: Tele-MANAS 14416 (free, 24/7)", "US: call or text 988", "UK & Ireland: Samaritans 116 123",
                  "Elsewhere: findahelpline.com"]
 SUPPORT = re.compile(
-    r"\b(kill (myself|me)|end (my life|it all)|suicid\w*|want(ed)? to die|wanna die|don'?t want to (live|be alive)|"
-    r"self[- ]?harm|hurt(ing)? myself|overdose|khud ?kushi|aatmahatya|atmahatya|marna chaht[aie]|mar jana chaht[aie]|"
-    r"quiero morir(me)?|matarme)\b"
+    r"\b(kill myself|end (my life|it all)|want to end it|suicid\w*|want(ed)? to die|wanna die|don'?t want to (live|be alive)|"
+    r"self[- ]?harm|(want to|going to|i'?m|i am) (hurt|harm|cut|hurting|harming|cutting) myself(?! (with|on|while|by|accidentally))|overdose (on|of) (pills|tablets|medicine)|"
+    r"(want to|going to) overdose|overdose on purpose|khud ?kushi|aatmahatya|atmahatya|marna chaht[aie]|mar jana chaht[aie]|"
+    r"jeena nahi (hai|chahta|chahti)|quiero morir(me)?|no quiero vivir|matarme)\b|आत्महत्या|मरना चाहत"
     r"|\b(eat|eating|drink|drinking|swallow|take|taking|khana|peena)\b[^.]{0,20}\b(poison|rat poison|bleach|pesticide|zeher|zehar|veneno)\b"
     r"|\b(poison|bleach|pesticide|zeher|zehar|veneno)\b[^.]{0,20}\b(eat|drink|swallow|khana|khaana|peena|pina|tomar|beber)\b",
     re.IGNORECASE)
 NOT_FOOD = re.compile(
     r"\b(poison|rat poison|zeher|zehar|bleach|detergent|pesticide|insecticide|kerosene|petrol|gasoline|diesel|cement|"
-    r"money|cash|coins?|dollars|banknotes?|cocaine|heroin|meth|lsd|weapons?|guns?|bullets?)\b",
+    r"cocaine|heroin|meth|lsd)\b",
     re.IGNORECASE)
 FOOD_KINDS = {"recipe", "ask", "wish"}
 EXAMPLES = {"recipe": "Try a family recipe, e.g. “Mum's dal: 1 cup toor dal, 1 onion, 2 tomatoes, 1 tsp ghee”.",
@@ -69,7 +70,7 @@ def check_input(text: str, kind: str, field: str = "") -> str:
     if kind in FOOD_KINDS and NOT_FOOD.search(text):
         raise reject("not_food", "That doesn't look like food. " + EXAMPLES[kind], field=field)
     letters = [c.lower() for c in text if c.isalpha()]
-    if len(letters) < 3 or len(set(letters)) < 3 or (len(letters) >= 12 and len(set(letters)) / len(letters) < 0.12):
+    if len(letters) < 2 or (len(letters) > 4 and len(set(letters)) < 3) or (len(letters) >= 12 and len(set(letters)) < 5):
         raise reject("gibberish", "We couldn't make sense of that. " + EXAMPLES.get(kind, ""), field=field)
     return text
 

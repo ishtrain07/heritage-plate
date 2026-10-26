@@ -240,3 +240,23 @@ def test_red_flag_only_person_has_no_summary(client):
 @pytest.mark.parametrize("text", ["baal guchhon mein gir rahe hain", "ganje dhabbe", "se me cae el pelo a mechones"])
 def test_patchy_hair_loss_in_other_languages(text):
     assert "hair_loss_patches" in care.red_flag_keys(text)
+
+
+@pytest.mark.parametrize("text,flagged", [
+    ("Boil neem leaves in water and wash face for acne", False), ("under-eye swelling, cucumber slices?", False),
+    ("hair loss after fever", False), ("dandruff patches, hair fall in winter", False),
+    ("I have boils on my back", True), ("rash with fever", True), ("hair falling out in clumps", True),
+])
+def test_red_flags_after_review(text, flagged):
+    keys = [k for k in care.red_flag_keys(text) if k != "acne_scars"]
+    assert bool(keys) == flagged
+
+
+def test_pool_chlorine_does_not_stop_coconut_oil(client):
+    r = client.post("/api/care/remedy", json={"text": "pool chlorine dried my hair, coconut oil?"}).json()["result"]
+    assert all(x["verdict"] != "stop" for x in r["remedies"])
+
+
+def test_swallowed_chemical_gets_emergency_advice():
+    assert "poison centre" in care._stop_rule("bleach", "my son accidentally drank some bleach")[1]
+    assert not care.PHOTOTOXIC.search("sublime slime")
