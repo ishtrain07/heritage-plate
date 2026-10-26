@@ -21,16 +21,24 @@ FISH = {"cod", "fish", "salmon", "shrimp", "tuna", "fish sauce", "oyster sauce",
 EGG = {"egg", "egg white", "egg noodles", "mayonnaise"}
 DAIRY = {"cheddar cheese", "heavy cream", "khoa", "mozzarella cheese", "paneer", "parmesan cheese", "queso fresco",
          "sour cream", "whole milk", "yogurt", "butter", "ghee", "cottage cheese", "buttermilk", "sweetened condensed milk"}
+PORK = {"pork", "bacon"}
+SHELLFISH = {"shrimp", "oyster sauce"}
+ROOTS = {"onion", "spring onion", "garlic", "potato", "sweet potato", "carrot", "cassava", "ginger", "true yam", "mushrooms", "shiitake"}
 EXCLUDES = {
     "non_veg": set(),
     "pescatarian": MEAT,
     "eggetarian": MEAT | FISH,
     "vegetarian": MEAT | FISH | EGG,
     "vegan": MEAT | FISH | EGG | DAIRY | {"honey"},
+    "halal": PORK,
+    "kosher": PORK | SHELLFISH,
+    "jain": MEAT | FISH | EGG | ROOTS | {"honey"},
 }
 DIET_LABELS = {"non_veg": "eats everything", "pescatarian": "pescatarian (fish, no meat)",
                "eggetarian": "vegetarian plus eggs", "vegetarian": "vegetarian (no meat, fish or egg)",
-               "vegan": "vegan (no animal products)"}
+               "vegan": "vegan (no animal products)", "halal": "halal (no pork or alcohol)",
+               "kosher": "kosher-style (no pork or shellfish, never meat with dairy in one dish)",
+               "jain": "Jain (vegetarian; no onion, garlic, potato or other root vegetables, no mushrooms or honey)"}
 ACTIVITY = {"sedentary": 1.2, "light": 1.375, "moderate": 1.55, "active": 1.725}
 GOALS = {
     "maintain": "keep weight steady and eat well",
@@ -62,9 +70,14 @@ WORDS = {
              "sardine", "mackerel", "kimchi", "dashi"),
     "egg": ("egg", "mayo"),
     "dairy": ("milk", "cheese", "butter", "ghee", "cream", "yogurt", "yoghurt", "curd", "paneer", "khoa", "whey", "dahi"),
+    "pork": ("pork", "bacon", "ham", "lard", "gelatin", "salami", "pepperoni", "chorizo", "prosciutto", "pancetta"),
+    "alcohol": ("wine", "beer", "rum", "brandy", "whisky", "vodka", "sake", "mirin", "liqueur", "alcohol"),
+    "shellfish": ("prawn", "shrimp", "crab", "lobster", "oyster", "squid", "clam", "mussel", "scallop"),
+    "root": ("onion", "garlic", "potato", "carrot", "beet", "radish", "turnip", "yam", "ginger", "mushroom", "shallot", "leek"),
 }
 DIET_WORDS = {"non_veg": (), "pescatarian": ("meat",), "eggetarian": ("meat", "fish"),
-              "vegetarian": ("meat", "fish", "egg"), "vegan": ("meat", "fish", "egg", "dairy")}
+              "vegetarian": ("meat", "fish", "egg"), "vegan": ("meat", "fish", "egg", "dairy"),
+              "halal": ("pork", "alcohol"), "kosher": ("pork", "shellfish"), "jain": ("meat", "fish", "egg", "root")}
 # Allergy and avoid words that stand for a group of foods.
 GROUPS = {
     ("peanut", "peanuts", "groundnut"): {"peanuts", "groundnut oil", "peanut butter", "mixed nuts"},
@@ -87,13 +100,20 @@ def _animal_word(name: str, groups: tuple[str, ...]) -> bool:
     lower = name.lower()
     if "vegetable" in lower or "veg " in lower:  # "vegetable stock" is fine
         return False
-    return any(w in lower for g in groups for w in WORDS[g])
+    lower = re.sub(r"\beggplants?\b", " ", lower)  # a vegetable, not an egg
+    return any(re.search(rf"\b{w}", lower) for g in groups for w in WORDS[g])
 
 
 def allowed(items: list[str], diet: str, avoid: set[str]) -> bool:
     banned = EXCLUDES.get(diet, set()) | avoid
     groups = DIET_WORDS.get(diet, ())
-    return not any(i in banned or _animal_word(i, groups) for i in items)
+    if any(i in banned or _animal_word(i, groups) for i in items):
+        return False
+    if diet == "kosher":  # never meat and dairy in the same dish
+        meat = any(i in MEAT or _animal_word(i, ("meat",)) for i in items)
+        dairy = any(i in DAIRY or _animal_word(i, ("dairy",)) for i in items)
+        return not (meat and dairy)
+    return True
 
 
 def avoid_items(dislikes: str) -> tuple[set[str], list[str]]:

@@ -21,6 +21,7 @@ Breads: 1 roti/chapati/phulka = 30 g whole wheat flour; 1 paratha = 40 g whole w
 Use RAW weights for grains, pasta, noodles and lentils: 1 bowl/katori COOKED rice = 60 g raw rice;
 1 katori cooked dal = 35 g raw dal. Ignore water.
 If an ingredient isn't in the list, keep its own name; never substitute a different food (almonds are not cashews).
+If the text is not a recipe or food at all (or asks for something harmful to eat), reply {{"off_topic": true}} only.
 Reply with JSON only:
 {{"name": str, "servings": int, "ingredients": [{{"item": str, "grams": number}}]}}"""
 
@@ -40,8 +41,11 @@ Then write the lighter version as a recipe a home cook can follow: 4 to 7 short 
 using the adapted amounts (home measures like katori, cup or spoon are fine), and a "portion_tip":
 one sentence giving a specific serving in home measures (e.g. "1 katori rice", "2 rotis", "1 cup")
 that suits the condition, and what to fill the rest of the plate with.
+If there is a "request" that has nothing to do with cooking this dish, or asks for something harmful to eat,
+set "request_off_topic": true (and adapt the dish without it).
 Reply with JSON only:
 {{"ingredients": [{{"item": str, "grams": number}}],
+  "request_off_topic": bool,
   "changes": [{{"what": str, "why": str}}],
   "method": [str],
   "portion_tip": str,
@@ -90,6 +94,7 @@ sugar, salt and saturated fat. Use ONLY these ingredient names: {names}.
 Give raw grams for the whole dish for {servings} servings, 4 to 7 short "method" steps, a "portion_tip" with a
 specific serving in home measures, and one sentence "why" saying why it suits them.
 Do not state nutrition numbers; the app computes them from food-composition tables.
+If the wish is not about food (or asks for something harmful to eat), reply {{"off_topic": true}} only.
 Reply with JSON only:
 {{"name": str, "meal": "breakfast" | "main" | "dessert", "ingredients": [{{"item": str, "grams": number}}],
   "method": [str], "portion_tip": str, "why": str}}"""
@@ -109,6 +114,7 @@ For each remedy you can identify (at most 3):
 If the text (in any language) describes any of these, list their keys in "red_flags": "hair_loss_patches"
 (sudden, patchy or in-clumps hair loss), "deep_acne" (cysts, boils, deep painful spots), "changing_mole", "infection"
 (spreading rash, pus, blisters, fever, swelling), "burn".
+If the text is not about skin, hair or a home remedy for them, reply {{"off_topic": true}} only.
 Consider the person (age, pregnancy, concerns, allergies). Also write "note_for_family" in {language}:
 one or two warm sentences summarising the advice.
 Reply with JSON only:

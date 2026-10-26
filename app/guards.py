@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 import time
 from collections import defaultdict, deque
@@ -13,6 +14,67 @@ from fastapi import HTTPException, Request
 from . import llm
 
 log = logging.getLogger("heritage_plate")
+
+
+# ---------- input guardrail: checked in code before any model call ----------
+
+class OffTopic(Exception):
+    """The model says the text isn't a recipe / remedy / food wish."""
+
+
+SUPPORT_LINES = ["India: Tele-MANAS 14416 (free, 24/7)", "US: call or text 988", "UK & Ireland: Samaritans 116 123",
+                 "Elsewhere: findahelpline.com"]
+SUPPORT = re.compile(
+    r"\b(kill (myself|me)|end (my life|it all)|suicid\w*|want(ed)? to die|wanna die|don'?t want to (live|be alive)|"
+    r"self[- ]?harm|hurt(ing)? myself|overdose|khud ?kushi|aatmahatya|atmahatya|marna chaht[aie]|mar jana chaht[aie]|"
+    r"quiero morir(me)?|matarme)\b"
+    r"|\b(eat|eating|drink|drinking|swallow|take|taking|khana|peena)\b[^.]{0,20}\b(poison|rat poison|bleach|pesticide|zeher|zehar|veneno)\b"
+    r"|\b(poison|bleach|pesticide|zeher|zehar|veneno)\b[^.]{0,20}\b(eat|drink|swallow|khana|khaana|peena|pina|tomar|beber)\b",
+    re.IGNORECASE)
+NOT_FOOD = re.compile(
+    r"\b(poison|rat poison|zeher|zehar|bleach|detergent|pesticide|insecticide|kerosene|petrol|gasoline|diesel|cement|"
+    r"money|cash|coins?|dollars|banknotes?|cocaine|heroin|meth|lsd|weapons?|guns?|bullets?)\b",
+    re.IGNORECASE)
+FOOD_KINDS = {"recipe", "ask", "wish"}
+EXAMPLES = {"recipe": "Try a family recipe, e.g. “Mum's dal: 1 cup toor dal, 1 onion, 2 tomatoes, 1 tsp ghee”.",
+            "ask": "Try a change for this dish, e.g. “Dad hates cauliflower” or “make it less spicy”.",
+            "wish": "Try something like “a high-protein vegetarian dinner with spinach”.",
+            "remedy": "Try a home remedy, e.g. “besan and haldi pack for acne” or “coconut oil for dry hair”.",
+            "details": "Describe the skin or hair concern, e.g. “dry patches on elbows in winter”.",
+            "dislikes": "List foods to leave out, e.g. “mushrooms, peanuts”."}
+
+
+def reject(code: str, message: str, lines: list[str] | None = None) -> HTTPException:
+    detail: dict = {"code": code, "message": message}
+    if lines:
+        detail["lines"] = lines
+    return HTTPException(status_code=422, detail=detail)
+
+
+def support_error() -> HTTPException:
+    return reject("support", "It sounds like you might be going through something really hard. You don't have to face it "
+                  "alone: please talk to someone you trust, or call a helpline now. If you're in danger, call your local "
+                  "emergency number.", SUPPORT_LINES)
+
+
+def check_input(text: str, kind: str) -> str:
+    """Refuse text that is harmful, not food (for food fields) or gibberish, before it reaches the model."""
+    text = (text or "").strip()
+    if not text:
+        return text
+    if SUPPORT.search(text):
+        raise support_error()
+    if kind in FOOD_KINDS and NOT_FOOD.search(text):
+        raise reject("not_food", "That doesn't look like food. " + EXAMPLES[kind])
+    letters = [c.lower() for c in text if c.isalpha()]
+    if len(letters) < 3 or len(set(letters)) < 3 or (len(letters) >= 12 and len(set(letters)) / len(letters) < 0.12):
+        raise reject("gibberish", "We couldn't make sense of that. " + EXAMPLES.get(kind, ""))
+    return text
+
+
+def off_topic_error(kind: str) -> HTTPException:
+    what = {"recipe": "a recipe", "ask": "a change to this dish", "wish": "a dish idea", "remedy": "a skin or hair remedy"}
+    return reject("off_topic", f"That doesn't look like {what.get(kind, 'what this box is for')}. " + EXAMPLES.get(kind, ""))
 
 
 # Simple per-client limit on model-backed endpoints (protects credits on a public demo URL).
@@ -57,6 +119,8 @@ def _rate_limit(request: Request, cost: int = 1) -> None:
 def _guard(fn, *args):
     try:
         return fn(*args)
+    except OffTopic as exc:
+        raise off_topic_error(str(exc)) from exc
     except llm.LLMError as exc:
         log.warning("model call failed: %s", exc)
         raise HTTPException(status_code=502, detail="The AI model didn't respond properly. Please try again.") from exc

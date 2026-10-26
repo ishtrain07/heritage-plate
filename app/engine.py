@@ -13,6 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from . import llm, nutrition, prompts
+from .guards import OffTopic
 
 CONDITIONS = {
     "diabetes": "type 2 diabetes (focus: carbohydrates that raise blood sugar)",
@@ -228,6 +229,8 @@ def parse_recipe(text: str, servings: int | None, cuisine: str) -> tuple[dict, l
         data, trace = llm.chat_json("nano", system, text, step="Read recipe")
     else:
         data, trace = _mock_parse(text), _mock_trace("Read recipe", "nano")
+    if data.get("off_topic") is True:
+        raise OffTopic("recipe")
     ingredients = normalize_ingredients(data.get("ingredients"))
     serves = servings or _servings(data.get("servings"))
     return build_recipe(str(data.get("name") or "My recipe"), serves, ingredients, text), [trace]
@@ -455,6 +458,8 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "", 
         if request:
             data = _mock_request(data, request)
 
+    if request and data.get("request_off_topic") is True:
+        raise OffTopic("ask")
     ingredients = normalize_ingredients(data.get("ingredients"))
     if not ingredients:  # unusable reply: keep the dish and don't show changes that weren't applied
         ingredients, data = recipe["ingredients"], {}
@@ -518,6 +523,8 @@ def suggest_dish(wish: str, conditions: list[str], cuisine: str, diet: str, disl
         data, trace = llm.chat_json("super", system, wish, step="Suggest a dish", max_tokens=2500)
     else:
         data, trace = _mock_suggest(wish, diet, avoid, servings), _mock_trace("Suggest a dish", "super")
+    if data.get("off_topic") is True:
+        raise OffTopic("wish")
     ingredients = normalize_ingredients(data.get("ingredients"))
     if not ingredients or not dietitian.allowed([i["item"] for i in ingredients], diet, avoid):
         raise llm.LLMError("Suggest a dish: the suggestion didn't fit the diet; try rephrasing")

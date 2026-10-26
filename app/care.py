@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from . import engine, llm, prompts
-from .guards import _guard, _rate_limit
+from .guards import OffTopic, _guard, _rate_limit, check_input
 
 router = APIRouter(prefix="/api/care")
 
@@ -228,6 +228,8 @@ def check_remedy(text: str, member: dict, country: str, language: str) -> tuple[
         data, trace = llm.chat_json("super", system, json.dumps(brief, ensure_ascii=False), step="Check a remedy", max_tokens=2500)
     else:
         data, trace = _mock_remedy(text), engine._mock_trace("Check a remedy", "super")
+    if data.get("off_topic") is True and not _stop_rule(text):
+        raise OffTopic("remedy")
     flag_keys = red_flag_keys(text, data.get("red_flags"))
     flags = [msg for k, _, msg, _ in RED_FLAGS if k in flag_keys]
     held = flagged_concerns(text, data.get("red_flags")) | child_holds(member)[0]
@@ -541,6 +543,7 @@ async def care_library():
 def remedy(body: RemedyIn, request: Request):
     """Check a home remedy, said or typed the family's way."""
     _rate_limit(request)
+    check_input(body.text, "remedy")
     result, trace = _guard(check_remedy, body.text.strip(), body.member.model_dump(), body.country, _check_language(body.language))
     return {"result": result, "trace": trace}
 
@@ -549,6 +552,8 @@ def remedy(body: RemedyIn, request: Request):
 def plan(body: PlanIn, request: Request):
     """A skin & hair routine for each family member, from checked ingredients only."""
     _rate_limit(request, cost=2)
+    for m in body.members:
+        check_input(f"{m.wants} {m.details}", "details")
     result, trace = _guard(care_plan, [m.model_dump() for m in body.members], body.country, _check_language(body.language))
     return {"result": result, "trace": trace}
 
@@ -556,4 +561,5 @@ def plan(body: PlanIn, request: Request):
 @router.post("/label")
 async def label(body: LabelIn):
     """Read a product's ingredient list (no AI involved)."""
+    check_input(body.text, "label")
     return {"result": check_label(body.text, body.member.model_dump())}

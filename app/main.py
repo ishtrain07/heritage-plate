@@ -78,7 +78,7 @@ class PlanIn(BaseModel):
 
 
 class Profile(BaseModel):
-    diet: Literal["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan"] = "non_veg"
+    diet: Literal["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan", "halal", "kosher", "jain"] = "non_veg"
     conditions: list[Literal["diabetes", "bp", "cholesterol"]] = Field(default_factory=list, max_length=3)
     goal: Literal["maintain", "lose_weight", "belly_fat", "steady_sugar", "build_muscle"] = "maintain"
     dislikes: str = Field(default="", max_length=200)
@@ -107,7 +107,14 @@ class WeekIn(BaseModel):
 
 
 # Rate limit and model-error handling live in guards.py so Care's routes share them.
-from .guards import _client_id, _guard, _rate_limit  # noqa: F401
+from .guards import (  # noqa: F401
+    EXAMPLES,
+    _client_id,
+    _guard,
+    _rate_limit,
+    check_input,
+    reject,
+)
 
 
 @lru_cache
@@ -151,15 +158,17 @@ async def demo(family_id: str):
 @app.post("/api/parse")
 def parse(body: ParseIn, request: Request):
     _rate_limit(request)
+    check_input(body.text, "recipe")
     recipe, trace = _guard(engine.parse_recipe, body.text, body.servings, body.cuisine)
     if not any(i["matched"] for i in recipe["ingredients"]):
-        raise HTTPException(status_code=422, detail="Couldn't find any ingredients. Try listing them with amounts.")
+        raise reject("off_topic", "We couldn't find any ingredients. " + EXAMPLES["recipe"])
     return {"recipe": recipe, "trace": trace}
 
 
 @app.post("/api/adapt")
 def adapt(body: AdaptIn, request: Request):
     _rate_limit(request)
+    check_input(body.request, "ask")
     adapted, trace = _guard(engine.adapt_recipe, body.recipe.build(), body.condition, body.cuisine, body.request.strip(), body.also)
     return {"recipe": adapted, "trace": trace}
 
@@ -176,7 +185,7 @@ class SuggestIn(BaseModel):
     wish: str = Field(min_length=3, max_length=300)  # e.g. "a high-protein dinner with spinach"
     conditions: list[Condition] = Field(default_factory=list, max_length=4)
     cuisine: Cuisine = "other"
-    diet: Literal["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan"] = "non_veg"
+    diet: Literal["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan", "halal", "kosher", "jain"] = "non_veg"
     dislikes: str = Field(default="", max_length=200)
     servings: int = Field(default=4, ge=1, le=12)
 
@@ -185,6 +194,8 @@ class SuggestIn(BaseModel):
 def suggest(body: SuggestIn, request: Request):
     """Ask the AI to invent a dish for them; returns it in the same shape as an adapted recipe."""
     _rate_limit(request, cost=2)
+    check_input(body.wish, "wish")
+    check_input(body.dislikes, "dislikes")
     recipe, trace = _guard(engine.suggest_dish, body.wish.strip(), body.conditions, body.cuisine, body.diet,
                            body.dislikes, body.servings)
     return {"recipe": recipe, "trace": trace}
@@ -194,6 +205,7 @@ def suggest(body: SuggestIn, request: Request):
 def week(body: WeekIn, request: Request):
     """Personal dietitian week: calorie target from the profile, meals around the family's dishes."""
     _rate_limit(request, cost=5)  # one week plan is a long call, so it counts as several requests
+    check_input(body.profile.dislikes, "dislikes")
     recipes = [r.build() for r in body.recipes]
     result, trace = _guard(dietitian.plan_week, recipes, body.profile.model_dump(), body.language, body.week, body.household)
     return {"week": result, "trace": trace}
