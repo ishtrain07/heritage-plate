@@ -39,6 +39,18 @@ Each Nemotron tier has its own job, served from Nebius Token Factory:
 
 In a live run of the full demo (4 families, 18 dishes, 5 week plans), all 24 model calls succeeded. Median response was about 1.8 s per dish and 3.6 s per week plan, Ultra never needed its fallback, and the whole run used about 29,000 tokens, a few cents.
 
+## Heritage Care: the same idea for skin and hair
+
+Families also pass down remedies: besan and haldi for spots, lemon on dark marks, coconut oil every night,
+toothpaste on a pimple. Some help, some are harmless, and some burn or irritate. Heritage Care lets the family
+say the remedy the way it's said at home, in any language, and answers like a calm pharmacist would: what it
+really does, whether to keep it, and the proven ingredient that does the job better (for example azelaic acid
+or vitamin C for dark spots, ketoconazole for dandruff, minoxidil for thinning hair).
+
+It also plans simple skin and hair routines for each person in the family and reads any product's label.
+It recommends ingredients and strengths, never brands, and safety rules (pregnancy, prescriptions, red flags
+that need a doctor) are enforced in code, not left to the AI.
+
 ## Who it's for
 
 Families from any food tradition caring for a parent with a diet-related condition. It's built first for diaspora households (South Asian, East and Southeast Asian, Continental European, Middle Eastern, Latin American and Caribbean), whose food is often missing from mainstream diet apps.

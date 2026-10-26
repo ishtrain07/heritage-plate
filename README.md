@@ -1,6 +1,11 @@
-# Heritage Plate
+# Heritage: Plate + Care
 
-**Keep the family's food. Fix the numbers.**
+**Keep what works from home. Fix what doesn't.**
+
+Two halves, one family:
+- **Heritage Plate** — keep the family's food, fix the numbers (below).
+- **Heritage Care** — skin and hair for the whole family: fact-check the remedies passed down at home, get an
+  ingredient-first routine for each person, and check any product's label (see "Heritage Care" below).
 
 Heritage Plate turns a family's real recipes, written or spoken the way they're said at home ("3 katori atta, 2 boiled aloo, ghee on top", "2 spoons toyo", "a little queso"), into versions that work for a parent's type 2 diabetes, high blood pressure or high cholesterol. It works for any family cuisine: South Asian, East and Southeast Asian, Continental European, Middle Eastern, Latin American and Caribbean. It doesn't swap the family's food for bland diet food. Then it plans the week and writes a shopping list and a note to the parent in their language.
 
@@ -12,7 +17,8 @@ Built for the **Nebius x NVIDIA Global AI Hackathon** (Best Apps & Agents track)
 |---|---|---|
 | Read recipe | Free-text or spoken recipe → structured ingredients in grams | **NVIDIA Nemotron 3 Nano** on Nebius Token Factory |
 | Adapt dish | Up to 4 swaps that keep the dish recognizable (flour mix, less rice/ghee/sugar/salt, more vegetables) | **Nemotron 3 Super** |
-| Plan the week | 7-day plan, warm message to the parent in their own language, tips | **Nemotron 3 Ultra** (falls back to Super automatically) |
+| Plan the week | A personal dietitian week: calorie target from the person's profile (Mifflin-St Jeor), meals around the family's dishes plus suggested meals, a note to the parent in their language | **Nemotron 3 Ultra** (meal library if the call fails) |
+| Ask about a dish / Suggest a dish | Re-adapt around a request ("Dad hates cauliflower"), or invent a new dish for their conditions and diet | **Nemotron 3 Super** |
 | Nutrition and shopping list | kcal, carbs, net carbs, fibre, protein, fat, saturated fat and sodium per serving, before and after; weekly quantities | **Plain code + `data/foods.csv`**, never the LLM |
 
 The focus nutrient follows the condition: **net carbs** for diabetes, **sodium** for blood pressure, **saturated fat** for cholesterol.
@@ -34,6 +40,20 @@ python scripts/build_foods.py --ifct ifct2017-compositions-*/package/index.csv -
 ```
 
 The app's "Under the hood" panel shows which Nemotron tier ran each step, with latency and tokens.
+
+## Heritage Care
+
+| Job | What happens | Powered by |
+|---|---|---|
+| Check a home remedy | Typed or spoken the way it's said at home, in any language ("besan haldi ka lep", "nimbu on dark spots"). Verdict (keep / fine with care / stop / swap), the evidence, and the proven ingredient that does the job | **Nemotron 3 Super**, grounded on `data/care_actives.json` |
+| Family care plan | Morning / night / shower routine per person (product type + ingredient + strength + why), one combined shopping list, a note in the family's language | **Nemotron 3 Super**, choosing only from each person's allowed ingredients |
+| Check a label | Paste an ingredient list: helpful actives, irritants (fragrance, drying alcohol, essential oils), fit for the person, pregnancy warnings | Plain code, no AI |
+
+The AI reasons about whatever the family says; the checked library keeps it honest:
+- `data/care_actives.json` lists 22 actives with typical strength, evidence grade (A/B/C), cautions, pregnancy status, regulatory status and sources (NHS, American Academy of Dermatology, National Eczema Society, PubMed).
+- The model may only recommend ids from that list; anything else is dropped in code, and every recommendation carries the library's sources.
+- Safety is applied in code after the model: red flags (sudden or patchy hair loss, cystic acne, changing moles, spreading or blistering skin, burns) go to a doctor first; retinoids and minoxidil are never suggested in pregnancy; prescription-only items become "ask your doctor about…" (per country); allergies are respected; citrus on skin can never be a plain "keep".
+- Remedies the library doesn't cover are still answered, labelled "AI-assessed, not in our checked library".
 
 ## Run it
 
@@ -69,12 +89,16 @@ python -m pytest -q
 ## Project layout
 
 ```
-app/main.py        FastAPI routes (/api/health, /api/demo[/{id}], /api/parse, /api/adapt, /api/plan) + validation
+app/main.py        FastAPI routes (/api/health, /api/demo[/{id}], /api/parse, /api/adapt, /api/suggest, /api/week) + validation
+app/care.py        Heritage Care routes (/api/care/remedy, /plan, /label, /library), grounding and safety rules
+app/dietitian.py   personal week plan: calorie target, diet rules, portion scaling
+app/guards.py      shared rate limit and model-error handling
 app/engine.py      parse → adapt → plan pipeline (live Nemotron or mock rules)
 app/llm.py         Token Factory client, JSON parsing, Ultra → Super fallback, trace
 app/prompts.py     system prompts per Nemotron tier
 app/nutrition.py   deterministic nutrition math over data/foods.csv
-data/              ingredients.csv (curated), foods.csv (generated), demo_families.json (fictional)
+data/              ingredients.csv (curated), foods.csv (generated), demo_families.json (fictional),
+                   meals.json, facts.json, care_actives.json (cited skin & hair library)
 scripts/           build_foods.py (rebuild food table), check_models.py (verify Token Factory models), live_run.py (live latency/tokens/cost)
 static/            single-page UI (plain HTML/CSS/JS)
 ```

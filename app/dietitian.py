@@ -21,16 +21,24 @@ FISH = {"cod", "fish", "salmon", "shrimp", "tuna", "fish sauce", "oyster sauce",
 EGG = {"egg", "egg white", "egg noodles", "mayonnaise"}
 DAIRY = {"cheddar cheese", "heavy cream", "khoa", "mozzarella cheese", "paneer", "parmesan cheese", "queso fresco",
          "sour cream", "whole milk", "yogurt", "butter", "ghee", "cottage cheese", "buttermilk", "sweetened condensed milk"}
+PORK = {"pork", "bacon"}
+SHELLFISH = {"shrimp", "oyster sauce"}
+ROOTS = {"onion", "spring onion", "garlic", "potato", "sweet potato", "carrot", "cassava", "ginger", "true yam", "mushrooms", "shiitake"}
 EXCLUDES = {
     "non_veg": set(),
     "pescatarian": MEAT,
     "eggetarian": MEAT | FISH,
     "vegetarian": MEAT | FISH | EGG,
     "vegan": MEAT | FISH | EGG | DAIRY | {"honey"},
+    "halal": PORK,
+    "kosher": PORK | SHELLFISH,
+    "jain": MEAT | FISH | EGG | ROOTS | {"honey"},
 }
 DIET_LABELS = {"non_veg": "eats everything", "pescatarian": "pescatarian (fish, no meat)",
                "eggetarian": "vegetarian plus eggs", "vegetarian": "vegetarian (no meat, fish or egg)",
-               "vegan": "vegan (no animal products)"}
+               "vegan": "vegan (no animal products)", "halal": "halal (no pork or alcohol)",
+               "kosher": "kosher-style (no pork or shellfish, never meat with dairy in one dish)",
+               "jain": "Jain (vegetarian; no onion, garlic, potato or other root vegetables, no mushrooms or honey)"}
 ACTIVITY = {"sedentary": 1.2, "light": 1.375, "moderate": 1.55, "active": 1.725}
 GOALS = {
     "maintain": "keep weight steady and eat well",
@@ -62,9 +70,14 @@ WORDS = {
              "sardine", "mackerel", "kimchi", "dashi"),
     "egg": ("egg", "mayo"),
     "dairy": ("milk", "cheese", "butter", "ghee", "cream", "yogurt", "yoghurt", "curd", "paneer", "khoa", "whey", "dahi"),
+    "pork": ("pork", "bacon", "ham", "lard", "gelatin", "salami", "pepperoni", "chorizo", "prosciutto", "pancetta"),
+    "alcohol": ("wine", "beer", "rum", "brandy", "whisky", "vodka", "sake", "mirin", "liqueur", "alcohol"),
+    "shellfish": ("prawn", "shrimp", "crab", "lobster", "oyster", "squid", "clam", "mussel", "scallop"),
+    "root": ("onion", "garlic", "potato", "carrot", "beet", "beetroot", "radish", "turnip", "yam", "ginger", "mushroom", "shallot", "leek"),
 }
 DIET_WORDS = {"non_veg": (), "pescatarian": ("meat",), "eggetarian": ("meat", "fish"),
-              "vegetarian": ("meat", "fish", "egg"), "vegan": ("meat", "fish", "egg", "dairy")}
+              "vegetarian": ("meat", "fish", "egg"), "vegan": ("meat", "fish", "egg", "dairy"),
+              "halal": ("pork", "alcohol"), "kosher": ("pork", "shellfish"), "jain": ("meat", "fish", "egg", "root")}
 # Allergy and avoid words that stand for a group of foods.
 GROUPS = {
     ("peanut", "peanuts", "groundnut"): {"peanuts", "groundnut oil", "peanut butter", "mixed nuts"},
@@ -83,17 +96,30 @@ GROUPS = {
 }
 
 
+WHOLE_WORDS = {"ham", "rum", "sake", "yam", "beet"}  # as prefixes they'd catch rumali roti, hamachi, beetroot (listed separately)
+PLANT_LOOKALIKES = re.compile(r"\beggplants?\b|\bbutternut\b|\bcream of tartar\b|\b(coconut|almond|soy|soya|oat|rice|peanut|cashew|cocoa|shea|nut|seed)s? "
+                              r"(milk|butter|cream|yogurt|yoghurt|cheese|curd)\b|\boyster(?= mushrooms?\b)")
+
+
 def _animal_word(name: str, groups: tuple[str, ...]) -> bool:
     lower = name.lower()
     if "vegetable" in lower or "veg " in lower:  # "vegetable stock" is fine
         return False
-    return any(w in lower for g in groups for w in WORDS[g])
+    lower = PLANT_LOOKALIKES.sub(" ", lower)  # eggplant, coconut milk, oyster mushrooms: plants
+    # Short words must be whole words ("rum" not "rumali", "ham" not "hamachi"); longer ones may be prefixes ("anchov").
+    return any(re.search(rf"\b{w}(s|es)?\b" if w in WHOLE_WORDS else rf"\b{w}", lower) for g in groups for w in WORDS[g])
 
 
 def allowed(items: list[str], diet: str, avoid: set[str]) -> bool:
     banned = EXCLUDES.get(diet, set()) | avoid
     groups = DIET_WORDS.get(diet, ())
-    return not any(i in banned or _animal_word(i, groups) for i in items)
+    if any(i in banned or _animal_word(i, groups) for i in items):
+        return False
+    if diet == "kosher":  # never meat and dairy in the same dish
+        meat = any(i in MEAT or _animal_word(i, ("meat",)) for i in items)
+        dairy = any(i in DAIRY or _animal_word(i, ("dairy",)) for i in items)
+        return not (meat and dairy)
+    return True
 
 
 def avoid_items(dislikes: str) -> tuple[set[str], list[str]]:
@@ -134,12 +160,19 @@ def body_check(profile: dict) -> dict | None:
             "healthy_range_kg": [round(18.5 * m2), round((over - 0.1) * m2)]}
 
 
+def goals_of(profile: dict) -> list[str]:
+    """Several goals can be picked; "maintain" (eat well) only counts when it's the only one."""
+    goals = [g for g in (profile.get("goals") or [profile.get("goal") or "maintain"]) if g in GOALS]
+    return [g for g in goals if g != "maintain"] or ["maintain"]
+
+
 def calorie_target(profile: dict) -> tuple[int | None, float | None, list[str]]:
     """Mifflin-St Jeor resting energy x activity, adjusted for goal, age and body. Returns (kcal, protein_g, notes)."""
     notes: list[str] = []
-    goal = profile.get("goal", "maintain")
-    losing = goal in ("lose_weight", "belly_fat")
-    if goal == "belly_fat":
+    goals = goals_of(profile)
+    losing = bool({"lose_weight", "belly_fat"} & set(goals))
+    muscle = "build_muscle" in goals
+    if "belly_fat" in goals:
         notes.append("Fat can't be lost from one spot. Belly fat goes down with overall fat loss, so this plan "
                      "aims for a steady calorie deficit; regular walking and strength exercise help most.")
     if profile.get("pregnant"):
@@ -160,7 +193,7 @@ def calorie_target(profile: dict) -> tuple[int | None, float | None, list[str]]:
     floor = 1500 if sex == "male" else 1200
     older = age >= 65
     # Protein aims in g/kg: 0.8 adult RDA; 1.0-1.2 for over-65s (PROT-AGE); 1.2 while losing; 1.6 for muscle.
-    per_kg = 1.6 if goal == "build_muscle" else 1.2 if losing else 1.0 if older else 0.8
+    per_kg = 1.6 if muscle else 1.2 if losing else 1.0 if older else 0.8
     target = tdee
     if losing:
         if body["band"] == "low":
@@ -168,7 +201,10 @@ def calorie_target(profile: dict) -> tuple[int | None, float | None, list[str]]:
                          "maintenance instead of cutting. Please check with a doctor.")
             per_kg = 1.0 if older else 0.8
         else:
-            cut = 250 if body["band"] == "healthy" else 300 if older else 500
+            cut = 250 if body["band"] == "healthy" or muscle else 300 if older else 500
+            if muscle:
+                notes.append("Losing fat while building muscle: a small calorie deficit, plenty of protein, and "
+                             "strength exercise two or three times a week.")
             if body["band"] == "healthy":
                 low, high = body["healthy_range_kg"]
                 notes.append(f"Weight is already in the healthy range ({low}-{high} kg by {body['cutoffs']} cut-offs), "
@@ -179,7 +215,7 @@ def calorie_target(profile: dict) -> tuple[int | None, float | None, list[str]]:
             target = max(tdee - cut, floor)
             if tdee - cut < floor:
                 notes.append(f"Calories are kept at {floor} a day, the usual safe minimum without medical supervision.")
-    elif goal == "build_muscle":
+    elif muscle:
         target = tdee + 250
     elif older:
         notes.append("Over 65, aim for some protein at every meal to help keep muscle.")
@@ -393,10 +429,11 @@ def _shopping(days: list[dict], recipes: list[dict], household: int) -> list[dic
 def plan_week(recipes: list[dict], profile: dict, language: str = "", week: int = 1, household: int = 1) -> tuple[dict, list[dict]]:
     diet = profile.get("diet", "non_veg")
     conditions = [c for c in profile.get("conditions", []) if c in CONDITION_TEXT]
-    goal = profile.get("goal", "maintain")
+    goals = goals_of(profile)
+    goal = goals[0]
     avoid, unknown = avoid_items(profile.get("dislikes", ""))
     slots = ["breakfast", "lunch", "snack", "dinner"] if profile.get("snacks", True) else ["breakfast", "lunch", "dinner"]
-    focus = "net_carbs_g" if "diabetes" in conditions or goal == "steady_sugar" else (
+    focus = "net_carbs_g" if "diabetes" in conditions or "steady_sugar" in goals else (
         "sodium_mg" if "bp" in conditions else "sat_fat_g" if "cholesterol" in conditions else "kcal")
     target, protein, notes = calorie_target(profile)
     if unknown:
@@ -416,7 +453,7 @@ def plan_week(recipes: list[dict], profile: dict, language: str = "", week: int 
         brief = {
             "diet": DIET_LABELS.get(diet, diet),
             "health": [CONDITION_TEXT[c] for c in conditions] or ["none given"],
-            "goal": GOALS.get(goal, goal),
+            "goal": "; ".join(GOALS.get(g, g) for g in goals),
             "dislikes_or_allergies": profile.get("dislikes", "")[:200],
             "daily_kcal_target": target,
             "kcal_per_meal": {s: round((target or 1900) * split[s]) for s in slots},
@@ -458,7 +495,7 @@ def plan_week(recipes: list[dict], profile: dict, language: str = "", week: int 
     return {
         "target": {"kcal": target, "protein_g": protein, "method": "Mifflin-St Jeor x activity" if target else None,
                    "body": body_check(profile) if not profile.get("pregnant") else None},
-        "profile": {"diet": diet, "goal": goal, "conditions": conditions},
+        "profile": {"diet": diet, "goal": goal, "goals": goals, "conditions": conditions},
         "days": days,
         "average": avg,
         "shopping_list": _shopping(days, recipes, household),

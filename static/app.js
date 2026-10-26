@@ -1,6 +1,13 @@
 // Heritage Plate front end: plain JS, no build step, no external dependencies.
 "use strict";
 
+// An old page cached by the browser can load these new scripts without family.js: reload once to get the current page.
+if (typeof FAMILY_KEY === "undefined") {
+  try {
+    if (!sessionStorage.getItem("hp-reloaded")) { sessionStorage.setItem("hp-reloaded", "1"); location.reload(); }
+  } catch { /* storage blocked: the page still shows Plate */ }
+}
+
 const $ = (id) => document.getElementById(id);
 
 function esc(s) {
@@ -76,7 +83,7 @@ const SPEECH_LANG = {
   Tagalog: "fil-PH", Vietnamese: "vi-VN", Thai: "th-TH", Arabic: "ar-SA", Farsi: "fa-IR", Spanish: "es-ES",
   Portuguese: "pt-BR", Italian: "it-IT", French: "fr-FR", Polish: "pl-PL",
 };
-const VOICE_FALLBACK = "Voice works in Chrome and Safari. You can type it here instead.";
+const VOICE_FALLBACK = "Voice works in Chrome, Edge or Safari, so type instead.";
 
 const FAMILY_SHADES = 4; // .avatar.fam-1 … fam-4, coloured by theme tokens
 const DAY_NAMES = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday", Sat: "Saturday", Sun: "Sunday" };
@@ -84,8 +91,15 @@ const SLOT_NAMES = { breakfast: "Breakfast", lunch: "Lunch", snack: "Snack", din
 const SLOT_ORDER = ["breakfast", "lunch", "snack", "dinner"];
 
 // The dietitian intake. Values match the /api/week Profile model.
-const DIETS = [["non_veg", "Everything"], ["pescatarian", "Fish, no meat"], ["eggetarian", "Vegetarian + eggs"], ["vegetarian", "Vegetarian"], ["vegan", "Vegan"]];
-const DIET_WORDS = { non_veg: "Eats everything", pescatarian: "Fish, no meat", eggetarian: "Vegetarian + eggs", vegetarian: "Vegetarian", vegan: "Vegan" };
+const DIETS = [["non_veg", "Everything"], ["pescatarian", "Fish, no meat"], ["eggetarian", "Vegetarian + eggs"], ["vegetarian", "Vegetarian"], ["vegan", "Vegan"],
+  ["halal", "Halal"], ["kosher", "Kosher-style"], ["jain", "Jain"]];
+const DIET_WORDS = { non_veg: "Eats everything", pescatarian: "Fish, no meat", eggetarian: "Vegetarian + eggs", vegetarian: "Vegetarian", vegan: "Vegan",
+  halal: "Halal", kosher: "Kosher-style", jain: "Jain" };
+// A short plain note under the diet chips, for the diets people read differently.
+const DIET_NOTES = {
+  kosher: "Kosher-style: no pork or shellfish, no meat with dairy. We can't check certification.",
+  jain: "Vegetarian, no onion, garlic or root vegetables.",
+};
 const HEALTH = [["diabetes", "Type 2 diabetes"], ["bp", "High blood pressure"], ["cholesterol", "High cholesterol"]];
 const GOALS = [
   ["maintain", "Eat well", "Balanced meals at their usual calories."],
@@ -221,10 +235,12 @@ function familyShort() {
 }
 function cookbookTitle() {
   const f = familyShort();
-  if (!f && !state.recipes.length && state.plan) return "Your week of meals";
-  return f ? `The ${f} family cookbook` : "Your family cookbook";
+  if (!f && !state.recipes.length && state.plan && !careInBook()) return "Your week of meals";
+  return f ? `The ${f} family book` : "Your family book";
 }
+function careInBook() { return typeof hasCareBook === "function" && hasCareBook(); }
 function coverLine() {
+  if (!state.recipes.length && !state.plan && careInBook()) return "Skin & hair care for the family";
   if (!state.recipes.length && state.plan) return `A personal week of meals${hasParent() ? ` for ${state.parentName.trim()}` : ""} · ${profileWords(state.plan).join(" · ")}`;
   if (state.condition === "everyday") return "Lighter family recipes for everyday";
   return `Lighter family recipes for ${hasParent() ? state.parentName.trim() : "the family"} · ${condWords()}`;
@@ -272,6 +288,8 @@ function readableError(detail, status) {
       const field = Array.isArray(long.loc) ? long.loc.filter((x) => typeof x === "string").pop() : "";
       const max = Number(long.ctx?.max_length) || Number((String(long.msg || "").match(/at most (\d+)/) || [])[1]) || 0;
       const limit = max ? max.toLocaleString("en-US") : "";
+      if (field === "text" && max === 3000) return `That ingredient list is too long; keep it under ${limit} characters.`; // label check
+      if (field === "text" && max === 400) return `That remedy is too long; keep it under ${limit} characters.`;
       if (field === "text" || field === "source_text") return `That recipe is too long; keep it under ${limit || "2,000"} characters.`;
       if (field === "request") return `That ask is too long; keep it under ${limit || "200"} characters.`;
       if (field === "wish") return `That's a bit long; keep it under ${limit || "300"} characters.`;
@@ -313,9 +331,89 @@ async function api(path, body, timeoutMs = 120000, signal = null) {
   } finally { clearTimeout(timer); if (signal) signal.removeEventListener("abort", onCancel); }
   if (signal?.aborted) { const e = new Error("Cancelled."); e.cancelled = true; throw e; }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(readableError(data.detail, res.status));
+  if (!res.ok) {
+    const guard = res.status === 422 ? guardOf(data.detail) : null;
+    const e = new Error(guard ? guard.message : readableError(data.detail, res.status));
+    if (guard) e.guard = guard;
+    throw e;
+  }
   return data;
 }
+
+// ---------- input guardrail replies ----------
+// A 422 whose detail is {code, message, lines?} is the server saying "that isn't something we can work with"
+// (a normal validation 422 has a list as its detail). It's shown inline under the field that was sent, never
+// as a toast, and never with the person's own text echoed back.
+const GUARD_CODES = ["not_food", "off_topic", "gibberish", "support"];
+function guardOf(detail) {
+  if (!detail || typeof detail !== "object" || Array.isArray(detail) || !GUARD_CODES.includes(detail.code)) return null;
+  const msg = typeof detail.message === "string" ? detail.message.trim() : "";
+  const lines = Array.isArray(detail.lines) ? detail.lines.filter((x) => typeof x === "string" && x.trim()).map((x) => x.trim()).slice(0, 8) : [];
+  const fallback = detail.code === "support"
+    ? "It sounds like things are really hard right now. You don't have to face this alone. Please reach out to someone who can help today."
+    : "That doesn't look like something we can check. Please try again.";
+  return { code: detail.code, message: msg || fallback, lines };
+}
+
+// Helpline lines: the number becomes a tap-to-call link and a bare site a link, so help is one tap away.
+function supportLine(line) {
+  return esc(line)
+    .replace(/\b(\d{3}(?: \d{3})?|\d{4,6})\b(?=\s*(?:\(|$))/, (n) => `<a class="guard-tel" href="tel:${n.replace(/\s/g, "")}">${n}</a>`)
+    .replace(/\b([a-z0-9-]+\.(?:com|org|net))\b/i, (d) => `<a class="guard-tel" href="https://${d}" target="_blank" rel="noopener">${d}</a>`);
+}
+
+// `ex` = an example to try (filled into the field on tap); `exLabel` = button words when the example is long.
+function guardHTML(g, ex = "", exLabel = "") {
+  if (g.code === "support") {
+    return `
+      <div class="guard guard-support" role="status">
+        <p class="guard-msg">${esc(g.message)}</p>
+        ${g.lines.length ? `<ul class="guard-lines">${g.lines.map((l) => `<li>${supportLine(l)}</li>`).join("")}</ul>` : ""}
+      </div>`;
+  }
+  const tryIt = ex ? `<p class="guard-ex">Try something like <button type="button" class="btn-link guard-use" data-guard-example="${esc(ex)}">${esc(exLabel || `“${ex}”`)}</button></p>` : "";
+  return `<div class="guard" role="alert"><p class="guard-msg">${esc(g.message)}</p>${tryIt}</div>`;
+}
+
+function showGuard(slotId, fieldId, g, ex = "", exLabel = "") {
+  const slot = $(slotId);
+  if (!slot) return;
+  slot.dataset.field = fieldId || "";
+  slot.innerHTML = guardHTML(g, ex, exLabel);
+  const field = fieldId ? $(fieldId) : null;
+  if (field) {
+    if (g.code !== "support") field.setAttribute("aria-invalid", "true");
+    const ids = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter((x) => x && x !== slotId);
+    field.setAttribute("aria-describedby", [...ids, slotId].join(" "));
+  }
+  slot.scrollIntoView({ block: "nearest", behavior: reduceMotion() ? "auto" : "smooth" });
+}
+
+function clearGuard(slotId) {
+  const slot = $(slotId);
+  if (!slot || !slot.innerHTML) return;
+  const field = slot.dataset.field ? $(slot.dataset.field) : null;
+  if (field) {
+    field.removeAttribute("aria-invalid");
+    const ids = (field.getAttribute("aria-describedby") || "").split(/\s+/).filter((x) => x && x !== slotId);
+    if (ids.length) field.setAttribute("aria-describedby", ids.join(" ")); else field.removeAttribute("aria-describedby");
+  }
+  slot.innerHTML = "";
+}
+
+// "Try something like …": fill the field with the example and clear the message.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-guard-example]");
+  if (!b) return;
+  const slot = b.closest(".guard-slot");
+  const field = slot?.dataset.field ? $(slot.dataset.field) : null;
+  if (slot) clearGuard(slot.id);
+  if (field) { field.value = b.dataset.guardExample; field.focus(); field.dispatchEvent(new Event("input", { bubbles: true })); }
+});
+// Typing again clears the message under that field.
+document.addEventListener("input", (e) => {
+  document.querySelectorAll(".guard-slot").forEach((slot) => { if (slot.dataset.field && slot.dataset.field === e.target.id) clearGuard(slot.id); });
+});
 
 function baseFields(r) {
   const out = {
@@ -371,7 +469,7 @@ async function busy(btn, label, fn) {
 function defaultProfile() {
   return {
     diet: "non_veg", conditions: conds().filter((c) => c !== "everyday"),
-    goal: "maintain", dislikes: "", sex: null, age: null, height_cm: null, weight_kg: null, activity: "light",
+    goal: "maintain", goals: ["maintain"], dislikes: "", sex: null, age: null, height_cm: null, weight_kg: null, activity: "light",
     ethnicity: null, pregnant: false, snacks: true,
   };
 }
@@ -387,6 +485,11 @@ function cleanProfile(p) {
     diet: pick(p.diet, DIETS, d.diet),
     conditions: Array.isArray(p.conditions) ? HEALTH.map(([k]) => k).filter((k) => p.conditions.includes(k)) : d.conditions,
     goal: pick(p.goal, GOALS, d.goal),
+    goals: (() => { // several goals; "Eat well" only on its own
+      const g = (Array.isArray(p.goals) ? p.goals : [p.goal]).filter((k) => GOALS.some(([x]) => x === k));
+      const rest = [...new Set(g)].filter((k) => k !== "maintain");
+      return rest.length ? rest : ["maintain"];
+    })(),
     dislikes: String(p.dislikes || "").slice(0, 200),
     sex: p.sex === "female" || p.sex === "male" ? p.sex : null,
     age: age === null ? null : Math.round(age),
@@ -407,7 +510,7 @@ function profile() {
 // ---------- saved cookbook (this device only; works without storage) ----------
 function saveBook() {
   try {
-    if (!state.recipes.length && !state.plan && !state.profileSet) { window.localStorage.removeItem(BOOK_KEY); return; }
+    if (!state.recipes.length && !state.plan && !state.profileSet) { writePlate(null); return; }
     const data = {
       v: 1, savedAt: Date.now(),
       condition: state.condition, also: state.also, cuisine: state.cuisine, language: state.language, parentName: state.parentName,
@@ -418,8 +521,8 @@ function saveBook() {
       profile: state.profileSet ? state.profile : null,
       household: state.household,
     };
-    window.localStorage.setItem(BOOK_KEY, JSON.stringify(data));
-  } catch { /* storage blocked or full: the cookbook lasts for this visit */ }
+    writePlate(data); // the shared family store (static/family.js)
+  } catch { /* storage blocked or full: the book lasts for this visit */ }
 }
 
 // A saved cookbook may be old, edited or corrupt: keep only what the app and the API can use.
@@ -449,8 +552,11 @@ function cleanAdapted(a) {
   return { ...a, asks };
 }
 function readBook() {
+  return checkBook(readPlateRaw());
+}
+// Also used by static/family.js to migrate an old hp-cookbook-v1 save.
+function checkBook(d) {
   try {
-    const d = JSON.parse(window.localStorage.getItem(BOOK_KEY) || "null");
     if (isObj(d) && d.v === 1 && Array.isArray(d.recipes)) {
       d.recipes = d.recipes
         .filter((r) => isObj(r) && (typeof r.id === "string" || typeof r.id === "number") && String(r.id) && goodRecipe(r.base))
@@ -476,7 +582,7 @@ function readBook() {
 }
 
 function clearBook() {
-  try { window.localStorage.removeItem(BOOK_KEY); } catch { /* ignore */ }
+  try { writePlate(null); } catch { /* ignore */ }
 }
 
 // Returns false (and starts fresh, with a message) if the saved cookbook can't be opened.
@@ -493,7 +599,7 @@ function restoreBook(d) {
     Object.assign(state, keep, { planStale: false, planError: false, saved: null });
     clearBook();
     try { fillSelects(); renderResume(); renderFamilies(); renderCookbook(); renderPlan(); } catch { /* keep the toast */ }
-    toast("Couldn't open the saved cookbook, so we started fresh.");
+    toast("Couldn't open the saved family book, so we started fresh.");
     return false;
   }
 }
@@ -530,7 +636,7 @@ function renderResume() {
   const d = state.saved;
   if (!d || state.recipes.length) { box.innerHTML = ""; return; }
   const f = d.family?.family ? String(d.family.family).replace(/^The\s+/i, "").replace(/\s+family$/i, "") : "";
-  const title = f ? `The ${f} family cookbook` : "Your family cookbook";
+  const title = f ? `The ${f} family book` : "Your family book";
   const n = d.recipes.length;
   const who = String(d.parentName || "").trim();
   const bits = [n ? `${title}: ${n} dish${n === 1 ? "" : "es"}` : "Your week plan"];
@@ -645,13 +751,14 @@ function renderSections() {
   // The "Plan my week" button under the dishes only starts things; once there's a week, the week has its own buttons.
   const planBtnShown = !state.plan && !state.intakeOpen && !state.planning;
   $("dishes").hidden = n === 0;
-  $("composer").hidden = !state.composerOpen;
+  $("composer").hidden = false; // the input card: always on Plate's first screen
   $("dishActions").hidden = n === 0 || state.composerOpen;
   $("plan").hidden = !planBtnShown;
   $("dishActions").classList.toggle("is-sticky", planBtnShown);
   $("intake").hidden = !state.intakeOpen || state.planning;
   $("week").hidden = !(state.plan || state.planning || state.planError);
   $("readyBar").hidden = !(state.plan && !state.planning);
+  if (typeof renderPlateXlink === "function") renderPlateXlink(); // care.js: the small "skin or hair?" card
 }
 
 // ---------- families ----------
@@ -707,7 +814,7 @@ async function loadFamily(id, btn) {
     const famEntries = (fam.recipes || []).map((r) => ({ id: String(r.id || uid()), base: r, adapted: null, status: "idle", error: "", open: null, origin: fam.id }));
     state.recipes = [...own, ...famEntries].slice(0, MAX_DISHES);
     state.plan = null; state.planStale = false; state.planError = false; state.cookbookVersion += 1; state.week = 1;
-    state.composerOpen = false; state.editingId = null;
+    resetComposer();
     $("adaptProgress").hidden = true;
     $("parseMsg").textContent = "";
     syncControls();
@@ -902,7 +1009,8 @@ function askBox(e) {
       <div class="chips" role="group" aria-label="Quick asks">
         ${chips.map((c) => `<button type="button" class="chip" data-chip="${esc(c)}"${dis}>${esc(c)}</button>`).join("")}
       </div>
-      ${e.askError ? `<p class="msg error" role="alert">${esc(e.askError)}</p>` : ""}
+      ${e.askGuard ? `<div class="guard-slot">${guardHTML(e.askGuard, e.askGuard.code === "support" ? "" : chips[0])}</div>`
+        : e.askError ? `<p class="msg error" role="alert">${esc(e.askError)}</p>` : ""}
     </form>`;
 }
 
@@ -933,7 +1041,7 @@ async function runAsks(e, list, draft) {
   const done = (next, note) => {
     e.prev = e.adapted;
     e.adapted = next;
-    e.asking = false; e.askDraft = ""; e.askError = "";
+    e.asking = false; e.askDraft = ""; e.askError = ""; e.askGuard = null;
     markCookbookChanged();
     renderCard(id);
     renderPlanStale();
@@ -949,7 +1057,7 @@ async function runAsks(e, list, draft) {
     return;
   }
   const token = {};
-  e.req = token; e.asking = true; e.askError = ""; e.askDraft = draft; e.open = true;
+  e.req = token; e.asking = true; e.askError = ""; e.askGuard = null; e.askDraft = draft; e.open = true;
   renderCard(id);
   const stale = () => findEntry(id) !== e || (e.origin !== "suggested" && condKey() !== key) || e.req !== token;
   try {
@@ -966,7 +1074,8 @@ async function runAsks(e, list, draft) {
     if (dropped > 0) toast(`Kept your latest ${asks.length} asks; the oldest ${dropped === 1 ? "one was" : `${dropped} were`} too long to send too.`);
   } catch (err) {
     if (stale()) return;
-    e.asking = false; e.askError = err.message;
+    e.asking = false; e.askError = err.message; e.askGuard = err.guard || null;
+    if (e.askGuard?.code === "support") e.askDraft = ""; // don't leave the hard words sitting in the box
     renderCard(id);
   }
 }
@@ -1011,6 +1120,13 @@ function dishCard(e, index) {
       <p class="nums"><span class="nums-now plain">${esc(fmt(n[c.key], c.unit))}<span class="nums-unit"> ${esc(c.unit)}</span></span></p>
       <p class="nums-label">${esc(c.nutrient)} per serving, as cooked now</p>`;
   }
+
+  // Same anatomy as Care's result card: headline chip, then what changes, then where it comes from.
+  const quick = adapted && !plainSuggested ? (r.changes || []).slice(0, 3) : [];
+  const whatChanges = quick.length ? `
+    <div class="rc-quick"><p class="rc-h">What changes</p>
+      <ul class="quick-list">${quick.map((ch) => `<li><span class="tick" aria-hidden="true">✓</span><span>${esc(ch.what)}</span></li>`).join("")}</ul></div>` : "";
+  const trust = adapted ? `<p class="trust-chip"><span aria-hidden="true">✓</span> Numbers from food tables</p>` : "";
 
   let status = "";
   if (isBusy) status = `<p class="working"><span class="spinner" aria-hidden="true"></span><span>Making it lighter<span class="dots"></span><span class="working-sub">Keeping the taste, trimming the ${esc(c.nutrient)}</span></span></p>`;
@@ -1057,7 +1173,7 @@ function dishCard(e, index) {
           </div>
           ${methodBlock(r)}
           ${portion ? `<div class="portion"><p class="portion-h">Portion</p><p>${esc(portion)}</p></div>` : ""}
-          ${changes.length ? `<div class="rc-block"><h4 class="rc-h">What we changed</h4><ul class="changes">${changes.map((ch) => `
+          ${changes.length ? `<div class="rc-block"><h4 class="rc-h">Why these changes</h4><ul class="changes">${changes.map((ch) => `
             <li><span class="tick" aria-hidden="true">✓</span><span>${esc(ch.what)}<span class="why">${esc(ch.why)}</span></span></li>`).join("")}</ul></div>` : ""}
           ${why}
           ${askBox(e)}
@@ -1100,7 +1216,9 @@ function dishCard(e, index) {
         ${condTags}
         ${numbers}
         ${secondary}
+        ${whatChanges}
         ${adapted ? askedLine(e) : ""}
+        ${trust}
         ${status}
         ${retry}
       </div>
@@ -1232,7 +1350,28 @@ function recipeAsText(r) {
 }
 
 const SUGGEST_EXAMPLE = "a quick high-protein dinner with spinach";
-function micIdleLabel() { return state.composerMode === "suggest" ? "Tap and say what you'd like" : "Tap and say it the way she says it"; }
+// "Or tap one" on Plate's input card, like Care's example remedies: one tap and it runs.
+// scripts/build_preview.py precomputes these (and the home shortcut's dal), so keep the two in step.
+const PLATE_EXAMPLES = [
+  ["Mum's dal chawal", "Mum's dal chawal: 1 katori toor dal, 2 katori rice, 1 tomato, haldi, jeera, 1 spoon ghee"],
+  ["Aloo paratha", "Aloo paratha: 3 katori atta, 2 boiled aloo, ghee on top"],
+  ["Chicken adobo", "Chicken adobo: 1 kg chicken, half cup soy sauce, half cup vinegar, garlic, 3 cups rice"],
+  ["Beef stew", "Beef stew: 500 g beef, 3 potatoes, 2 carrots, 1 onion, a spoon of butter"],
+];
+function renderPlateExamples() {
+  $("plateExamples").innerHTML = PLATE_EXAMPLES.map(([label, text]) =>
+    `<button type="button" class="chip-btn" data-plate-example="${esc(text)}">${esc(label)}</button>`).join("");
+}
+// Fill the card with an example recipe and make it lighter, exactly as if it had been typed.
+function runPlateExample(text) {
+  if ($("parse").hasAttribute("aria-busy")) return;
+  if (state.composerMode !== "recipe" || state.editingId) resetComposer();
+  clearGuard("recipeGuard");
+  $("servings").value = 4;
+  $("recipeText").value = text;
+  submitComposer($("parse"));
+}
+function micIdleLabel() { return state.composerMode === "suggest" ? "Say what you'd like" : "Say a recipe"; }
 
 // The composer has two jobs: a family recipe to make lighter, or a wish for a new dish ("suggest").
 function setComposerMode(mode) {
@@ -1241,13 +1380,33 @@ function setComposerMode(mode) {
   state.composerMode = suggest ? "suggest" : "recipe";
   const box = $("recipeText");
   box.maxLength = suggest ? 300 : 2000;
-  box.rows = suggest ? 3 : 5;
-  box.placeholder = suggest ? `e.g. ${SUGGEST_EXAMPLE}` : "Or type or paste it here: dish name, then what goes in. Home measures are fine.";
+  box.rows = suggest ? 3 : 4;
+  box.placeholder = suggest ? `e.g. ${SUGGEST_EXAMPLE}` : "Or type or paste it: dish name, then what goes in. Home measures are fine.";
   $("recipeTextLabel").textContent = suggest ? "What would you like to eat?" : "The recipe: dish name, then what goes in";
   $("goalLegend").firstChild.textContent = suggest ? "Suggest it for " : "Make it lighter for ";
   $("composer").classList.toggle("is-suggest", suggest);
   syncControls();
   if (!voice.listening) $("mic").querySelector(".mic-label").textContent = micIdleLabel();
+}
+
+// The input card is always there. Its own title and Cancel show only for the other jobs (editing a dish,
+// suggesting a new one); in its usual job the page headline is its title.
+function composerChrome() {
+  const suggest = state.composerMode === "suggest";
+  const editing = Boolean(state.editingId && findEntry(state.editingId));
+  const alt = editing || suggest;
+  $("composer").classList.toggle("is-alt", alt);
+  $("composerClose").hidden = !alt;
+  $("composerTitle").textContent = editing ? "Edit the recipe" : suggest ? "What would you like?" : "Tell us the recipe";
+  if (!$("parse").hasAttribute("aria-busy")) $("parse").textContent = editing ? "Update and make it lighter" : suggest ? "Suggest a dish" : "Make it lighter";
+}
+
+// Back to the card's usual job (a family recipe to make lighter), e.g. after a dish was added.
+function resetComposer() {
+  state.composerOpen = false;
+  state.editingId = null;
+  if (state.composerMode !== "recipe") setComposerMode("recipe");
+  composerChrome();
 }
 
 function openComposer({ mode = "type", editId = null } = {}) {
@@ -1256,9 +1415,7 @@ function openComposer({ mode = "type", editId = null } = {}) {
   setComposerMode(editing ? "recipe" : mode === "suggest" ? "suggest" : "recipe");
   state.composerOpen = true;
   state.editingId = editing ? editing.id : null;
-  const suggest = state.composerMode === "suggest";
-  $("composerTitle").textContent = editing ? "Edit the recipe" : suggest ? "What would you like?" : "Tell us the recipe";
-  $("parse").textContent = editing ? "Update and make it lighter" : suggest ? "Suggest a dish" : "Make it lighter";
+  composerChrome();
   if (editing) {
     $("recipeText").value = recipeAsText(editing.base);
     $("servings").value = Math.min(20, Math.max(1, Math.round(num(editing.base.servings)) || 4));
@@ -1275,11 +1432,12 @@ function openComposer({ mode = "type", editId = null } = {}) {
 
 function closeComposer() {
   stopListening();
-  state.composerOpen = false;
-  state.editingId = null;
+  const wasEditing = Boolean(state.editingId);
+  resetComposer();
+  if (wasEditing) $("recipeText").value = "";
   refreshButtons();
   if (state.recipes.length) { scrollToEl($("dishes")); $("dishesTitle").focus({ preventScroll: true }); }
-  else { window.scrollTo({ top: 0, behavior: reduceMotion() ? "auto" : "smooth" }); $("heroSay").focus({ preventScroll: true }); }
+  else { window.scrollTo({ top: 0, behavior: reduceMotion() ? "auto" : "smooth" }); $("recipeText").focus({ preventScroll: true }); }
 }
 
 async function submitComposer(btn) {
@@ -1287,6 +1445,7 @@ async function submitComposer(btn) {
   const text = $("recipeText").value.trim();
   const msg = $("parseMsg");
   msg.className = "msg";
+  clearGuard("recipeGuard");
   if (text.length < 3) {
     msg.className = "msg error";
     msg.textContent = state.composerMode === "suggest" ? "Say or type what you'd like first." : "Say or type a recipe first.";
@@ -1297,7 +1456,7 @@ async function submitComposer(btn) {
   const editing = state.editingId ? findEntry(state.editingId) : null;
   if (!editing && state.recipes.length >= MAX_DISHES) {
     msg.className = "msg error";
-    msg.textContent = `The cookbook holds up to ${MAX_DISHES} dishes. Remove one to add another.`;
+    msg.textContent = `Your family book holds up to ${MAX_DISHES} dishes. Remove one to add another.`;
     return;
   }
   const servings = Math.min(20, Math.max(1, Math.round(num($("servings").value) || 4)));
@@ -1320,7 +1479,7 @@ async function submitComposer(btn) {
     markCookbookChanged();
     $("recipeText").value = "";
     msg.className = "msg"; msg.textContent = "";
-    state.composerOpen = false; state.editingId = null;
+    resetComposer();
     renderResume();
     renderCookbook();
     renderPlanStale();
@@ -1331,16 +1490,22 @@ async function submitComposer(btn) {
     await adaptOne(id);
   } catch (err) {
     stop();
+    if (err.guard) { msg.className = "msg"; msg.textContent = ""; showGuard("recipeGuard", "recipeText", err.guard, recipeExample()); return; }
     msg.className = "msg error";
     msg.textContent = err.message;
   }
+}
+
+// What to try when the box held something that isn't a recipe.
+function recipeExample() {
+  return state.cuisine === "south_asian" ? "Mum's dal: 1 katori toor dal, 1 tomato, haldi, jeera, 1 spoon ghee" : `Family stew: ${EXAMPLES[state.cuisine] || EXAMPLES.other}`;
 }
 
 async function submitSuggest(btn, wish) {
   const msg = $("parseMsg");
   if (state.recipes.length >= MAX_DISHES) {
     msg.className = "msg error";
-    msg.textContent = `The cookbook holds up to ${MAX_DISHES} dishes. Remove one to add another.`;
+    msg.textContent = `Your family book holds up to ${MAX_DISHES} dishes. Remove one to add another.`;
     return;
   }
   const servings = Math.min(12, Math.max(1, Math.round(num($("servings").value) || 4)));
@@ -1360,16 +1525,17 @@ async function submitSuggest(btn, wish) {
     markCookbookChanged();
     $("recipeText").value = "";
     msg.className = "msg"; msg.textContent = "";
-    state.composerOpen = false;
+    resetComposer();
     renderResume();
     renderCookbook();
     renderPlanStale();
     const card = document.querySelector(`[data-card="${CSS.escape(id)}"]`);
     if (card) { scrollToEl(card); card.querySelector("h3")?.focus({ preventScroll: true }); }
-    announce(`Suggested: ${recipe.name}. Added to your cookbook.`);
+    announce(`Suggested: ${recipe.name}. Added to your family book.`);
     saveBook();
   } catch (err) {
     stop();
+    if (err.guard) { msg.className = "msg"; msg.textContent = ""; showGuard("recipeGuard", "recipeText", err.guard, SUGGEST_EXAMPLE); return; }
     msg.className = "msg error";
     msg.textContent = err.message;
   }
@@ -1378,9 +1544,20 @@ async function submitSuggest(btn, wish) {
 // ---------- voice ----------
 const voice = { rec: null, listening: false, base: "" };
 
+// No speech recognition (e.g. Firefox): the mic stays, and says plainly to type instead.
+// `again` re-announces the line after a tap, since a status region only speaks when its text changes.
+function noVoiceHint(hint, again = false) {
+  hint.classList.add("is-novoice");
+  hint.closest(".mic-wrap")?.classList.add("no-voice");
+  if (!again) { hint.textContent = VOICE_FALLBACK; return; }
+  hint.textContent = "";
+  setTimeout(() => { hint.textContent = VOICE_FALLBACK; }, 60);
+}
+
 function updateMicHint() {
   const hint = $("micHint");
-  if (!voice.rec) { hint.textContent = VOICE_FALLBACK; return; }
+  if (!voice.rec) { noVoiceHint(hint); return; }
+  hint.classList.remove("is-novoice"); hint.closest(".mic-wrap")?.classList.remove("no-voice");
   hint.textContent = voice.listening
     ? `Listening in ${state.speechLang}. Tap Done when you've finished.`
     : `Listens in ${state.speechLang}. Check the words before you go on.`;
@@ -1396,7 +1573,7 @@ function setListening(on) {
 }
 
 function startListening() {
-  if (!voice.rec) { updateMicHint(); return; }
+  if (!voice.rec) { noVoiceHint($("micHint"), true); return; }
   if (voice.listening) return;
   const rec = voice.rec;
   voice.base = $("recipeText").value.trim();
@@ -1421,7 +1598,7 @@ function stopListening() {
 function setupVoice() {
   const mic = $("mic");
   mic.addEventListener("click", () => {
-    if (!voice.rec) { updateMicHint(); $("recipeText").focus(); return; }
+    if (!voice.rec) { noVoiceHint($("micHint"), true); $("recipeText").focus(); return; }
     if (voice.listening) stopListening(); else startListening();
   });
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1460,6 +1637,16 @@ function pickHTML(name, options, type, isOn) {
 }
 
 function goalHelpText(goal) { return (GOALS.find(([k]) => k === goal) || GOALS[0])[2]; }
+function goalsHelp(goals) { return goals.map(goalHelpText).join(" "); }
+function checkedGoals() { return Array.from($("intakeForm").querySelectorAll('input[name="goal"]:checked')).map((x) => x.value); }
+// "Eat well" means no special goal, so it can't sit alongside the others.
+function onGoalToggle(input) {
+  const boxes = $("intakeForm").querySelectorAll('input[name="goal"]');
+  if (input.checked && input.value === "maintain") boxes.forEach((b) => { if (b !== input) b.checked = false; });
+  else if (input.checked) boxes.forEach((b) => { if (b.value === "maintain") b.checked = false; });
+  if (!checkedGoals().length) boxes.forEach((b) => { if (b.value === "maintain") b.checked = true; });
+  $("goalHelp").textContent = goalsHelp(checkedGoals());
+}
 
 function setHeightFromCm() {
   const cm = num($("pHeight").value);
@@ -1498,9 +1685,11 @@ function renderIntake() {
   $("pName").value = state.parentName;
   $("pLang").innerHTML = langs.map((l) => `<option value="${esc(l)}"${l === state.language ? " selected" : ""}>${esc(l)}</option>`).join("");
   $("pDiet").innerHTML = pickHTML("diet", DIETS, "radio", (v) => v === p.diet);
+  $("dietNote").textContent = DIET_NOTES[p.diet] || "";
+  clearGuard("avoidGuard");
   $("pCond").innerHTML = pickHTML("cond", HEALTH, "checkbox", (v) => p.conditions.includes(v));
-  $("pGoal").innerHTML = pickHTML("goal", GOALS, "radio", (v) => v === p.goal);
-  $("goalHelp").textContent = goalHelpText(p.goal);
+  $("pGoal").innerHTML = pickHTML("goal", GOALS, "checkbox", (v) => p.goals.includes(v));
+  $("goalHelp").textContent = goalsHelp(p.goals);
   $("pAvoid").value = p.dislikes;
   $("pSex").innerHTML = pickHTML("sex", SEXES, "radio", (v) => v === p.sex);
   $("pAge").value = p.age ?? "";
@@ -1534,7 +1723,8 @@ function readIntake() {
   const p = cleanProfile({
     diet: checked("diet"),
     conditions: Array.from(form.querySelectorAll('input[name="cond"]:checked')).map((x) => x.value),
-    goal: checked("goal"),
+    goal: checkedGoals()[0] || "maintain",
+    goals: checkedGoals(),
     dislikes: $("pAvoid").value.trim(),
     sex: checked("sex"),
     age: val("pAge"),
@@ -1555,7 +1745,7 @@ function readIntake() {
 
 function openIntake() {
   if (!state.profileSet && !state.profileTouched) state.profile = defaultProfile();
-  if (state.composerOpen) { stopListening(); state.composerOpen = false; state.editingId = null; }
+  if (state.composerOpen) { stopListening(); resetComposer(); }
   state.intakeOpen = true;
   renderIntake();
   refreshButtons();
@@ -1568,7 +1758,7 @@ function closeIntake() {
   refreshButtons();
   if (state.plan) { scrollToEl($("week")); $("weekTitle").focus({ preventScroll: true }); }
   else if (state.recipes.length) { scrollToEl($("dishes")); $("dishesTitle").focus({ preventScroll: true }); }
-  else { window.scrollTo({ top: 0, behavior: reduceMotion() ? "auto" : "smooth" }); $("heroSay").focus({ preventScroll: true }); }
+  else { window.scrollTo({ top: 0, behavior: reduceMotion() ? "auto" : "smooth" }); $("recipeText").focus({ preventScroll: true }); }
 }
 
 function submitIntake() {
@@ -1630,7 +1820,7 @@ function portionWord(s) {
 function keyNumbers(plan) {
   const conds = plan.profile?.conditions || [];
   const keys = conds.map((c) => KEY_NUMBERS[c]).filter(Boolean);
-  if (plan.profile?.goal === "steady_sugar" && !conds.includes("diabetes")) keys.unshift(KEY_NUMBERS.diabetes);
+  if ((plan.profile?.goals || [plan.profile?.goal]).includes("steady_sugar") && !conds.includes("diabetes")) keys.unshift(KEY_NUMBERS.diabetes);
   if (!keys.length) keys.push(["fiber_g", "Fibre", "g"]);
   return keys;
 }
@@ -1639,8 +1829,7 @@ function profileWords(plan) {
   const p = plan.profile || {};
   const bits = [DIET_WORDS[p.diet] || DIET_WORDS.non_veg];
   (p.conditions || []).forEach((c) => { const h = HEALTH.find(([k]) => k === c); if (h) bits.push(h[1]); });
-  const g = GOALS.find(([k]) => k === p.goal);
-  if (g && g[0] !== "maintain") bits.push(g[1]);
+  (p.goals || [p.goal]).forEach((k) => { const g = GOALS.find(([x]) => x === k); if (g && g[0] !== "maintain") bits.push(g[1]); });
   return bits;
 }
 
@@ -1666,7 +1855,7 @@ function weekSummary(plan) {
       <p class="wk-who">${profileWords(plan).map(esc).join(" · ")}${who ? ` · ${esc(who)}` : ""}</p>
       <div class="wk-cal">
         <p class="wk-big"><span class="wk-about">About</span> ${esc(kcal(avg.kcal))}<span class="wk-unit"> kcal a day</span></p>
-        <p class="wk-target">${target ? `Target ${esc(kcal(target))} kcal a day, set from age, height, weight and activity` : "Daily calories shown per day. Add age, height and weight for a personal target."}</p>
+        <p class="wk-target">${target ? `Target ${esc(kcal(target))} kcal a day, set from age, height, weight and activity` : "Normal portions. Add age, height and weight for a personal target."}</p>
         ${bodyLine(t.body) ? `<p class="wk-body">${esc(bodyLine(t.body))}</p>` : ""}
       </div>
       <dl class="wk-stats">${stats.join("")}</dl>
@@ -1919,6 +2108,16 @@ async function makePlan() {
       announce("Stopped planning. Nothing was changed.");
       return;
     }
+    if (err.guard) {
+      // The foods-to-avoid box held something we can't use: back to the form, message under that box.
+      state.intakeOpen = true;
+      renderPlan();
+      renderIntake();
+      refreshButtons();
+      showGuard("avoidGuard", "pAvoid", err.guard, "mushrooms, peanuts");
+      $("pAvoid").focus({ preventScroll: true });
+      return;
+    }
     state.planError = true;
     state.planErrorMsg = err.message;
     renderPlan();
@@ -1945,6 +2144,15 @@ async function copyText(text) {
   }
 }
 
+// Shared links always open on the home page (#home), never on whichever side the sender was using.
+function homeLink() {
+  return /^https?:$/.test(location.protocol) ? `${location.origin}${location.pathname}#home` : "";
+}
+function withHomeLink(text) {
+  const link = homeLink();
+  return link ? `${text}\n\nMade with Heritage: ${link}` : text;
+}
+
 async function shareText(title, text) {
   if (navigator.share) {
     try { await navigator.share({ title, text }); return; } catch (err) {
@@ -1968,6 +2176,8 @@ function cookbookHTML() {
   const stale = Boolean(plan && state.planStale);
   const shareWord = navigator.share ? "Share" : "Copy as text";
   const note = plan && hasNote(plan);
+  const care = typeof careBookHTML === "function" ? careBookHTML() : ""; // Heritage Care's pages (static/care.js)
+  const fromCare = typeof careBookFromCare === "function" && careBookFromCare();
   const dishes = state.recipes.map((e) => {
     const r = current(e);
     const adapted = Boolean(e.adapted);
@@ -2016,11 +2226,11 @@ function cookbookHTML() {
       <div class="cb-shop">${shopGroups(plan).map(([k, items]) => `<div><h4 class="rc-h">${esc(SHOP_GROUPS[k])}</h4><ul>${items.map((s) => `<li><span>${esc(s.item)}</span><span>${esc(grams(s.grams))}</span></li>`).join("")}</ul></div>`).join("")}</div>
     </section>
     ${note ? `<section class="cb-sec cb-note"><h3>${esc(noteLabel(plan))}</h3><p class="cb-note-text">${esc(plan.message_for_parent)}</p></section>` : ""}` : `
-    <p class="cb-noplan no-print">Plan the week to add meals, a shopping list and a note.</p>`;
+    ${state.recipes.length ? `<p class="cb-noplan no-print">Plan the week to add meals, a shopping list and a note.</p>` : ""}`;
   return `
     <div class="wrap cb-wrap">
       <div class="cb-toolbar">
-        <button type="button" class="btn-link" data-act="close-cookbook"><span aria-hidden="true">←</span> Back to your week</button>
+        <button type="button" class="btn-link" data-act="close-cookbook"><span aria-hidden="true">←</span> ${fromCare ? "Back" : "Back to your week"}</button>
         <div class="cb-btns">
           <button type="button" class="btn btn-primary btn-small" data-act="print">Print or save PDF</button>
           <button type="button" class="btn btn-quiet btn-small" data-act="share">${shareWord}</button>
@@ -2028,13 +2238,14 @@ function cookbookHTML() {
         </div>
       </div>
       <header class="cb-cover">
-        <p class="eyebrow">Heritage Plate</p>
+        <p class="eyebrow">Heritage</p>
         <h2 id="cbTitle" tabindex="-1">${esc(cookbookTitle())}</h2>
         <p class="cb-line">${esc(coverLine())}</p>
       </header>
-      ${state.recipes.length ? dishes : plan ? "" : `<p class="cb-noplan">Nothing in your cookbook yet.</p>`}
+      ${state.recipes.length ? dishes : plan || care ? "" : `<p class="cb-noplan">Nothing in your family book yet.</p>`}
       ${week}
-      <footer class="cb-foot">${esc(SOURCES_LINE)}</footer>
+      ${care}
+      ${state.recipes.length || plan ? `<footer class="cb-foot">${esc(SOURCES_LINE)}</footer>` : ""}
     </div>`;
 }
 
@@ -2065,8 +2276,9 @@ function cookbookText() {
     if (hasNote(plan)) L.push("", `== ${noteLabel(plan)} ==`, plan.message_for_parent);
     L.push("");
   }
-  L.push(SOURCES_LINE);
-  return L.join("\n");
+  if (typeof careBookText === "function") { const c = careBookText(); if (c) L.push(c, ""); }
+  if (state.recipes.length || plan) L.push(SOURCES_LINE); // food numbers only when the book has Plate pages
+  return L.join("\n").trim();
 }
 
 function renderCookbookView() { $("cookbookView").innerHTML = cookbookHTML(); }
@@ -2076,9 +2288,10 @@ function openCookbook() {
   document.body.classList.add("cb-open");
   window.scrollTo(0, 0);
   $("cbTitle").focus({ preventScroll: true });
-  announce("Your family cookbook.");
+  announce("Your family book.");
 }
 function closeCookbook() {
+  if (typeof careCloseBook === "function" && careCloseBook()) return; // opened from Care: go back there
   document.body.classList.remove("cb-open");
   const target = state.plan ? $("week") : $("dishes");
   if (!target.hidden) { scrollToEl(target); (state.plan ? $("weekTitle") : $("dishesTitle")).focus({ preventScroll: true }); }
@@ -2094,8 +2307,6 @@ $("goalChips").addEventListener("change", (e) => { if (e.target.name === "goalCh
 $("cuisine").addEventListener("change", (e) => { state.cuisine = e.target.value; syncControls(); saveBook(); });
 $("speechLang").addEventListener("change", (e) => { state.speechLang = e.target.value; updateMicHint(); });
 
-$("heroSay").addEventListener("click", () => openComposer({ mode: "say" }));
-$("heroType").addEventListener("click", () => openComposer({ mode: "type" }));
 $("heroSuggest").addEventListener("click", () => openComposer({ mode: "suggest" }));
 $("heroWeek").addEventListener("click", openIntake);
 $("composerSkip").addEventListener("click", openIntake);
@@ -2105,6 +2316,10 @@ $("heroSample").addEventListener("click", (e) => {
   $("samples").focus({ preventScroll: true });
 });
 $("composerClose").addEventListener("click", closeComposer);
+$("plateExamples").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-plate-example]");
+  if (b) runPlateExample(b.dataset.plateExample);
+});
 $("addAnother").addEventListener("click", () => openComposer({ mode: "type" }));
 
 $("families").addEventListener("click", (e) => {
@@ -2119,11 +2334,11 @@ $("resume").addEventListener("click", (e) => {
   const d = state.saved;
   if (b.dataset.resume === "clear") {
     clearBook(); state.saved = null; renderResume();
-    announce("Cleared the saved cookbook.");
-    $("heroSay").focus({ preventScroll: true });
+    announce("Cleared the saved family book.");
+    $("recipeText").focus({ preventScroll: true });
     return;
   }
-  if (!restoreBook(d)) { $("heroSay").focus({ preventScroll: true }); return; }
+  if (!restoreBook(d)) { $("recipeText").focus({ preventScroll: true }); return; }
   if (b.dataset.resume === "add") { openComposer({ mode: "type" }); return; }
   if (state.recipes.some((x) => !x.adapted)) {
     // Something changed since last time (e.g. a dish never finished): make it lighter first.
@@ -2162,10 +2377,16 @@ $("cookbook").addEventListener("submit", (e) => {
 });
 $("cookbook").addEventListener("input", (e) => {
   const f = e.target.closest("form[data-ask]");
-  if (f) { const entry = findEntry(f.dataset.ask); if (entry) entry.askDraft = e.target.value; }
+  if (!f) return;
+  const entry = findEntry(f.dataset.ask);
+  if (!entry) return;
+  entry.askDraft = e.target.value;
+  if (entry.askGuard || entry.askError) { entry.askGuard = null; entry.askError = ""; f.querySelector(".guard-slot, .msg.error")?.remove(); }
 });
 
 $("cookbook").addEventListener("click", (e) => {
+  const tryAsk = e.target.closest("form[data-ask] [data-guard-example]");
+  if (tryAsk) { e.stopPropagation(); askDish(tryAsk.closest("form[data-ask]").dataset.ask, tryAsk.dataset.guardExample); return; }
   const chip = e.target.closest("[data-chip]");
   if (chip) { askDish(chip.closest("form[data-ask]").dataset.ask, chip.dataset.chip); return; }
   const x = e.target.closest("[data-ask-remove]");
@@ -2199,7 +2420,7 @@ function removeDish(id) {
   // The dish open in "Edit the recipe" is gone, so the editor closes rather than making a new dish.
   if (state.editingId === id) {
     stopListening();
-    state.composerOpen = false; state.editingId = null;
+    resetComposer();
     $("recipeText").value = "";
     $("parseMsg").className = "msg"; $("parseMsg").textContent = "";
   }
@@ -2207,7 +2428,7 @@ function removeDish(id) {
   renderCookbook(); renderPlan();
   saveBook();
   if (state.recipes.length) $("dishesTitle").focus({ preventScroll: true });
-  else $("heroSay").focus();
+  else $("recipeText").focus();
   const name = current(entry).name;
   announce(`Removed ${name}. Undo is in the message at the bottom of the screen.`);
   toast(`Removed ${name}.`, {
@@ -2244,12 +2465,12 @@ $("intakeForm").addEventListener("input", (e) => {
   else if (id === "pFt" || id === "pIn") setHeightFromFtIn();
   else if (id === "pWeight") setLbFromKg();
   else if (id === "pLb") setKgFromLb();
-  if (e.target.name === "goal") $("goalHelp").textContent = goalHelpText(e.target.value);
   const msg = $("intakeMsg");
   if (msg.classList.contains("error")) { msg.className = "msg"; msg.textContent = ""; }
 });
 $("intakeForm").addEventListener("change", (e) => {
-  if (e.target.name === "goal") $("goalHelp").textContent = goalHelpText(e.target.value);
+  if (e.target.name === "goal") onGoalToggle(e.target);
+  if (e.target.name === "diet") $("dietNote").textContent = DIET_NOTES[e.target.value] || "";
   if (e.target.name === "sex") {
     $("pPregWrap").hidden = e.target.value !== "female";
     if (e.target.value !== "female") $("pPregnant").checked = false;
@@ -2324,7 +2545,7 @@ function onAction(e) {
   if (!b) return;
   const act = b.dataset.act;
   if (act === "print") printCookbook();
-  else if (act === "share") shareText(cookbookTitle(), cookbookText());
+  else if (act === "share") shareText(cookbookTitle(), withHomeLink(cookbookText()));
   else if (act === "share-note" && state.plan) shareText(noteLabel(state.plan), state.plan.message_for_parent || "");
   else if (act === "open-cookbook") openCookbook();
   else if (act === "close-cookbook") closeCookbook();
@@ -2413,6 +2634,84 @@ function setupTheme() {
   }
 }
 
+// ---------- example card: three real results take turns ----------
+// The source card sits beside Plate's input card; home and Care get copies (Care's starts on the remedy).
+// ~5 s each with a short crossfade. Pauses on hover, on keyboard focus, while off screen or in a hidden tab,
+// and for good with the pause button. Reduced motion: the first example stays, the dots still switch.
+// Not a live region, so screen readers aren't interrupted; hidden slides are inert.
+const ROTATE_MS = 5000;
+function setupRotator(root) {
+  const slides = Array.from(root.querySelectorAll(".ex-slide"));
+  const dots = Array.from(root.querySelectorAll(".ex-dot"));
+  const pauseBtn = root.querySelector("[data-pause]");
+  if (slides.length < 2) return;
+  const start = Math.min(slides.length - 1, Number(root.parentElement?.dataset.start) || 0); // Care's copy opens on its own example
+  let i = start, timer = 0, hover = false, focus = false, seen = true;
+  let stopped = reduceMotion();
+  const show = (n) => {
+    const prev = i;
+    i = (n + slides.length) % slides.length;
+    slides.forEach((s, k) => {
+      const on = k === i;
+      s.classList.toggle("is-on", on);
+      s.classList.toggle("was-on", !on && k === prev && prev !== i);
+      s.setAttribute("aria-hidden", String(!on));
+      s.inert = !on;
+    });
+    dots.forEach((d, k) => d.setAttribute("aria-pressed", String(k === i)));
+  };
+  const running = () => !stopped && !hover && !focus && seen && !document.hidden;
+  const arm = () => {
+    clearTimeout(timer);
+    if (running()) timer = setTimeout(() => { show(i + 1); arm(); }, ROTATE_MS);
+  };
+  const syncPause = () => {
+    if (!pauseBtn) return;
+    pauseBtn.hidden = reduceMotion();
+    pauseBtn.setAttribute("aria-pressed", String(stopped));
+    pauseBtn.setAttribute("aria-label", stopped ? "Play the examples" : "Pause the examples");
+    root.classList.toggle("is-paused", stopped);
+  };
+  root.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") { hover = true; arm(); } });
+  root.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") { hover = false; arm(); } });
+  root.addEventListener("focusin", () => { focus = true; arm(); });
+  root.addEventListener("focusout", (e) => { if (!root.contains(e.relatedTarget)) { focus = false; arm(); } });
+  dots.forEach((d) => d.addEventListener("click", () => { show(Number(d.dataset.go)); arm(); }));
+  pauseBtn?.addEventListener("click", () => { stopped = !stopped; syncPause(); arm(); });
+  document.addEventListener("visibilitychange", arm);
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver((entries) => { seen = entries.some((x) => x.isIntersecting); arm(); }).observe(root);
+  }
+  const rm = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+  rm?.addEventListener?.("change", () => { stopped = rm.matches; if (stopped) show(start); syncPause(); arm(); });
+  show(start);
+  syncPause();
+  arm();
+}
+
+function setupRotators() {
+  const plateCard = document.querySelector("#flowView [data-rotator]");
+  document.querySelectorAll("[data-rotator-copy]").forEach((slot) => {
+    if (plateCard && !slot.children.length) slot.innerHTML = plateCard.outerHTML;
+  });
+  document.querySelectorAll("[data-rotator]").forEach(setupRotator);
+}
+
+// Home's "Try a sample family": one tap opens Plate and loads the first sample family.
+async function trySampleFamily() {
+  await new Promise((r) => setTimeout(r, 50)); // let the switch to Plate (hashchange) happen first
+  for (let n = 0; n < 60 && !state.familiesLoaded; n += 1) await new Promise((r) => setTimeout(r, 100));
+  const btn = $("families").querySelector("[data-family]");
+  scrollToEl($("samples"));
+  if (!btn) { $("samples").focus({ preventScroll: true }); return; }
+  if (btn.getAttribute("aria-pressed") !== "true") btn.click();
+  else { scrollToEl($("dishes")); $("dishesTitle").focus({ preventScroll: true }); }
+}
+$("homeSample").addEventListener("click", () => {
+  if (location.hash !== "#plate") location.hash = "plate";
+  trySampleFamily();
+});
+
 // ---------- start ----------
 async function loadFamilies() {
   const box = $("families");
@@ -2426,6 +2725,8 @@ async function loadFamilies() {
 
 async function init() {
   setupTheme();
+  setupRotators();
+  renderPlateExamples();
   fillSelects();
   setupVoice();
   if (!navigator.share) document.querySelectorAll(".share-btn").forEach((b) => { b.textContent = "Copy as text"; });

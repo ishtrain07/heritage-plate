@@ -4,10 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import threading
-import time
-from collections import defaultdict, deque
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -17,7 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
-from . import dietitian, engine, llm, nutrition
+from . import care, dietitian, engine, llm, nutrition
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("heritage_plate")
@@ -82,9 +78,10 @@ class PlanIn(BaseModel):
 
 
 class Profile(BaseModel):
-    diet: Literal["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan"] = "non_veg"
+    diet: Literal["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan", "halal", "kosher", "jain"] = "non_veg"
     conditions: list[Literal["diabetes", "bp", "cholesterol"]] = Field(default_factory=list, max_length=3)
     goal: Literal["maintain", "lose_weight", "belly_fat", "steady_sugar", "build_muscle"] = "maintain"
+    goals: list[Literal["maintain", "lose_weight", "belly_fat", "steady_sugar", "build_muscle"]] = Field(default_factory=list, max_length=5)
     dislikes: str = Field(default="", max_length=200)
     sex: Literal["female", "male"] | None = None
     age: int | None = Field(default=None, ge=1, le=120)
@@ -110,51 +107,15 @@ class WeekIn(BaseModel):
         return _language(value)
 
 
-# Simple per-client limit on model-backed endpoints (protects credits on a public demo URL).
-def _int_env(name: str, default: int) -> int:
-    try:
-        return int(os.getenv(name, "") or default)
-    except ValueError:
-        return default
-
-
-RATE_LIMIT = _int_env("RATE_LIMIT", 200)  # model-backed requests per client per window
-RATE_WINDOW_S, MAX_CLIENTS = 600, 10_000
-# Set TRUST_PROXY=1 when deployed behind a proxy that sets X-Forwarded-For (e.g. a hosted endpoint).
-TRUST_PROXY = os.getenv("TRUST_PROXY", "0") == "1"
-_hits: dict[str, deque] = defaultdict(deque)
-_hits_lock = threading.Lock()
-
-
-def _client_id(request: Request) -> str:
-    if TRUST_PROXY:
-        # The last hop is the one our own proxy appended; earlier ones are client-supplied.
-        forwarded = request.headers.get("x-forwarded-for", "")
-        if forwarded:
-            return forwarded.split(",")[-1].strip()
-    return request.client.host if request.client else "unknown"
-
-
-def _rate_limit(request: Request, cost: int = 1) -> None:
-    now = time.monotonic()
-    with _hits_lock:
-        if len(_hits) > MAX_CLIENTS:  # drop idle clients so memory stays bounded
-            for key in [k for k, v in _hits.items() if not v or now - v[-1] > RATE_WINDOW_S]:
-                del _hits[key]
-        hits = _hits[_client_id(request)]
-        while hits and now - hits[0] > RATE_WINDOW_S:
-            hits.popleft()
-        if len(hits) + cost > RATE_LIMIT:
-            raise HTTPException(status_code=429, detail="Too many requests. Please wait a few minutes.")
-        hits.extend([now] * cost)
-
-
-def _guard(fn, *args):
-    try:
-        return fn(*args)
-    except llm.LLMError as exc:
-        log.warning("model call failed: %s", exc)
-        raise HTTPException(status_code=502, detail="The AI model didn't respond properly. Please try again.") from exc
+# Rate limit and model-error handling live in guards.py so Care's routes share them.
+from .guards import (  # noqa: F401
+    EXAMPLES,
+    _client_id,
+    _guard,
+    _rate_limit,
+    check_input,
+    reject,
+)
 
 
 @lru_cache
@@ -198,15 +159,17 @@ async def demo(family_id: str):
 @app.post("/api/parse")
 def parse(body: ParseIn, request: Request):
     _rate_limit(request)
+    check_input(body.text, "recipe")
     recipe, trace = _guard(engine.parse_recipe, body.text, body.servings, body.cuisine)
     if not any(i["matched"] for i in recipe["ingredients"]):
-        raise HTTPException(status_code=422, detail="Couldn't find any ingredients. Try listing them with amounts.")
+        raise reject("off_topic", "We couldn't find any ingredients. Try listing them with amounts.")
     return {"recipe": recipe, "trace": trace}
 
 
 @app.post("/api/adapt")
 def adapt(body: AdaptIn, request: Request):
     _rate_limit(request)
+    check_input(body.request, "ask")
     adapted, trace = _guard(engine.adapt_recipe, body.recipe.build(), body.condition, body.cuisine, body.request.strip(), body.also)
     return {"recipe": adapted, "trace": trace}
 
@@ -223,7 +186,7 @@ class SuggestIn(BaseModel):
     wish: str = Field(min_length=3, max_length=300)  # e.g. "a high-protein dinner with spinach"
     conditions: list[Condition] = Field(default_factory=list, max_length=4)
     cuisine: Cuisine = "other"
-    diet: Literal["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan"] = "non_veg"
+    diet: Literal["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan", "halal", "kosher", "jain"] = "non_veg"
     dislikes: str = Field(default="", max_length=200)
     servings: int = Field(default=4, ge=1, le=12)
 
@@ -232,6 +195,8 @@ class SuggestIn(BaseModel):
 def suggest(body: SuggestIn, request: Request):
     """Ask the AI to invent a dish for them; returns it in the same shape as an adapted recipe."""
     _rate_limit(request, cost=2)
+    check_input(body.wish, "wish")
+    check_input(body.dislikes, "dislikes")
     recipe, trace = _guard(engine.suggest_dish, body.wish.strip(), body.conditions, body.cuisine, body.diet,
                            body.dislikes, body.servings)
     return {"recipe": recipe, "trace": trace}
@@ -241,14 +206,18 @@ def suggest(body: SuggestIn, request: Request):
 def week(body: WeekIn, request: Request):
     """Personal dietitian week: calorie target from the profile, meals around the family's dishes."""
     _rate_limit(request, cost=5)  # one week plan is a long call, so it counts as several requests
+    check_input(body.profile.dislikes, "dislikes", field="dislikes")
     recipes = [r.build() for r in body.recipes]
     result, trace = _guard(dietitian.plan_week, recipes, body.profile.model_dump(), body.language, body.week, body.household)
     return {"week": result, "trace": trace}
 
 
+app.include_router(care.router)  # Heritage Care: /api/care/*
+
+
 @app.get("/")
 def index():
-    return FileResponse(ROOT / "static" / "index.html")
+    return FileResponse(ROOT / "static" / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
