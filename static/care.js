@@ -982,6 +982,7 @@ function renderHomeFamily() {
           <span class="fam-name">${esc(name)}${m.age != null ? `<span class="fam-age">, ${esc(m.age)}</span>` : ""}</span>
           <span class="fam-status">${bits.length ? esc(bits.join(" · ")) : "No details yet"}</span>
         </span>
+        <button type="button" class="fam-remove" data-fam-act="remove" data-id="${esc(m.id)}">Remove<span class="sr-only"> ${esc(name)}</span></button>
         <span class="fam-acts">
           <button type="button" class="fam-go" data-fam-go="meals" data-id="${esc(m.id)}">${ICONS.plate}<span>Meals<span class="sr-only"> for ${esc(name)}</span></span></button>
           <button type="button" class="fam-go care-scope" data-fam-go="care" data-id="${esc(m.id)}">${ICONS.care}<span>Skin &amp; hair<span class="sr-only"> for ${esc(name)}</span></span></button>
@@ -1020,8 +1021,23 @@ function onHomeFamilyClick(e) {
   const act = e.target.closest("[data-fam-act]")?.dataset.famAct;
   if (act === "add") { care.famAdding = true; renderHomeFamily(); $("famName")?.focus(); return; }
   if (act === "cancel") { care.famAdding = false; renderHomeFamily(); $("famBody").querySelector(".fam-add")?.focus(); return; }
+  if (act === "remove") { removeFromHome(e.target.closest("[data-id]").dataset.id); return; }
   const go = e.target.closest("[data-fam-go]");
   if (go) { if (go.dataset.famGo === "meals") goMealsFor(go.dataset.id); else goCareFor(go.dataset.id); }
+}
+
+// Remove someone from the family, with Undo instead of an "are you sure?" dialog.
+function removeFromHome(id) {
+  const m = findMember(id);
+  if (!m) return;
+  const name = memberLabel(m, careMembers().indexOf(m));
+  const snapshot = JSON.parse(JSON.stringify(careMembers()));
+  removeMember(id);
+  for (const k of ["plateWho", "remedyWho", "labelWho"]) if (care[k] === id) care[k] = "";
+  const refresh = () => { renderHomeFamily(); renderPeople(); renderWho(); };
+  refresh();
+  toast(`Removed ${name}.`, { label: "Undo", run: () => { writeFamily({ members: snapshot }); refresh(); } });
+  ($("famBody").querySelector(".fam-remove") || $("famBody").querySelector(".fam-add"))?.focus();
 }
 
 // Plate's week for one person: their name, health and body details go into the intake, ready to plan.

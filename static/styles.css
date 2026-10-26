@@ -1590,14 +1590,14 @@ html[data-side="care"] .side-switch a[data-side-link="care"] { color: var(--gree
 .fam-sub { color: var(--muted); font-size: var(--t-sm); margin-top: 2px; }
 .fam-body { display: grid; gap: var(--s3); }
 .fam-list { list-style: none; margin: 0; padding: 0; display: grid; }
-.fam-person { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 6px var(--s3); align-items: center; padding: var(--s3) 0; border-bottom: 1px solid var(--line); }
+.fam-person { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 6px var(--s3); align-items: center; padding: var(--s3) 0; border-bottom: 1px solid var(--line); }
 .fam-person:first-child { padding-top: 0; }
 .fam-person .avatar { width: 40px; height: 40px; border-radius: 12px; font-size: 1.125rem; }
 .fam-text { display: grid; min-width: 0; line-height: 1.35; }
 .fam-name { font-weight: 650; overflow-wrap: anywhere; }
 .fam-age { color: var(--muted); font-weight: 500; }
 .fam-status { color: var(--muted); font-size: var(--t-sm); overflow-wrap: anywhere; }
-.fam-acts { grid-column: 2; display: flex; flex-wrap: wrap; gap: var(--s2); }
+.fam-acts { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: var(--s2); }
 .fam-go {
   display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 14px 6px 10px; border-radius: 999px; border: 1px solid transparent;
   background: var(--accent-soft); color: var(--accent-strong); font: inherit; font-size: var(--t-sm); font-weight: 650; cursor: pointer;
@@ -1706,3 +1706,6 @@ button.text-link { background: none; border: 0; padding: 0; font: inherit; font-
 .target-h { margin: 0 0 var(--s2); }
 .fam-row { display: flex; flex-wrap: wrap; gap: var(--s3) var(--s4); align-items: flex-end; }
 .fam-age-f input { width: 7rem; }
+.fam-remove { background: none; border: 0; color: var(--muted); font: inherit; font-size: var(--t-sm); text-decoration: underline;
+  text-underline-offset: 3px; min-height: 44px; padding: 0 var(--s2); cursor: pointer; align-self: start; }
+.fam-remove:hover { color: var(--ink); }
