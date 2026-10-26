@@ -12,3 +12,11 @@
 
 ## Release
 - Merge `claude/stoic-wozniak-8ie5mb` → `main` only after "ship it".
+
+## After launch (Oct 28)
+- Country-aware example chips and shortcuts (e.g. pozole and sábila for Mexico, adobo and calamansi for the
+  Philippines), India stays first.
+- Translate the app's own headings and buttons when a language is chosen (answers already are).
+- Align Care plan and label screens with the remedy screen on wide desktops.
+- Phone sticky bar can cover the Plate cross-link card until the end of the results.
+- Confirm Care voice on the live site; if it still errors, capture the exact message.
