@@ -1,6 +1,13 @@
 // Heritage Plate front end: plain JS, no build step, no external dependencies.
 "use strict";
 
+// An old page cached by the browser can load these new scripts without family.js: reload once to get the current page.
+if (typeof FAMILY_KEY === "undefined") {
+  try {
+    if (!sessionStorage.getItem("hp-reloaded")) { sessionStorage.setItem("hp-reloaded", "1"); location.reload(); }
+  } catch { /* storage blocked: the page still shows Plate */ }
+}
+
 const $ = (id) => document.getElementById(id);
 
 function esc(s) {

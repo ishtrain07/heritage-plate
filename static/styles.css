@@ -1103,7 +1103,7 @@ html[data-side="care"] > body, body[data-side="care"], .care-scope {
 [data-side="home"] #flowView, [data-side="home"] #careView,
 [data-side="plate"] #homeView, [data-side="plate"] #careView,
 [data-side="care"] #homeView, [data-side="care"] #flowView,
-html:not([data-side]) #flowView, html:not([data-side]) #careView { display: none; }
+html:not([data-side]) #careView { display: none; } /* no early script (an old cached page): still show Plate */
 .cb-open #homeView, .cb-open #careView { display: none !important; }
 [data-side="care"] .side-plate, html:not([data-side="care"]) .side-care { display: none; }
 
