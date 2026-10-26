@@ -273,7 +273,9 @@ function productWith(product, name, strength) {
   const prod = String(product || "").trim();
   const n = String(name || "").trim();
   const short = shortStrength(strength);
-  const str = short ? ` (${short})` : "";
+  // Skip a "strength" that only repeats the name ("Petrolatum or an emollient ointment (ointment or thick cream)").
+  const repeats = short && String(name || "").toLowerCase().includes(short.toLowerCase().split(/[\s,(]+/)[0]);
+  const str = short && !repeats ? ` (${short})` : "";
   if (!n) return prod;
   const first = prod.toLowerCase().split(/[\s,(]+/)[0];
   if (!prod || (first && n.toLowerCase().includes(first))) return `${n}${str}`;
