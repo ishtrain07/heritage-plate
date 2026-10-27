@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
@@ -215,9 +215,18 @@ def week(body: WeekIn, request: Request):
 app.include_router(care.router)  # Heritage Care: /api/care/*
 
 
+@lru_cache
+def _index_html() -> str:
+    return (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+
+
 @app.get("/")
-def index():
-    return FileResponse(ROOT / "static" / "index.html", headers={"Cache-Control": "no-cache"})
+def index(request: Request):
+    # Link previews (WhatsApp, iMessage, Slack) need absolute URLs, so fill in this site's own address.
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc).split(",")[0].strip()
+    origin = f"{proto}://{host}"
+    return HTMLResponse(_index_html().replace("{{ORIGIN}}", origin), headers={"Cache-Control": "no-cache"})
 
 
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")

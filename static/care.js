@@ -122,6 +122,17 @@ function calmWait(box, lines, label) {
   return () => { clearInterval(rotate); stopTick(); };
 }
 
+// The remedy check narrates three steps (app.js aiStepsHTML) over the card's shape.
+function stepsWait(box, label) {
+  box.innerHTML = `
+    <div class="care-wait" aria-busy="true">
+      <p class="sr-only" role="status">${esc(label)}</p>
+      <div class="ai-wait">${aiStepsHTML("care", { every: 2400 })}</div>
+      <div class="care-skel" aria-hidden="true"><span class="sk-a"></span><span class="sk-b"></span><span class="sk-c"></span></div>
+    </div>`;
+  return () => {};
+}
+
 function careError(box, text, act) {
   box.innerHTML = `
     <div class="care-error" role="alert">
@@ -138,7 +149,7 @@ function micFor({ btn, box, hint, msg, idle }) {
   function updateHint() {
     if (!m.rec) { noVoiceHint(hint); return; }
     hint.classList.remove("is-novoice"); hint.closest(".mic-wrap")?.classList.remove("no-voice");
-    hint.textContent = m.listening ? `Listening in ${lang()}. Tap Done when you've finished.` : `Listens in ${lang()}. Check the words before you go on.`;
+    hint.textContent = m.listening ? `Listening in ${lang()}. Tap Done when you've finished.` : `Listens in ${lang()}. Check the words after.`;
   }
   function set(on) {
     m.listening = on;
@@ -319,8 +330,7 @@ function route(initial = false) {
   if (h === "home") side = "home";
   else if (h === "plate") side = "plate";
   else if (CARE_SCREENS[h]) side = "care";
-  else if (h === "") side = careFamily().mode || "home";
-  else if (initial) side = careFamily().mode || "home"; // e.g. #samples on first load
+  else if (h === "" || initial) side = "home"; // every visit starts on home, whatever was used last
   else return; // in-page anchors (e.g. #samples) leave the side alone
   const changed = setSide(side);
   if (side === "care") {
@@ -378,6 +388,7 @@ function sourcesBadge(item) {
     </details>`;
 }
 
+// A safer option, compact: name, strength, what it does, how to use it. Where to find it lives under "Why".
 function ingredientCard(c) {
   const products = (c.products || []).filter(Boolean);
   const when = TIME_WORDS[c.time] || "";
@@ -385,12 +396,33 @@ function ingredientCard(c) {
     <div class="ing-card">
       <p class="ing-name">${esc(c.name)} ${c.strength ? `<span class="ing-strength">${esc(c.strength)}</span>` : ""}</p>
       ${c.how ? `<p>${esc(c.how)}</p>` : ""}
-      ${c.why ? `<p class="ing-why">${esc(c.why)}</p>` : ""}
       ${products.length || when ? `<p class="ing-meta"><b>Use:</b> ${esc(products.join(" or "))}${when ? `${products.length ? ", " : ""}${esc(when)}` : ""}</p>` : ""}
-      ${c.find ? `<p class="ing-meta"><b>Where to find it:</b> ${esc(c.find)}</p>` : ""}
       ${c.cautions ? `<p class="ing-meta"><b>Go gently:</b> ${esc(c.cautions)}</p>` : ""}
       ${c.pregnancy_note ? `<p class="ing-preg">${esc(c.pregnancy_note)}</p>` : ""}
     </div>`;
+}
+
+// The first sentence, for one-line takeaways and bullets.
+function firstSentence(text, max = 150) {
+  const t = String(text || "").trim();
+  if (!t) return "";
+  const m = t.match(/^.{20,}?[.!?](?=\s|$)/);
+  let one = (m ? m[0] : t).trim();
+  if (one.length > max) one = one.slice(0, max - 1).replace(/\s+\S*$/, "") + "…";
+  return one;
+}
+
+// Up to three short things to do, built from the result's own fields.
+function remedyDos(item) {
+  const out = [];
+  const keepish = item.verdict === "keep" || item.verdict === "care";
+  if (item.safety_rule) out.push("Stop using this. It's on our safety list, so we always say stop.");
+  else if (item.verdict === "stop") out.push("Stop using this on skin or hair.");
+  if (keepish) out.push("Patch-test on a small area for 2 days first; stop if it stings, itches or turns red.");
+  const names = (item.better || []).map((c) => String(c.name || "").trim()).filter(Boolean).slice(0, 2);
+  if (names.length) out.push(`${keepish ? "For a bigger effect, try" : "Use"} ${names.join(" or ")}${keepish ? "" : " instead"}. How to use ${names.length > 1 ? "them" : "it"} is below.`);
+  if (!names.length && item.how_better) out.push(firstSentence(item.how_better, 140));
+  return out.filter(Boolean).slice(0, 3);
 }
 
 function redFlagsCallout(flags) {
@@ -403,23 +435,35 @@ function redFlagsCallout(flags) {
     </div>`;
 }
 
-function remedyCard(item, i, total) {
+// Verdict first, the same anatomy as Plate's dish card: headline chip, one-line takeaway, up to 3 things to do,
+// the safer options, then "Why" (the evidence, notes and sources) behind one disclosure.
+function remedyCard(item, i) {
   const better = item.better || [];
   const keepish = item.verdict === "keep" || item.verdict === "care";
   const notes = (item.notes || []).filter(Boolean);
+  const dos = remedyDos(item);
+  const takeaway = firstSentence(item.why);
+  const finds = better.filter((c) => c.find || c.why);
+  const hasWhy = (item.why && item.why.trim() !== takeaway) || item.how_better || finds.length || notes.length || sourcesBadge(item);
   return `
-    <article class="care-card remedy-card" aria-labelledby="remedyH${i}">
+    <article class="care-card remedy-card result-card" aria-labelledby="remedyH${i}">
       <div class="verdict-row">${verdictPill(item.verdict)}<span class="evidence-word">${esc(EVIDENCE_WORDS[item.evidence] || EVIDENCE_WORDS.little)}</span></div>
-      ${item.safety_rule ? `<p class="safety-rule"><span aria-hidden="true">✕</span> Safety rule: we always say stop to this.</p>` : ""}
       <h2 id="remedyH${i}" class="remedy-name" tabindex="-1">“${esc(item.remedy)}”</h2>
-      ${item.why ? `<h3 class="rc-h">What the evidence says</h3><p class="care-p">${esc(item.why)}</p>` : ""}
-      ${keepish ? `<h3 class="rc-h">How to keep it safely</h3><p class="care-p">Patch-test on a small area for 2 days first, and stop if it stings, itches or turns red.</p>` : ""}
-      ${better.length ? `<h3 class="rc-h">${keepish ? "What does the job" : "Do this instead"}</h3>
-        ${item.how_better ? `<p class="care-p">${esc(item.how_better)}</p>` : ""}
-        <div class="ing-cards">${better.map(ingredientCard).join("")}</div>` : ""}
-      ${notes.length ? `<ul class="doctor-notes">${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
-      ${sourcesBadge(item)}
-      ${total > 1 ? "" : ""}
+      ${takeaway ? `<p class="takeaway">${esc(takeaway)}</p>` : ""}
+      ${dos.length ? `<div class="rc-quick"><p class="rc-h rc-h-lead">Do this</p>
+        <ul class="quick-list">${dos.map((d) => `<li><span class="tick" aria-hidden="true">✓</span><span>${esc(d)}</span></li>`).join("")}</ul></div>` : ""}
+      ${better.length ? `<div class="rc-block"><p class="rc-h">${keepish ? "What does the job" : "Safer options"}</p>
+        <div class="ing-cards">${better.map(ingredientCard).join("")}</div></div>` : ""}
+      ${hasWhy ? `<details class="why-more">
+        <summary><span class="when-closed">Why, and sources</span><span class="when-open">Hide why</span><span class="chev" aria-hidden="true"></span></summary>
+        <div class="why-body">
+          ${item.why && item.why.trim() !== takeaway ? `<div><p class="rc-h">What the evidence says</p><p class="care-p">${esc(item.why)}</p></div>` : ""}
+          ${item.how_better ? `<p class="care-p">${esc(item.how_better)}</p>` : ""}
+          ${finds.length ? `<ul class="why-list">${finds.map((c) => `<li><b>${esc(c.name)}</b>${c.why ? `<span class="label-sub">${esc(c.why)}</span>` : ""}${c.find ? `<span class="label-sub">Where to find it: ${esc(c.find)}</span>` : ""}</li>`).join("")}</ul>` : ""}
+          ${notes.length ? `<ul class="doctor-notes">${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
+          ${sourcesBadge(item)}
+        </div>
+      </details>` : ""}
     </article>`;
 }
 
@@ -434,10 +478,10 @@ function renderRemedy() {
     <div class="care-result-inner">
       <p class="care-for">${who ? `For <b>${esc(memberLabel(who, careMembers().indexOf(who)))}</b> · ` : ""}You said: “${esc(r.text)}”</p>
       ${redFlagsCallout(res.red_flags)}
-      ${items.map((it, i) => remedyCard(it, i, items.length)).join("")}
+      ${items.map((it, i) => remedyCard(it, i)).join("")}
       ${res.note ? `<div class="care-letter"><p class="rc-h">A note for the family${r.language && r.language !== "English" ? ` · ${esc(r.language)}` : ""}</p><p class="care-letter-text">${esc(res.note)}</p></div>` : ""}
       <div class="care-actions">
-        ${r.saved ? `<button type="button" class="btn btn-done" disabled><span aria-hidden="true">✓</span> Saved to family book</button>
+        ${r.saved ? `<button type="button" class="btn btn-done${r.justSaved ? " just-saved" : ""}" disabled><span class="done-tick" aria-hidden="true">✓</span> Saved to family book</button>
           <button type="button" class="btn btn-quiet" data-care-act="open-book">See your family book</button>`
           : `<button type="button" class="btn btn-primary" data-care-act="save-remedy">Save to family book</button>`}
         <button type="button" class="btn-link" data-care-act="another">Check another</button>
@@ -469,7 +513,7 @@ async function checkRemedy(textOverride) {
   const language = careLanguage();
   const out = $("careResult");
   care.remedyRunning = true;
-  const stop = calmWait(out, CARE_LINES.remedy, "Checking what the evidence says.");
+  const stop = stepsWait(out, "Checking what the evidence says.");
   scrollToEl(out);
   try {
     const data = await busy($("careGo"), "Checking…", () => api("/api/care/remedy", { text: text.slice(0, 400), member, country, language }, 90000));
@@ -496,8 +540,9 @@ function saveRemedy() {
   const who = r.who ? findMember(r.who) : null;
   const ok = saveRemedyCheck({ text: r.text, who: who ? memberLabel(who, careMembers().indexOf(who)) : "", result: r.result });
   if (!ok) { toast("Couldn't save that one. Please try again."); return; }
-  r.saved = true;
+  r.saved = true; r.justSaved = true;
   renderRemedy();
+  r.justSaved = false;
   renderBookLink();
   $("careResult").querySelector('[data-care-act="open-book"]')?.focus();
   toast("Saved to your family book.", { label: "See it", run: openBookFromCare });
@@ -687,7 +732,7 @@ function renderPlanOut() {
       ${shoppingHTML(r.shopping)}
       ${r.note_for_family ? `<div class="care-letter"><p class="rc-h">A note for the family${r.language && r.language !== "English" ? ` · ${esc(r.language)}` : ""}</p><p class="care-letter-text">${esc(r.note_for_family)}</p></div>` : ""}
       <div class="care-actions">
-        ${p.saved ? `<button type="button" class="btn btn-done" disabled><span aria-hidden="true">✓</span> Saved to family book</button>
+        ${p.saved ? `<button type="button" class="btn btn-done${p.justSaved ? " just-saved" : ""}" disabled><span class="done-tick" aria-hidden="true">✓</span> Saved to family book</button>
           <button type="button" class="btn btn-quiet" data-care-act="open-book">See your family book</button>`
           : `<button type="button" class="btn btn-primary" data-care-act="save-plan">Save to family book</button>`}
         <button type="button" class="btn-link" data-care-act="edit-plan">Edit answers</button>
@@ -744,8 +789,9 @@ function savePlan() {
   const p = care.plan;
   if (!p || p.saved) return;
   if (!saveCarePlan(p.result)) { toast("Couldn't save the plan. Please try again."); return; }
-  p.saved = true;
+  p.saved = true; p.justSaved = true;
   renderPlanOut();
+  p.justSaved = false;
   renderBookLink();
   $("carePlanOut").querySelector('[data-care-act="open-book"]')?.focus();
   toast("Saved to your family book.", { label: "See it", run: openBookFromCare });
@@ -968,6 +1014,9 @@ function famAddFormHTML() {
     </form>`;
 }
 
+// Small spot art for empty states: a crop of the home hero photo (turmeric roots and cardamom).
+const SPOT_ART = `<img class="spot-art" src="/static/hero/spices-thumb.jpg" width="240" height="166" alt="" loading="lazy">`;
+
 function renderHomeFamily() {
   const box = $("famBody");
   if (!box) return;
@@ -993,7 +1042,7 @@ function renderHomeFamily() {
     : care.famAdding ? famAddFormHTML()
     : `<button type="button" class="chip-add fam-add" data-fam-act="add"><span aria-hidden="true">+</span> Add someone</button>`;
   box.innerHTML = `${ms.length ? `<ul class="fam-list">${list}</ul>`
-    : `<p class="fam-empty"><b>Start with one person:</b> Mum, Dad or you.</p>`}${add}`;
+    : `<p class="fam-empty">${SPOT_ART}<span><b>Start with one person:</b> Mum, Dad or you.</span></p>`}${add}`;
 }
 
 function famAddSave() {

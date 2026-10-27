@@ -444,6 +444,47 @@ function ticker(el, html) {
   return () => clearInterval(t);
 }
 
+// AI waiting: three plain steps that advance on a timer until the reply arrives. The steps are decoration
+// (aria-hidden); callers put one status line for screen readers. One shared clock updates every list on the
+// page, so a card re-rendered mid-wait keeps its place (the start time lives on the element).
+const AI_STEPS = {
+  plate: ["Reading the recipe…", "Making it lighter…", "Checking the numbers…"],
+  care: ["Reading the remedy…", "Checking the evidence…", "Choosing what works…"],
+};
+let aiClock = 0;
+function aiStepsHTML(kind, { start = Date.now(), from = 0, cap = 2, every = 2600 } = {}) {
+  const steps = AI_STEPS[kind] || AI_STEPS.plate;
+  if (!aiClock) aiClock = setInterval(tickAiSteps, 300);
+  return `<ol class="ai-steps" aria-hidden="true" data-ai-start="${start}" data-ai-from="${from}" data-ai-cap="${cap}" data-ai-every="${every}">
+    ${steps.map((t, i) => `<li class="${i < from ? "is-done" : i === from ? "is-now" : ""}"><span class="ai-mark"></span><span>${esc(t)}</span></li>`).join("")}</ol>`;
+}
+function tickAiSteps() {
+  const lists = document.querySelectorAll(".ai-steps");
+  if (!lists.length) { clearInterval(aiClock); aiClock = 0; return; }
+  lists.forEach((ol) => {
+    const d = ol.dataset;
+    const now = Math.min(num(d.aiCap), num(d.aiFrom) + Math.floor((Date.now() - num(d.aiStart)) / num(d.aiEvery)));
+    ol.querySelectorAll("li").forEach((li, i) => { li.className = i < now ? "is-done" : i === now ? "is-now" : ""; });
+  });
+}
+
+// The payoff moment: the new number counts down from the old one. Off under reduced motion.
+function runCountUps(root = document) {
+  root.querySelectorAll("[data-count-from]").forEach((el) => {
+    const from = num(el.dataset.countFrom), to = num(el.dataset.countTo), unit = el.dataset.countUnit || "";
+    el.removeAttribute("data-count-from");
+    if (reduceMotion() || from === to) return;
+    const t0 = performance.now(), dur = 900;
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = fmt(from + (to - from) * e, unit);
+      if (k < 1) requestAnimationFrame(step); else el.textContent = fmt(to, unit);
+    };
+    el.textContent = fmt(from, unit);
+    requestAnimationFrame(step);
+  });
+}
+
 // The button's own label is kept once, so overlapping runs (e.g. switching family mid-batch)
 // always put back the real label, never another run's spinner. Only the last run to finish restores it.
 async function busy(btn, label, fn) {
@@ -695,7 +736,7 @@ function syncControls() {
   $("goalChips").innerHTML = Object.entries(CONDITIONS).map(([k, c]) => `<label class="pick-opt"><input type="checkbox" name="goalChip" value="${esc(k)}"${on.includes(k) ? " checked" : ""}><span>${esc(c.short)}</span></label>`).join("");
   $("cuisine").value = state.cuisine;
   $("speechLang").value = state.speechLang;
-  $("styleSummary").textContent = `Cooking style: ${shortCuisine(state.cuisine)}`;
+  styleSummary();
   $("focusHint").textContent = state.composerMode === "suggest"
     ? `We'll suggest a dish that suits ${on.map((c) => (c === "everyday" ? "everyday healthy eating" : CONDITIONS[c].word)).join(" and ")}, using your cooking style.`
     : on.length > 1
@@ -704,6 +745,12 @@ function syncControls() {
   $("micExample").textContent = `“${state.composerMode === "suggest" ? SUGGEST_EXAMPLE : EXAMPLES[state.cuisine] || EXAMPLES.other}”`;
   renderNames();
   updateMicHint();
+}
+
+// "More options" says what's set inside it, so nothing is hidden by surprise.
+function styleSummary() {
+  const n = Math.min(20, Math.max(1, Math.round(num($("servings").value)) || 4));
+  $("styleSummary").textContent = `Serves ${n} · ${shortCuisine(state.cuisine)}`;
 }
 
 function renderNames() {
@@ -1088,7 +1135,7 @@ function dishCard(e, index) {
   const c = CONDITIONS[state.condition];
   const adapted = Boolean(e.adapted);
   const isBusy = e.status === "busy";
-  const open = e.open === null || e.open === undefined ? index === 0 : e.open;
+  const open = Boolean(e.open); // the recipe, method and details wait behind one tap
   const fromSuggest = e.origin === "suggested";
   const plainSuggested = adapted && Boolean(r.suggested); // as suggested, not yet changed by an ask
   const condList = (Array.isArray(r.conditions) && r.conditions.length ? r.conditions : [r.condition]).filter((x) => Object.hasOwn(CONDITIONS, x));
@@ -1096,6 +1143,8 @@ function dishCard(e, index) {
     ? `<p class="cond-tags"><span class="sr-only">For: </span>${condList.map((x) => `<span class="cond-tag">${esc(CONDITIONS[x].short)}</span>`).join("")}</p>` : "";
 
   let numbers, badge = "", secondary = "";
+  const count = Boolean(e.countUp) && adapted && !plainSuggested;
+  e.countUp = false; // once per fresh result, not on every re-render
   if (plainSuggested) {
     const f = focusNumbers(r);
     numbers = `
@@ -1106,7 +1155,7 @@ function dishCard(e, index) {
   } else if (adapted) {
     const f = focusNumbers(r);
     numbers = `
-      <p class="nums"><span class="sr-only">${esc(f.label)} per serving: was </span><span class="nums-was">${esc(fmt(f.before, f.unit))}</span><span class="nums-arrow" aria-hidden="true">→</span><span class="sr-only"> now </span><span class="nums-now">${esc(fmt(f.after, f.unit))}<span class="nums-unit"> ${esc(f.unit)}</span></span></p>
+      <p class="nums"><span class="sr-only">${esc(f.label)} per serving: was </span><span class="nums-was">${esc(fmt(f.before, f.unit))}</span><span class="nums-arrow" aria-hidden="true">→</span><span class="sr-only"> now </span><span class="nums-now"><span class="num-count"${count ? ` data-count-from="${esc(f.before)}" data-count-to="${esc(f.after)}" data-count-unit="${esc(f.unit)}"` : ""}>${esc(fmt(f.after, f.unit))}</span><span class="nums-unit"> ${esc(f.unit)}</span></span></p>
       <p class="nums-label" aria-hidden="true">${esc(f.label)} per serving</p>`;
     if (f.key === "kcal" && r.original?.nutrition) {
       secondary = `<ul class="nums-2">${SECONDARY.map(([k, label, unit]) => `<li>${esc(label)} <span class="n2-was">${esc(fmt(r.original.nutrition[k], unit))}</span> <span aria-hidden="true">→</span><span class="sr-only">now</span> <b>${esc(fmt(n[k], unit))} ${esc(unit)}</b></li>`).join("")}</ul>`;
@@ -1124,12 +1173,12 @@ function dishCard(e, index) {
   // Same anatomy as Care's result card: headline chip, then what changes, then where it comes from.
   const quick = adapted && !plainSuggested ? (r.changes || []).slice(0, 3) : [];
   const whatChanges = quick.length ? `
-    <div class="rc-quick"><p class="rc-h">What changes</p>
+    <div class="rc-quick"><p class="rc-h rc-h-lead">What changes</p>
       <ul class="quick-list">${quick.map((ch) => `<li><span class="tick" aria-hidden="true">✓</span><span>${esc(ch.what)}</span></li>`).join("")}</ul></div>` : "";
   const trust = adapted ? `<p class="trust-chip"><span aria-hidden="true">✓</span> Numbers from food tables</p>` : "";
 
   let status = "";
-  if (isBusy) status = `<p class="working"><span class="spinner" aria-hidden="true"></span><span>Making it lighter<span class="dots"></span><span class="working-sub">Keeping the taste, trimming the ${esc(c.nutrient)}</span></span></p>`;
+  if (isBusy) status = `<div class="ai-wait"><p class="sr-only">Making it lighter, keeping the taste.</p>${aiStepsHTML("plate", { start: e.busyStart || Date.now(), from: 1 })}</div>`;
   else if (e.status === "error") status = `<p class="msg error" role="alert">${esc(e.error)}</p>`;
   const retry = !adapted && !isBusy && e.status === "error" ? `<button type="button" class="btn btn-quiet btn-small" data-adapt="${esc(e.id)}">Try again</button>` : "";
 
@@ -1145,7 +1194,7 @@ function dishCard(e, index) {
     const portion = String(r.portion_tip || r.cooking_tip || "").trim();
     body = `
       <details class="more" data-more="${esc(e.id)}" ${open ? "open" : ""}>
-        <summary><span class="when-closed">Show recipe</span><span class="when-open">Hide recipe</span></summary>
+        <summary><span class="when-closed">Recipe, method and details</span><span class="when-open">Hide the recipe</span><span class="chev" aria-hidden="true"></span></summary>
         <div class="more-body">
           ${why ? `<div class="why-fits"><p class="portion-h">Why it fits</p><p>${esc(why)}</p></div>` : ""}
           <div class="rc-block"><h4 class="rc-h">Ingredients</h4>${ingredientsBlock(r, { compare: false })}</div>
@@ -1165,7 +1214,7 @@ function dishCard(e, index) {
     const orig = e.base;
     body = `
       <details class="more" data-more="${esc(e.id)}" ${open ? "open" : ""}>
-        <summary><span class="when-closed">Show recipe</span><span class="when-open">Hide recipe</span></summary>
+        <summary><span class="when-closed">Recipe, method and details</span><span class="when-open">Hide the recipe</span><span class="chev" aria-hidden="true"></span></summary>
         <div class="more-body">
           <div class="rc-block">
             <h4 class="rc-h">Ingredients <span class="rc-h-note">lighter version</span></h4>
@@ -1194,7 +1243,7 @@ function dishCard(e, index) {
     const unc = n.uncounted?.length ? `<p class="small-print">Not counted yet (not in our tables): ${esc(n.uncounted.join(", "))}.</p>` : "";
     body = `
       <details class="more" data-more="${esc(e.id)}" ${e.open ? "open" : ""}>
-        <summary><span class="when-closed">See the recipe as you gave it</span><span class="when-open">Hide the recipe</span></summary>
+        <summary><span class="when-closed">See the recipe as you gave it</span><span class="when-open">Hide the recipe</span><span class="chev" aria-hidden="true"></span></summary>
         <div class="more-body">
           ${e.base.source_text ? `<p class="quote">“${esc(e.base.source_text)}”</p>` : ""}
           ${ingredientsBlock(r, { compare: false })}
@@ -1245,6 +1294,7 @@ function renderSummary() {
 
 function renderCookbook() {
   $("cookbook").innerHTML = state.recipes.map((e, i) => dishCard(e, i)).join("");
+  runCountUps($("cookbook"));
   renderNames();
   renderSummary();
   refreshButtons();
@@ -1260,6 +1310,7 @@ function renderCard(id) {
   tmp.innerHTML = dishCard(e, state.recipes.indexOf(e)).trim();
   const card = tmp.firstElementChild;
   old.replaceWith(card);
+  runCountUps(card);
   if (hadFocus) {
     const target = card.querySelector("[data-adapt]:not([disabled])") || card.querySelector("h3");
     target?.focus({ preventScroll: true });
@@ -1275,7 +1326,7 @@ async function adaptOne(id) {
   const key = condKey();
   const token = {};
   e.req = token;
-  e.status = "busy"; e.error = "";
+  e.status = "busy"; e.error = ""; e.busyStart = Date.now();
   renderCard(id);
   const stale = () => findEntry(id) !== e || condKey() !== key || e.req !== token;
   try {
@@ -1284,7 +1335,7 @@ async function adaptOne(id) {
     if (stale()) return "stale";
     if (recipe.condition && recipe.condition !== condition) return "stale";
     e.adapted = { ...recipe, condition, condKey: key, id: e.id };
-    e.status = "idle";
+    e.status = "idle"; e.countUp = true;
     markCookbookChanged();
     renderCard(id);
     renderPlanStale();
@@ -1380,8 +1431,8 @@ function setComposerMode(mode) {
   state.composerMode = suggest ? "suggest" : "recipe";
   const box = $("recipeText");
   box.maxLength = suggest ? 300 : 2000;
-  box.rows = suggest ? 3 : 4;
-  box.placeholder = suggest ? `e.g. ${SUGGEST_EXAMPLE}` : "Or type or paste it: dish name, then what goes in. Home measures are fine.";
+  box.rows = 3;
+  box.placeholder = suggest ? `e.g. ${SUGGEST_EXAMPLE}` : "Type, paste or say the recipe: dish name, then what goes in. Home measures are fine.";
   $("recipeTextLabel").textContent = suggest ? "What would you like to eat?" : "The recipe: dish name, then what goes in";
   $("goalLegend").firstChild.textContent = suggest ? "Suggest it for " : "Make it lighter for ";
   $("composer").classList.toggle("is-suggest", suggest);
@@ -1460,8 +1511,9 @@ async function submitComposer(btn) {
     return;
   }
   const servings = Math.min(20, Math.max(1, Math.round(num($("servings").value) || 4)));
-  const stop = ticker(msg, `<span class="spinner" aria-hidden="true"></span><span>Reading your recipe<span class="dots"></span></span>`);
-  msg.className = "msg working";
+  msg.innerHTML = `<span class="sr-only">Reading your recipe.</span>${aiStepsHTML("plate", { cap: 0 })}`;
+  msg.className = "msg ai-wait";
+  const stop = () => {};
   try {
     const { recipe } = await busy(btn, "Reading…", () => api("/api/parse", { text, servings, cuisine: state.cuisine }));
     stop();
@@ -1470,10 +1522,10 @@ async function submitComposer(btn) {
       id = editing.id;
       editing.base = { ...recipe, id };
       editing.adapted = null; editing.prev = null; editing.asking = false; editing.askError = "";
-      editing.status = "idle"; editing.error = ""; editing.req = null; editing.open = true;
+      editing.status = "idle"; editing.error = ""; editing.req = null; editing.open = false;
     } else {
       id = uid();
-      state.recipes.unshift({ id, base: { ...recipe, id }, adapted: null, status: "idle", error: "", open: true, origin: "own" });
+      state.recipes.unshift({ id, base: { ...recipe, id }, adapted: null, status: "idle", error: "", open: false, origin: "own" });
     }
     state.saved = null;
     markCookbookChanged();
@@ -1520,7 +1572,7 @@ async function submitSuggest(btn, wish) {
     stop();
     const id = uid();
     const r = { ...recipe, id, suggested: true };
-    state.recipes.unshift({ id, base: r, adapted: { ...r, condition: conditions[0], condKey: key }, status: "idle", error: "", open: true, origin: "suggested" });
+    state.recipes.unshift({ id, base: r, adapted: { ...r, condition: conditions[0], condKey: key }, status: "idle", error: "", open: false, origin: "suggested" });
     state.saved = null;
     markCookbookChanged();
     $("recipeText").value = "";
@@ -1560,7 +1612,7 @@ function updateMicHint() {
   hint.classList.remove("is-novoice"); hint.closest(".mic-wrap")?.classList.remove("no-voice");
   hint.textContent = voice.listening
     ? `Listening in ${state.speechLang}. Tap Done when you've finished.`
-    : `Listens in ${state.speechLang}. Check the words before you go on.`;
+    : `Listens in ${state.speechLang}. Check the words after.`;
 }
 
 function setListening(on) {
@@ -2232,8 +2284,9 @@ function cookbookHTML() {
       <div class="cb-toolbar">
         <button type="button" class="btn-link" data-act="close-cookbook"><span aria-hidden="true">←</span> ${fromCare ? "Back" : "Back to your week"}</button>
         <div class="cb-btns">
-          <button type="button" class="btn btn-primary btn-small" data-act="print">Print or save PDF</button>
-          <button type="button" class="btn btn-quiet btn-small" data-act="share">${shareWord}</button>
+          <button type="button" class="btn btn-primary btn-small" data-act="share-pdf">Share as PDF</button>
+          <button type="button" class="btn btn-quiet btn-small" data-act="print">Print</button>
+          <button type="button" class="btn btn-quiet btn-small" data-act="share">${shareWord === "Share" ? "Share as text" : shareWord}</button>
           ${note ? `<button type="button" class="btn btn-quiet btn-small" data-act="share-note">Send the note to ${esc(parentWord())}</button>` : ""}
         </div>
       </div>
@@ -2301,6 +2354,71 @@ function printCookbook() {
   window.print();
 }
 
+// ---------- the family book as a PDF ----------
+// html2pdf (html2canvas + jsPDF) loads only when someone asks for a PDF; it is served from static/vendor. It draws the book as images, so
+// Hindi, Tagalog or any other script comes out exactly as on screen.
+const HTML2PDF_SRC = "/static/vendor/html2pdf.bundle.min.js?v=0.10.1"; // html2pdf.js 0.10.1 (MIT), served with the app
+let html2pdfLoading = null;
+function loadHtml2pdf() {
+  if (window.html2pdf) return Promise.resolve(window.html2pdf);
+  html2pdfLoading ||= new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = HTML2PDF_SRC;
+    s.async = true;
+    s.onload = () => (window.html2pdf ? resolve(window.html2pdf) : reject(new Error("html2pdf missing")));
+    s.onerror = () => { html2pdfLoading = null; reject(new Error("html2pdf failed to load")); };
+    document.head.appendChild(s);
+  });
+  return html2pdfLoading;
+}
+
+function pdfFileName() {
+  const base = cookbookTitle().replace(/[^\p{L}\p{N} '-]+/gu, "").trim().slice(0, 60) || "Heritage family book";
+  return `${base}.pdf`;
+}
+
+async function shareCookbookPdf(btn) {
+  if (btn?.disabled) return;
+  const label = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "Making your PDF…"; }
+  const root = document.documentElement;
+  const theme = root.getAttribute("data-theme");
+  try {
+    const html2pdf = await loadHtml2pdf();
+    renderCookbookView();
+    root.setAttribute("data-theme", "light"); // paper is light, whatever the screen uses
+    const name = pdfFileName();
+    const blob = await html2pdf().set({
+      margin: [10, 10, 12, 10],
+      filename: name,
+      image: { type: "jpeg", quality: 0.92 },
+      html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true,
+        ignoreElements: (el) => el.classList?.contains("cb-toolbar") || el.classList?.contains("no-print") },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      pagebreak: { mode: ["css", "legacy"], avoid: [".cb-dish", ".cb-sec", "li"] },
+    }).from($("cookbookView")).outputPdf("blob");
+    const file = new File([blob], name, { type: "application/pdf" });
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: cookbookTitle() }); } catch (err) {
+        if (!err || err.name !== "AbortError") throw err;
+      }
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      toast("PDF downloaded.");
+    }
+  } catch {
+    toast("Couldn't make the PDF here. Use Print and choose Save as PDF.", { label: "Print", run: printCookbook });
+  } finally {
+    if (theme) root.setAttribute("data-theme", theme); else root.removeAttribute("data-theme");
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+
 // ---------- events ----------
 document.querySelectorAll('input[name="condition"]').forEach((r) => r.addEventListener("change", () => toggleCondition(r.value, r.checked)));
 $("goalChips").addEventListener("change", (e) => { if (e.target.name === "goalChip") toggleCondition(e.target.value, e.target.checked); });
@@ -2351,10 +2469,12 @@ $("resume").addEventListener("click", (e) => {
   makePlan(); // one tap: the saved profile plans this week
 });
 
-document.querySelectorAll(".stepper-btn").forEach((b) => b.addEventListener("click", () => {
+document.querySelectorAll(".stepper-btn[data-step]").forEach((b) => b.addEventListener("click", () => {
   const input = $("servings");
   input.value = Math.min(20, Math.max(1, (Math.round(num(input.value)) || 4) + Number(b.dataset.step)));
+  styleSummary();
 }));
+$("servings").addEventListener("input", styleSummary);
 
 $("parse").addEventListener("click", (e) => submitComposer(e.currentTarget));
 $("recipeText").addEventListener("keydown", (e) => {
@@ -2544,7 +2664,8 @@ function onAction(e) {
   const b = e.target.closest("[data-act]");
   if (!b) return;
   const act = b.dataset.act;
-  if (act === "print") printCookbook();
+  if (act === "share-pdf") shareCookbookPdf(b);
+  else if (act === "print") printCookbook();
   else if (act === "share") shareText(cookbookTitle(), withHomeLink(cookbookText()));
   else if (act === "share-note" && state.plan) shareText(noteLabel(state.plan), state.plan.message_for_parent || "");
   else if (act === "open-cookbook") openCookbook();

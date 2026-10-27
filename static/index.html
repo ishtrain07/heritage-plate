@@ -9,6 +9,17 @@
   <meta name="color-scheme" content="light dark">
   <title>Heritage: family recipes made lighter, home remedies checked</title>
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Heritage">
+  <meta property="og:title" content="Heritage: keep what works from home, fix what doesn't">
+  <meta property="og:description" content="Family recipes made lighter, a week of meals for diabetes, blood pressure or cholesterol, and home remedies for skin and hair checked honestly. In any language.">
+  <meta property="og:url" content="{{ORIGIN}}/">
+  <meta property="og:image" content="{{ORIGIN}}/static/og.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Heritage: keep what works from home. Fix what doesn't.">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preload" href="/static/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/static/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
   <!-- Pick the side (home | plate | care) before first paint, so Plate never flashes. care.js keeps it in step. -->
@@ -17,17 +28,11 @@
       var h = location.hash.replace(/^#/, ""), s = "home";
       if (h === "plate") s = "plate";
       else if (h === "care" || h === "care-plan" || h === "care-label") s = "care";
-      else if (h !== "home") {
-        try {
-          var f = JSON.parse(localStorage.getItem("hp-family-v2") || "null");
-          if (f && (f.mode === "plate" || f.mode === "care")) s = f.mode;
-          else if (!f && localStorage.getItem("hp-cookbook-v1")) s = "plate";
-        } catch (e) { /* storage blocked: home */ }
-      }
+      // Anything else (no link, an old or unknown link): every visit starts on home.
       document.documentElement.setAttribute("data-side", s);
     })();
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261028b">
+  <link rel="stylesheet" href="/static/styles.css?v=20261031">
 </head>
 <body>
   <a class="skip" href="#main">Skip to the app</a>
@@ -63,6 +68,13 @@
       <section class="hero home-hero" aria-labelledby="homeTitle">
         <div class="wrap">
           <div class="home-grid">
+            <!-- hero photo: Anju Ravindranath on Unsplash (Nihdo084Yos); sizes in static/hero -->
+            <figure class="hero-art hero-photo">
+              <picture>
+                <source type="image/webp" srcset="/static/hero/spices-640.webp 640w, /static/hero/spices-1080.webp 1080w, /static/hero/spices-1600.webp 1600w" sizes="(min-width: 1000px) 480px, 100vw">
+                <img src="/static/hero/spices-1080.jpg" srcset="/static/hero/spices-640.jpg 640w, /static/hero/spices-1080.jpg 1080w, /static/hero/spices-1600.jpg 1600w" sizes="(min-width: 1000px) 480px, 100vw" width="1600" height="1129" alt="A family spice box laid out on dark slate: turmeric roots, curry leaves, cardamom, cinnamon, dried red chillies, cumin and fenugreek" fetchpriority="high" decoding="async">
+              </picture>
+            </figure>
             <div class="home-copy">
               <p class="eyebrow">Your family's health helper</p>
               <h1 id="homeTitle" tabindex="-1">Keep what works from home.<br><span class="accent">Fix what doesn't.</span></h1>
@@ -93,7 +105,7 @@
                 <p class="fam-sub">Who Plate and Care are for. Saved on this device only.</p>
               </div>
               <div id="famBody" class="fam-body">
-                <p class="fam-empty"><b>Start with one person:</b> Mum, Dad or you.</p>
+                <p class="fam-empty"><img class="spot-art" src="/static/hero/spices-thumb.jpg" width="240" height="166" alt="" loading="lazy"><span><b>Start with one person:</b> Mum, Dad or you.</span></p>
               </div>
             </section>
             <ol class="steps3" aria-label="How it works, in 3 steps">
@@ -125,7 +137,7 @@
             <div class="side-head">
               <p class="eyebrow">Heritage Plate · food</p>
               <h1 id="heroTitle">Keep the dish.<br><span class="accent">Lose the spike.</span></h1>
-              <p class="lede">Say the family recipe the way it's said at home. Get it back lighter for diabetes, blood pressure or cholesterol, with real numbers and a week of meals.</p>
+              <p class="lede">Say the family recipe the way it's said at home. Get it back lighter for diabetes, blood pressure or cholesterol, with real numbers.</p>
               <ol class="steps-mini" aria-label="How it works">
                 <li><span class="sm-n" aria-hidden="true">1</span>Say a recipe</li>
                 <li><span class="sm-n" aria-hidden="true">2</span>We check food tables</li>
@@ -140,54 +152,59 @@
                 <button id="composerClose" class="btn-link" type="button" hidden>Cancel</button>
               </div>
 
-              <div class="mic-wrap">
-                <button id="mic" class="mic" type="button" aria-pressed="false" aria-describedby="micExample">
-                  <span class="mic-circle" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" focusable="false"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1a7 7 0 0 0 6-6.9h-2Z" fill="currentColor"/></svg>
-                  </span>
-                  <span class="mic-label">Say a recipe</span>
-                </button>
-                <p id="micExample" class="mic-example"></p>
+              <div class="ta-wrap mic-wrap">
+                <label id="recipeTextLabel" class="sr-only" for="recipeText">The recipe: dish name, then what goes in</label>
+                <div class="ta-box">
+                  <textarea id="recipeText" rows="3" maxlength="2000" placeholder="Type, paste or say the recipe: dish name, then what goes in. Home measures are fine."></textarea>
+                  <button id="mic" class="mic mic-inline" type="button" aria-pressed="false" aria-describedby="micExample">
+                    <span class="mic-circle" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" focusable="false"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1a7 7 0 0 0 6-6.9h-2Z" fill="currentColor"/></svg>
+                    </span>
+                    <span class="mic-label">Say a recipe</span>
+                  </button>
+                </div>
+                <p id="micExample" class="mic-example sr-only"></p>
                 <p id="micHint" class="mic-hint" role="status" aria-live="polite"></p>
               </div>
-
-              <label id="recipeTextLabel" class="sr-only" for="recipeText">The recipe: dish name, then what goes in</label>
-              <textarea id="recipeText" rows="4" maxlength="2000" placeholder="Or type or paste it: dish name, then what goes in. Home measures are fine."></textarea>
               <div id="recipeGuard" class="guard-slot"></div>
 
-              <div class="card-row card-examples">
+              <div class="card-row card-examples ex-row">
                 <p id="plateExLabel" class="field-label">Or tap one</p>
-                <div id="plateExamples" class="pick chip-row" role="group" aria-labelledby="plateExLabel"></div>
+                <div id="plateExamples" class="pick chip-row chip-scroll" role="group" aria-labelledby="plateExLabel"></div>
               </div>
 
-              <fieldset class="card-row card-fs">
-                <legend class="field-label">For whom?</legend>
-                <div id="plateWho" class="pick chip-row" data-who-for="plate"></div>
+              <fieldset class="card-row card-fs who-row">
+                <legend class="sr-only">For whom?</legend>
+                <span class="field-label" aria-hidden="true">For whom?</span>
+                <div id="plateWho" class="pick chip-row chip-scroll" data-who-for="plate"></div>
               </fieldset>
 
               <fieldset class="goal">
                 <legend id="goalLegend" class="goal-legend">Make it lighter for <span class="opt">pick any</span></legend>
-                <div class="seg">
-                  <label><input type="checkbox" name="condition" value="everyday" checked><span>Everyday lighter</span></label>
-                  <label><input type="checkbox" name="condition" value="diabetes"><span>Diabetes</span></label>
-                  <label><input type="checkbox" name="condition" value="bp"><span>Blood pressure</span></label>
-                  <label><input type="checkbox" name="condition" value="cholesterol"><span>Cholesterol</span></label>
+                <div class="pick goal-pick">
+                  <label class="pick-opt"><input type="checkbox" name="condition" value="everyday" checked><span>Everyday lighter</span></label>
+                  <label class="pick-opt"><input type="checkbox" name="condition" value="diabetes"><span>Diabetes</span></label>
+                  <label class="pick-opt"><input type="checkbox" name="condition" value="bp"><span>Blood pressure</span></label>
+                  <label class="pick-opt"><input type="checkbox" name="condition" value="cholesterol"><span>Cholesterol</span></label>
                 </div>
                 <p id="focusHint" class="focus-hint"></p>
               </fieldset>
 
-              <div class="composer-row">
-                <div class="stepper" role="group" aria-labelledby="servesLabel">
-                  <span id="servesLabel" class="stepper-label">Serves</span>
-                  <button type="button" class="stepper-btn" data-step="-1" aria-label="One fewer serving">−</button>
-                  <input id="servings" type="number" min="1" max="20" value="4" inputmode="numeric" aria-labelledby="servesLabel">
-                  <button type="button" class="stepper-btn" data-step="1" aria-label="One more serving">+</button>
-                </div>
+              <div class="composer-go">
+                <button id="parse" class="btn btn-primary btn-wide" type="button">Make it lighter</button>
               </div>
-
-              <details id="style" class="style">
-                <summary><span id="styleSummary">Cooking style: South Asian</span><span class="style-change-wrap" aria-hidden="true"> · <span class="style-change">Change</span></span></summary>
+              <p id="parseMsg" class="msg" role="status" aria-live="polite"></p>
+              <details id="style" class="style more-opts">
+                <summary><span class="mo-h">More options</span> <span id="styleSummary" class="mo-sum">Serves 4 · South Asian</span><span class="chev" aria-hidden="true"></span></summary>
                 <div class="fields">
+                  <div class="composer-row">
+                    <div class="stepper" role="group" aria-labelledby="servesLabel">
+                      <span id="servesLabel" class="stepper-label">Serves</span>
+                      <button type="button" class="stepper-btn" data-step="-1" aria-label="One fewer serving">−</button>
+                      <input id="servings" type="number" min="1" max="20" value="4" inputmode="numeric" aria-labelledby="servesLabel">
+                      <button type="button" class="stepper-btn" data-step="1" aria-label="One more serving">+</button>
+                    </div>
+                  </div>
                   <label class="field">
                     <span class="field-label">Your family's cooking</span>
                     <select id="cuisine"></select>
@@ -199,11 +216,7 @@
                 </div>
               </details>
 
-              <div class="composer-go">
-                <button id="parse" class="btn btn-primary btn-wide" type="button">Make it lighter</button>
-              </div>
               <p class="composer-skip">No recipe right now? <button id="composerSkip" class="btn-link" type="button">Plan a week of meals instead</button></p>
-              <p id="parseMsg" class="msg" role="status" aria-live="polite"></p>
             </section>
 
             <nav class="side-more" aria-label="More from Heritage Plate">
@@ -438,38 +451,41 @@
                 </ol>
               </div>
               <div class="composer input-card care-box">
-                <div class="mic-wrap">
-                  <button id="careMic" class="mic" type="button" aria-pressed="false" aria-describedby="careMicExample">
-                    <span class="mic-circle" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" focusable="false"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1a7 7 0 0 0 6-6.9h-2Z" fill="currentColor"/></svg>
-                    </span>
-                    <span class="mic-label">Say a remedy</span>
-                  </button>
-                  <p id="careMicExample" class="mic-example">“Besan haldi ka lep, once a week”</p>
+                <div class="ta-wrap mic-wrap">
+                  <label class="sr-only" for="careText">The remedy, the way it's said at home</label>
+                  <div class="ta-box">
+                    <textarea id="careText" rows="3" maxlength="400" placeholder="Type or say the remedy the way it's said at home, e.g. “besan haldi ka lep, once a week”"></textarea>
+                    <button id="careMic" class="mic mic-inline" type="button" aria-pressed="false" aria-describedby="careMicExample">
+                      <span class="mic-circle" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1a7 7 0 0 0 6-6.9h-2Z" fill="currentColor"/></svg>
+                      </span>
+                      <span class="mic-label">Say a remedy</span>
+                    </button>
+                  </div>
+                  <p id="careMicExample" class="mic-example sr-only">“Besan haldi ka lep, once a week”</p>
                   <p id="careMicHint" class="mic-hint" role="status" aria-live="polite"></p>
                 </div>
-                <label class="sr-only" for="careText">The remedy, the way it's said at home</label>
-                <textarea id="careText" rows="4" maxlength="400" placeholder="Or type it the way it's said at home"></textarea>
                 <div id="careGuard" class="guard-slot"></div>
-                <div class="card-row card-examples">
+                <div class="card-row card-examples ex-row">
                   <p id="careExLabel" class="field-label">Or tap one</p>
-                  <div id="careExamples" class="pick chip-row" role="group" aria-labelledby="careExLabel"></div>
+                  <div id="careExamples" class="pick chip-row chip-scroll" role="group" aria-labelledby="careExLabel"></div>
                 </div>
-                <fieldset class="card-row card-fs">
-                  <legend class="field-label">For whom?</legend>
-                  <div id="careWho" class="pick chip-row" data-who-for="remedy"></div>
+                <fieldset class="card-row card-fs who-row">
+                <legend class="sr-only">For whom?</legend>
+                <span class="field-label" aria-hidden="true">For whom?</span>
+                <div id="careWho" class="pick chip-row chip-scroll" data-who-for="remedy"></div>
                 </fieldset>
-                <details class="style care-style">
-                  <summary><span class="care-where-sum">Country &amp; language</span><span class="style-change-wrap" aria-hidden="true"> · <span class="style-change">Change</span></span></summary>
+                <div class="composer-go">
+                  <button id="careGo" class="btn btn-primary btn-wide" type="button" data-care-act="check">Check it</button>
+                </div>
+                <p id="careMsg" class="msg" role="status" aria-live="polite"></p>
+                <details class="style care-style more-opts">
+                  <summary><span class="mo-h">More options</span> <span class="care-where-sum mo-sum">Country &amp; language</span><span class="chev" aria-hidden="true"></span></summary>
                   <div class="fields">
                     <label class="field"><span class="field-label">Where you shop</span><select class="care-country"></select></label>
                     <label class="field"><span class="field-label">Language you speak in</span><select class="care-lang"></select></label>
                   </div>
                 </details>
-                <div class="composer-go">
-                  <button id="careGo" class="btn btn-primary btn-wide" type="button" data-care-act="check">Check it</button>
-                </div>
-                <p id="careMsg" class="msg" role="status" aria-live="polite"></p>
               </div>
               <nav class="side-more care-more" aria-label="More from Heritage Care">
                 <a class="text-link" href="#care-plan">Make a care plan for the family <span aria-hidden="true">→</span></a>
@@ -555,7 +571,7 @@
       <button id="howOpen" class="btn-link" type="button" aria-haspopup="dialog">How it works</button>
       <p class="disclaimer side-plate"><b>Not medical advice.</b> Check changes with their doctor.</p>
       <p class="disclaimer side-care"><b>General skincare information, not medical advice.</b> If something hurts, spreads or changes, see a doctor.</p>
-      <p class="credit">Built with NVIDIA Nemotron on Nebius</p>
+      <p class="credit">Built with NVIDIA Nemotron on Nebius · <span class="photo-credit">Photo by <a href="https://unsplash.com/@anjurnath?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText" rel="noopener" target="_blank">Anju Ravindranath</a> on <a href="https://unsplash.com/photos/a-table-topped-with-different-types-of-spices-Nihdo084Yos?utm_source=unsplash&amp;utm_medium=referral&amp;utm_content=creditCopyText" rel="noopener" target="_blank">Unsplash</a></span></p>
     </div>
   </footer>
 
@@ -567,6 +583,18 @@
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>
       </div>
+      <p class="how-lede">Three NVIDIA Nemotron models, each with one job. Our code checks every answer before you see it.</p>
+      <ol class="how-flow" aria-label="From your words to your plan">
+        <li class="hf-node hf-you"><span class="hf-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" focusable="false"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Z"/><path d="M18 11a6 6 0 0 1-12 0M12 17v4"/></svg></span><span class="hf-t"><b>Your words</b><span>A recipe or a remedy, said or typed, any language</span></span></li>
+        <li class="hf-node hf-ai"><span class="hf-ic" aria-hidden="true">N</span><span class="hf-t"><b>Nemotron Nano <i>reads</i></b><span>Turns “2 katori dal” into ingredients and grams</span></span></li>
+        <li class="hf-node hf-ai"><span class="hf-ic" aria-hidden="true">S</span><span class="hf-t"><b>Nemotron Super <i>adapts</i></b><span>Makes dishes lighter and checks home remedies</span></span></li>
+        <li class="hf-node hf-ai"><span class="hf-ic" aria-hidden="true">U</span><span class="hf-t"><b>Nemotron Ultra <i>plans</i></b><span>Builds the week of meals around your dishes</span></span></li>
+        <li class="hf-node hf-code"><span class="hf-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" focusable="false"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="hf-t"><b>Checked in our code</b><span>Numbers from IFCT and USDA food tables; safety rules for remedies always apply</span></span></li>
+        <li class="hf-node hf-out"><span class="hf-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" focusable="false"><path d="M6 4h9l3 3v13H6z"/><path d="M9 11h6M9 15h6"/></svg></span><span class="hf-t"><b>Your plan</b><span>Lighter dishes, a week of meals, a care plan</span></span></li>
+      </ol>
+      <details class="how-details">
+        <summary>More detail<span class="chev" aria-hidden="true"></span></summary>
+        <div class="how-details-body">
       <ol class="how-rows">
         <li><span class="how-n" aria-hidden="true">1</span><span><b>Reads your recipe</b><span class="how-sub">Home measures like “2 katori” become estimated grams.</span></span></li>
         <li><span class="how-n" aria-hidden="true">2</span><span><b>Suggests lighter swaps and writes the steps</b><span class="how-sub">Or suggests a new dish that fits, when you ask for one.</span></span></li>
@@ -580,6 +608,8 @@
         <p>When a parent is told to change their diet, families are often handed a generic diet sheet. Home food starts to feel off-limits and someone ends up cooking two meals. We keep your family's own dishes and make them lighter: swap, don't ban.</p>
         <p>Home measures become estimated grams, so treat numbers as a close guide. If an ingredient isn't in our tables we say so, don't count it, and don't claim a “% less”. “Good to know” notes come from a short checked list with their source linked.</p>
       </div>
+        </div>
+      </details>
       <p id="howMode" class="how-mode"></p>
       <p class="how-disclaimer"><b>Not medical advice.</b> Check changes with their doctor or a registered dietitian.</p>
     </div>
@@ -587,8 +617,8 @@
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js?v=20261028b"></script>
-  <script src="/static/app.js?v=20261028b"></script>
-  <script src="/static/care.js?v=20261028b"></script>
+  <script src="/static/family.js?v=20261031"></script>
+  <script src="/static/app.js?v=20261031"></script>
+  <script src="/static/care.js?v=20261031"></script>
 </body>
 </html>
