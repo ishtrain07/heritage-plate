@@ -330,8 +330,7 @@ function route(initial = false) {
   if (h === "home") side = "home";
   else if (h === "plate") side = "plate";
   else if (CARE_SCREENS[h]) side = "care";
-  else if (h === "") side = careFamily().mode || "home";
-  else if (initial) side = careFamily().mode || "home"; // e.g. #samples on first load
+  else if (h === "" || initial) side = "home"; // every visit starts on home, whatever was used last
   else return; // in-page anchors (e.g. #samples) leave the side alone
   const changed = setSide(side);
   if (side === "care") {
@@ -1015,8 +1014,8 @@ function famAddFormHTML() {
     </form>`;
 }
 
-// Small spot art for empty states: the hero's thali, in the brand mark's colours.
-const SPOT_ART = `<svg class="spot-art" viewBox="0 0 64 48" aria-hidden="true" focusable="false"><ellipse class="ta-plate" cx="30" cy="30" rx="26" ry="13"/><ellipse class="ta-bowl" cx="24" cy="28" rx="8" ry="4"/><ellipse class="ta-bowl" cx="38" cy="30" rx="7" ry="3.5"/><path class="ta-leaf" d="M44 42c3-7 9-10 16-10-1 7-6 11-14 11"/><g class="ta-steam"><path d="M26 18c-3-3 3-5 0-8s3-5 0-8"/><path d="M35 18c-3-3 3-5 0-8s3-5 0-8"/></g></svg>`;
+// Small spot art for empty states: a crop of the home hero's thali (reuses #ht-thali, which is on the same screen).
+const SPOT_ART = `<svg class="spot-art" viewBox="196 180 148 111" aria-hidden="true" focusable="false"><use href="#ht-thali"/></svg>`;
 
 function renderHomeFamily() {
   const box = $("famBody");

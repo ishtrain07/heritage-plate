@@ -1536,17 +1536,25 @@ html[data-side="care"] .side-switch a[data-side-link="care"] { color: var(--gree
 .home-hero { padding-top: var(--s5); }
 .home-hero h1 { font-size: clamp(2.125rem, 8.6vw, 3.5rem); max-width: 16ch; }
 .home-lede { margin-top: var(--s3); max-width: 50ch; color: var(--muted); }
-.home-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "copy" "fam" "steps" "ex"; gap: var(--s5); align-items: start; }
+/* phones: a short cropped banner of the art above the headline, then pitch, family, steps, example.
+   tablets: a taller banner, family and example side by side.
+   desktop: the art large on the right of the pitch; family and example below the shortcuts. */
+.home-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "art" "copy" "fam" "steps" "ex"; gap: var(--s5); align-items: start; }
 .home-copy { grid-area: copy; min-width: 0; }
 #homeFamily { grid-area: fam; }
 .home-grid > .steps3 { grid-area: steps; }
 .home-grid > .home-ex { grid-area: ex; display: block; max-width: 460px; min-width: 0; }
-@media (min-width: 960px) {
+@media (min-width: 760px) and (max-width: 999px) {
+  .home-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "art art" "copy copy" "fam ex" "steps steps"; }
+  .home-grid > .home-ex { max-width: none; }
+}
+@media (min-width: 1000px) {
   .home-hero { padding-top: var(--s7); }
   .home-grid {
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); grid-template-areas: "copy fam" "copy ex" "steps ex";
-    grid-template-rows: auto 1fr auto; column-gap: var(--s7); row-gap: var(--s5);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "copy art" "fam ex" "steps steps";
+    column-gap: var(--s7); row-gap: var(--s6); align-items: start;
   }
+  .home-grid > .hero-art { align-self: center; }
   .home-grid > .home-ex { max-width: none; }
 }
 
@@ -1723,26 +1731,57 @@ button.text-link { background: none; border: 0; padding: 0; font: inherit; font-
 }
 body { background-image: var(--grain), var(--paper-tex); background-repeat: no-repeat, no-repeat, repeat; }
 
-/* ---------- the visual signature: a thali, leaf and gentle steam in the brand mark's lines ---------- */
-.ta-plate { fill: var(--brand-plate); stroke: var(--brand-rim); stroke-width: 2.5; }
-.ta-rim { fill: none; stroke: var(--brand-rim); stroke-width: 1.5; opacity: .35; }
-.ta-bowl { fill: var(--brand-dish); stroke: var(--brand-rim); stroke-width: 2; }
-.ta-roti { fill: var(--saffron-soft); stroke: var(--saffron); stroke-width: 2; stroke-linejoin: round; }
-.ta-leaf { fill: var(--brand-leaf); }
-.ta-vein { fill: none; stroke: var(--brand-dish); stroke-width: 1.6; stroke-linecap: round; }
-.ta-steam path { fill: none; stroke: var(--line-strong); stroke-width: 2.5; stroke-linecap: round; }
-.hero-art { margin: 0 0 var(--s3); }
-.thali-art { display: block; width: auto; height: 104px; overflow: visible; }
-@media (min-width: 960px) { .thali-art { height: 116px; } }
-.thali-art .ta-steam path { animation: steam 3.6s ease-in-out infinite; }
-.thali-art .ta-s2 { animation-delay: -1.2s; }
-.thali-art .ta-s3 { animation-delay: -2.4s; }
-@keyframes steam { 0%, 100% { opacity: .35; transform: translateY(4px); } 50% { opacity: 1; transform: translateY(-4px); } }
+/* ---------- hero illustration: a family table from above (inline SVG #ht-*, index.html) ----------
+   Realistic-flat, one light from the top left. Brass, cloth and shadow are tokens so dark mode
+   gets a warmer brass on a deeper table; food colours stay true. */
+:root {
+  --ht-b1: #f9e4a8; --ht-b2: #d4a24a; --ht-b3: #87571d;
+  --ht-table: #ead9bd; --ht-cloth: #faf5ea; --ht-weave: rgba(120, 88, 48, .055); --ht-stripe: #b4532a;
+  --ht-shadow: #3d2610; --ht-sh-o: .26; --ht-ds-o: .32; --ht-steam: #fffaf0; --ht-steam-o: .9;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ht-b1: #f2c776; --ht-b2: #b67a2a; --ht-b3: #57340f;
+    --ht-table: #1f1712; --ht-cloth: #2e241c; --ht-weave: rgba(255, 232, 196, .05); --ht-stripe: #c4673c;
+    --ht-shadow: #000; --ht-sh-o: .55; --ht-ds-o: .5; --ht-steam: #fff1dc; --ht-steam-o: .4;
+  }
+}
+:root[data-theme="dark"] {
+  --ht-b1: #f2c776; --ht-b2: #b67a2a; --ht-b3: #57340f;
+  --ht-table: #1f1712; --ht-cloth: #2e241c; --ht-weave: rgba(255, 232, 196, .05); --ht-stripe: #c4673c;
+  --ht-shadow: #000; --ht-sh-o: .55; --ht-ds-o: .5; --ht-steam: #fff1dc; --ht-steam-o: .4;
+}
+.ht-b1 { stop-color: var(--ht-b1); }
+.ht-b2 { stop-color: var(--ht-b2); }
+.ht-b3 { stop-color: var(--ht-b3); }
+.ht-fl { flood-color: var(--ht-shadow); flood-opacity: var(--ht-sh-o); }
+.ht-ds { flood-color: var(--ht-shadow); flood-opacity: var(--ht-ds-o); }
+.ht-cl { fill: var(--ht-cloth); }
+.ht-wv { fill: none; stroke: var(--ht-weave); stroke-width: 1; }
+.ht-st { fill: none; stroke: var(--ht-stripe); opacity: .55; }
+.ht-steam path { stroke: var(--ht-steam); stroke-width: 9; opacity: 0; animation: ht-steam 5.4s ease-in-out infinite; }
+.ht-steam .ht-s2 { animation-delay: -1.8s; }
+.ht-steam .ht-s3 { animation-delay: -3.6s; }
+@keyframes ht-steam {
+  0% { opacity: 0; transform: translate(0, 10px); }
+  35% { opacity: var(--ht-steam-o); }
+  100% { opacity: 0; transform: translate(-6px, -26px); }
+}
+.hero-art {
+  grid-area: art; margin: 0; position: relative; overflow: hidden; min-width: 0;
+  border-radius: var(--radius); background: var(--ht-table);
+  box-shadow: inset 0 0 0 1px rgba(60, 40, 20, .06);
+}
+.hero-art::after { /* a soft vignette, light from the top left */
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(120% 90% at 20% 10%, transparent 55%, rgba(40, 24, 8, .10));
+}
+.ht-art { display: block; width: 100%; height: 200px; }
+@media (min-width: 520px) { .ht-art { height: 240px; } }
+@media (min-width: 760px) { .ht-art { height: 300px; } }
+@media (min-width: 1000px) { .ht-art { height: auto; aspect-ratio: 720 / 680; } }
 .fam-empty { display: flex; align-items: center; gap: var(--s3); }
-.spot-art { flex: none; width: 64px; height: 48px; }
-.spot-art .ta-plate { stroke-width: 1.8; }
-.spot-art .ta-bowl { stroke-width: 1.4; }
-.spot-art .ta-steam path { stroke-width: 1.8; }
+.spot-art { flex: none; width: 72px; height: 54px; border-radius: 12px; background: var(--ht-table); }
 
 /* ---------- one chip system for every choice and quick action ---------- */
 .pick-opt span, .chip, .chip-btn, .chip-add, .ask-pill {
@@ -1902,12 +1941,12 @@ details[open] > summary .chev { transform: rotate(-135deg) translate(-2px, -2px)
 .how-details-body { display: grid; gap: var(--s4); padding-bottom: var(--s2); }
 
 @media (prefers-reduced-motion: reduce) {
-  .thali-art .ta-steam path { animation: none; opacity: .8; transform: none; }
+  .ht-steam path { animation: none; opacity: var(--ht-steam-o); transform: none; }
 }
 @media (forced-colors: active) {
   .hf-node, .ai-wait, .mic-inline { border: 1px solid CanvasText; }
 }
-@media print { .hero-art { display: none; } }
+@media print { .hero-art { break-inside: avoid; } }
 @media (max-width: 359px) {
   .ta-wrap { grid-template-columns: minmax(0, 1fr); }
   .mic.mic-inline { grid-column: 1; grid-row: 2; justify-self: start; }
