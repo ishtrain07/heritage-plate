@@ -1958,4 +1958,4 @@ details[open] > summary .chev { transform: rotate(-135deg) translate(-2px, -2px)
 }
 .photo-credit, .photo-credit a { color: var(--muted); font-weight: 400; }
 .photo-credit a { text-decoration: underline; text-underline-offset: 2px; }
-.photo-credit { white-space: nowrap; }
+.photo-credit { display: inline-block; }
