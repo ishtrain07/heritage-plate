@@ -1014,8 +1014,8 @@ function famAddFormHTML() {
     </form>`;
 }
 
-// Small spot art for empty states: a crop of the home hero's thali (reuses #ht-thali, which is on the same screen).
-const SPOT_ART = `<svg class="spot-art" viewBox="196 180 148 111" aria-hidden="true" focusable="false"><use href="#ht-thali"/></svg>`;
+// Small spot art for empty states: a crop of the home hero photo (turmeric roots and cardamom).
+const SPOT_ART = `<img class="spot-art" src="/static/hero/spices-thumb.jpg" width="240" height="166" alt="" loading="lazy">`;
 
 function renderHomeFamily() {
   const box = $("famBody");

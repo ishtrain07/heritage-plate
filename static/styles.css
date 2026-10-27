@@ -1776,12 +1776,16 @@ body { background-image: var(--grain), var(--paper-tex); background-repeat: no-r
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(120% 90% at 20% 10%, transparent 55%, rgba(40, 24, 8, .10));
 }
-.ht-art { display: block; width: 100%; height: 200px; }
-@media (min-width: 520px) { .ht-art { height: 240px; } }
-@media (min-width: 760px) { .ht-art { height: 300px; } }
-@media (min-width: 1000px) { .ht-art { height: auto; aspect-ratio: 720 / 680; } }
+.hero-photo { background: #141414; box-shadow: var(--shadow); }
+.hero-photo::after { background: linear-gradient(180deg, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, .12)); }
+.hero-photo img { display: block; width: 100%; height: 200px; object-fit: cover; object-position: 20% 70%; } /* phones: turmeric and spices */
+@media (min-width: 520px) { .hero-photo img { height: 240px; } }
+@media (min-width: 760px) { .hero-photo img { height: 300px; object-position: 50% 55%; } }
+@media (min-width: 1000px) { .hero-photo img { height: auto; aspect-ratio: 5 / 4; object-position: 30% 50%; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hero-photo img { filter: brightness(.92); } }
+:root[data-theme="dark"] .hero-photo img { filter: brightness(.92); }
 .fam-empty { display: flex; align-items: center; gap: var(--s3); }
-.spot-art { flex: none; width: 72px; height: 54px; border-radius: 12px; background: var(--ht-table); }
+.spot-art { flex: none; width: 72px; height: 54px; border-radius: 12px; object-fit: cover; background: #141414; }
 
 /* ---------- one chip system for every choice and quick action ---------- */
 .pick-opt span, .chip, .chip-btn, .chip-add, .ask-pill {
@@ -1952,3 +1956,6 @@ details[open] > summary .chev { transform: rotate(-135deg) translate(-2px, -2px)
   .mic.mic-inline { grid-column: 1; grid-row: 2; justify-self: start; }
   .ta-wrap .mic-hint { grid-row: 3; }
 }
+.photo-credit, .photo-credit a { color: var(--muted); font-weight: 400; }
+.photo-credit a { text-decoration: underline; text-underline-offset: 2px; }
+.photo-credit { white-space: nowrap; }

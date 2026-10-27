@@ -291,4 +291,4 @@ def test_stacked_asks_are_all_applied(client):
 def test_index_has_absolute_link_preview_urls(client):
     r = client.get("/", headers={"x-forwarded-proto": "https", "x-forwarded-host": "heritage.example"})
     assert r.status_code == 200 and r.headers["cache-control"] == "no-cache"
-    assert 'content="https://heritage.example/static/og.png"' in r.text and "{{ORIGIN}}" not in r.text
+    assert 'content="https://heritage.example/static/og.jpg"' in r.text and "{{ORIGIN}}" not in r.text
