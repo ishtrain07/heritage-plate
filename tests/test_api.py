@@ -285,3 +285,10 @@ def test_stacked_asks_are_all_applied(client):
     grams = {i["item"]: i["grams"] for i in out["ingredients"]}
     assert "ghee" not in grams and grams["green chili"] < 10
     assert [c["what"] for c in out["changes"][:2]] == ["Left out the ghee", "Halved the chilli"]
+
+
+
+def test_index_has_absolute_link_preview_urls(client):
+    r = client.get("/", headers={"x-forwarded-proto": "https", "x-forwarded-host": "heritage.example"})
+    assert r.status_code == 200 and r.headers["cache-control"] == "no-cache"
+    assert 'content="https://heritage.example/static/og.png"' in r.text and "{{ORIGIN}}" not in r.text

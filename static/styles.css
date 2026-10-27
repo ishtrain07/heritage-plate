@@ -305,18 +305,6 @@ a { color: var(--accent-strong); text-underline-offset: 3px; }
 @keyframes shimmer { to { background-position: -200% 0; } }
 .start-own { margin-top: var(--s3); }
 
-/* ---------- health focus (segmented) ---------- */
-.seg { border: 0; margin: 0; padding: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--chip); border-radius: 24px; }
-@media (min-width: 640px) { .seg { grid-template-columns: repeat(4, 1fr); border-radius: 999px; } }
-.seg label { position: relative; display: block; }
-.seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
-.seg span {
-  display: flex; align-items: center; justify-content: center; text-align: center; min-height: 48px; padding: 4px 8px;
-  border-radius: 999px; font-weight: 650; font-size: var(--t-sm); line-height: 1.2; color: var(--muted); transition: background .2s, color .2s;
-}
-.seg label:hover input:not(:checked) + span { color: var(--ink); }
-.seg input:checked + span { background: var(--surface); color: var(--accent-strong); box-shadow: var(--shadow-sm); }
-.seg input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
 .focus-hint { margin-top: var(--s3); color: var(--muted); }
 
 .field { display: grid; gap: 6px; }
@@ -1070,7 +1058,7 @@ body:has(#readyBar:not([hidden])) .toast, body:has(.dish-actions.is-sticky:not([
   .hero-card > div, .hero-card::before, .ex-slide, .ex-slide.was-on { transform: none; }
 }
 @media (forced-colors: active) {
-  .tag, .btn, .seg span, .chip { border: 1px solid CanvasText; }
+  .tag, .btn, .chip { border: 1px solid CanvasText; }
   .cmp-bar > span, .prog-bar > span { background: Highlight !important; }
 }
 

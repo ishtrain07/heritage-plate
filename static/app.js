@@ -2284,8 +2284,9 @@ function cookbookHTML() {
       <div class="cb-toolbar">
         <button type="button" class="btn-link" data-act="close-cookbook"><span aria-hidden="true">←</span> ${fromCare ? "Back" : "Back to your week"}</button>
         <div class="cb-btns">
-          <button type="button" class="btn btn-primary btn-small" data-act="print">Print or save PDF</button>
-          <button type="button" class="btn btn-quiet btn-small" data-act="share">${shareWord}</button>
+          <button type="button" class="btn btn-primary btn-small" data-act="share-pdf">Share as PDF</button>
+          <button type="button" class="btn btn-quiet btn-small" data-act="print">Print</button>
+          <button type="button" class="btn btn-quiet btn-small" data-act="share">${shareWord === "Share" ? "Share as text" : shareWord}</button>
           ${note ? `<button type="button" class="btn btn-quiet btn-small" data-act="share-note">Send the note to ${esc(parentWord())}</button>` : ""}
         </div>
       </div>
@@ -2351,6 +2352,71 @@ function closeCookbook() {
 function printCookbook() {
   renderCookbookView();
   window.print();
+}
+
+// ---------- the family book as a PDF ----------
+// html2pdf (html2canvas + jsPDF) loads only when someone asks for a PDF; it is served from static/vendor. It draws the book as images, so
+// Hindi, Tagalog or any other script comes out exactly as on screen.
+const HTML2PDF_SRC = "/static/vendor/html2pdf.bundle.min.js?v=0.10.1"; // html2pdf.js 0.10.1 (MIT), served with the app
+let html2pdfLoading = null;
+function loadHtml2pdf() {
+  if (window.html2pdf) return Promise.resolve(window.html2pdf);
+  html2pdfLoading ||= new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = HTML2PDF_SRC;
+    s.async = true;
+    s.onload = () => (window.html2pdf ? resolve(window.html2pdf) : reject(new Error("html2pdf missing")));
+    s.onerror = () => { html2pdfLoading = null; reject(new Error("html2pdf failed to load")); };
+    document.head.appendChild(s);
+  });
+  return html2pdfLoading;
+}
+
+function pdfFileName() {
+  const base = cookbookTitle().replace(/[^\p{L}\p{N} '-]+/gu, "").trim().slice(0, 60) || "Heritage family book";
+  return `${base}.pdf`;
+}
+
+async function shareCookbookPdf(btn) {
+  if (btn?.disabled) return;
+  const label = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "Making your PDF…"; }
+  const root = document.documentElement;
+  const theme = root.getAttribute("data-theme");
+  try {
+    const html2pdf = await loadHtml2pdf();
+    renderCookbookView();
+    root.setAttribute("data-theme", "light"); // paper is light, whatever the screen uses
+    const name = pdfFileName();
+    const blob = await html2pdf().set({
+      margin: [10, 10, 12, 10],
+      filename: name,
+      image: { type: "jpeg", quality: 0.92 },
+      html2canvas: { scale: 2, backgroundColor: "#ffffff", useCORS: true,
+        ignoreElements: (el) => el.classList?.contains("cb-toolbar") || el.classList?.contains("no-print") },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      pagebreak: { mode: ["css", "legacy"], avoid: [".cb-dish", ".cb-sec", "li"] },
+    }).from($("cookbookView")).outputPdf("blob");
+    const file = new File([blob], name, { type: "application/pdf" });
+    if (navigator.canShare?.({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: cookbookTitle() }); } catch (err) {
+        if (!err || err.name !== "AbortError") throw err;
+      }
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      toast("PDF downloaded.");
+    }
+  } catch {
+    toast("Couldn't make the PDF here. Use Print and choose Save as PDF.", { label: "Print", run: printCookbook });
+  } finally {
+    if (theme) root.setAttribute("data-theme", theme); else root.removeAttribute("data-theme");
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
 }
 
 // ---------- events ----------
@@ -2598,7 +2664,8 @@ function onAction(e) {
   const b = e.target.closest("[data-act]");
   if (!b) return;
   const act = b.dataset.act;
-  if (act === "print") printCookbook();
+  if (act === "share-pdf") shareCookbookPdf(b);
+  else if (act === "print") printCookbook();
   else if (act === "share") shareText(cookbookTitle(), withHomeLink(cookbookText()));
   else if (act === "share-note" && state.plan) shareText(noteLabel(state.plan), state.plan.message_for_parent || "");
   else if (act === "open-cookbook") openCookbook();
