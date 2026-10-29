@@ -233,7 +233,10 @@ def parse_recipe(text: str, servings: int | None, cuisine: str) -> tuple[dict, l
         raise OffTopic("recipe")
     ingredients = normalize_ingredients(data.get("ingredients"))
     serves = servings or _servings(data.get("servings"))
-    return build_recipe(str(data.get("name") or "My recipe"), serves, ingredients, text), [trace]
+    recipe = build_recipe(str(data.get("name") or "My recipe"), serves, ingredients, text)
+    # The dish's own tradition (adobo isn't South Asian), so later tips and asks fit it.
+    recipe["cuisine"] = data.get("cuisine") if data.get("cuisine") in CUISINES else cuisine
+    return recipe, [trace]
 
 
 # ---------- adapt ----------
@@ -440,7 +443,8 @@ def _mock_request_one(data: dict, request: str) -> dict:
     return {**data, "ingredients": [{"item": k, "grams": v} for k, v in ings.items()], "changes": (asked + changes)[:5]}
 
 
-def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "", also: list[str] | None = None) -> tuple[dict, list[dict]]:
+def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "", also: list[str] | None = None,
+                 current: list[dict] | None = None) -> tuple[dict, list[dict]]:
     """Adapt a dish for one condition, or several (`also`): the first one sets the headline number."""
     conditions = [condition, *[c for c in (also or []) if c != condition and c != "everyday"]][:3]
     # Recompute the "before" numbers server-side; never trust client nutrition.
@@ -451,8 +455,18 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "", 
         payload = {k: recipe[k] for k in ("name", "servings", "ingredients", "source_text", "method")}
         if request:
             payload["request"] = request
+            if current:  # start from the lighter version they already have; the ask changes only what it needs
+                payload["current_lighter_version"] = [{"item": i["item"], "grams": i["grams"]} for i in current]
         user = json.dumps(payload)
         data, trace = llm.chat_json("super", system, user, step="Adapt dish", max_tokens=2500)
+        focus = FOCUS_KEY[condition]
+        if request and current and _focus_of(data, recipe, focus) > 1.1 * _focus_of({"ingredients": current}, recipe, focus):
+            # The ask made the dish less healthy than what they had: try once more, keeping the lighter amounts.
+            retry = json.dumps({**payload, "note": f"Your version had more {focus.replace('_', ' ')} than "
+                                "current_lighter_version. Keep its amounts and change only what the request needs."})
+            data2, trace = llm.chat_json("super", system, retry, step="Adapt dish", max_tokens=2500)
+            if _focus_of(data2, recipe, focus) <= _focus_of(data, recipe, focus):
+                data = data2
     else:
         data, trace = _mock_adapt_all({**recipe, "nutrition": before}, conditions), _mock_trace("Adapt dish", "super")
         if request:
@@ -468,7 +482,7 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "", 
     new_unknowns = sorted(set(after["uncounted"]) - set(before["uncounted"]))
     raw_changes = data.get("changes")
     changes = [
-        {"what": str(c.get("what") or "")[:200], "why": str(c.get("why") or "")[:240]}
+        {"what": _tidy(str(c.get("what") or ""))[:200], "why": _tidy(str(c.get("why") or ""))[:240]}
         for c in (raw_changes if isinstance(raw_changes, list) else []) if isinstance(c, dict) and c.get("what")
     ][:5]
     adapted = {
@@ -490,6 +504,17 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "", 
         "conditions": conditions,
     }
     return adapted, [trace]
+
+
+def _focus_of(data: dict, recipe: dict, focus: str) -> float:
+    ingredients = normalize_ingredients(data.get("ingredients")) or recipe["ingredients"]
+    return nutrition.per_serving(ingredients, recipe["servings"])[focus]
+
+
+def _tidy(text: str) -> str:
+    """Small clean-ups the model gets wrong: amounts are for the whole recipe, and no doubled full stops."""
+    text = re.sub(r"(\d\s*(?:g|kg|ml|grams?))\s+per serving", r"\1", text, flags=re.IGNORECASE)
+    return re.sub(r"\.{2,}", ".", text).strip()
 
 
 # ---------- suggest a new dish ----------

@@ -51,7 +51,7 @@ const NUTRIENTS = [
   ["sodium_mg", "Salt (sodium)", "mg"],
 ];
 // Shown under the big number for "Everyday lighter", where calories lead.
-const SECONDARY = [["sat_fat_g", "Saturated fat", "g"], ["sodium_mg", "Salt", "mg"]];
+const SECONDARY = [["sat_fat_g", "Saturated fat", "g"], ["sodium_mg", "Sodium", "mg"]];
 
 const DEFAULT_CUISINES = {
   south_asian: "South Asian (Indian, Pakistani, Bangladeshi, Sri Lankan)",
@@ -1043,8 +1043,11 @@ function askedLine(e) {
     </div>`;
 }
 
+// A dish keeps its own tradition (adobo isn't South Asian), guessed when the recipe is read.
+function dishCuisine(e) { return e?.base?.cuisine || state.cuisine; }
+
 function askBox(e) {
-  const chips = state.cuisine === "south_asian" ? ASK_CHIPS_SOUTH_ASIAN : ASK_CHIPS;
+  const chips = dishCuisine(e) === "south_asian" ? ASK_CHIPS_SOUTH_ASIAN : ASK_CHIPS;
   const dis = e.asking ? " disabled" : "";
   return `
     <form class="ask" data-ask="${esc(e.id)}">
@@ -1109,8 +1112,11 @@ async function runAsks(e, list, draft) {
   const stale = () => findEntry(id) !== e || (e.origin !== "suggested" && condKey() !== key) || e.req !== token;
   try {
     // Always from the original (a suggested dish is its own original), with every ask so far.
-    const body = { recipe: baseFields(e.base), condition, also, cuisine: state.cuisine };
-    if (request) body.request = request;
+    const body = { recipe: baseFields(e.base), condition, also, cuisine: dishCuisine(e) };
+    if (request) {
+      body.request = request;
+      if (e.adapted) body.current = baseFields(e.adapted).ingredients; // an ask can't undo the lighter version
+    }
     const { recipe } = await api("/api/adapt", body);
     if (stale()) return;
     // A server that doesn't echo the request didn't act on it (e.g. the static preview): don't pretend it did.
@@ -1200,12 +1206,12 @@ function dishCard(e, index) {
           <div class="rc-block"><h4 class="rc-h">Ingredients</h4>${ingredientsBlock(r, { compare: false })}</div>
           ${methodBlock({ ...r, original: null })}
           ${portion ? `<div class="portion"><p class="portion-h">Portion</p><p>${esc(portion)}</p></div>` : ""}
-          ${askBox(e)}
           ${factsBlock(r)}
           <div class="rc-more"><details class="sub"><summary>Where the numbers come from</summary>${sourcesBlock({ ...r, original: null })}</details></div>
           ${links}
         </div>
-      </details>`;
+      </details>
+      ${askBox(e)}`;
   } else if (adapted) {
     const why = r.comparable === false
       ? `<p class="small-print">The new version uses something not in our food tables, so we don't claim a "% less".</p>` : "";
@@ -1225,7 +1231,6 @@ function dishCard(e, index) {
           ${changes.length ? `<div class="rc-block"><h4 class="rc-h">Why these changes</h4><ul class="changes">${changes.map((ch) => `
             <li><span class="tick" aria-hidden="true">✓</span><span>${esc(ch.what)}<span class="why">${esc(ch.why)}</span></span></li>`).join("")}</ul></div>` : ""}
           ${why}
-          ${askBox(e)}
           ${factsBlock(r)}
           <div class="rc-more">
             <details class="sub"><summary>Where the numbers come from</summary>${sourcesBlock(r)}</details>
@@ -1238,7 +1243,8 @@ function dishCard(e, index) {
           </div>
           ${links}
         </div>
-      </details>`;
+      </details>
+      ${askBox(e)}`;
   } else if (!isBusy) {
     const unc = n.uncounted?.length ? `<p class="small-print">Not counted yet (not in our tables): ${esc(n.uncounted.join(", "))}.</p>` : "";
     body = `
@@ -1330,7 +1336,7 @@ async function adaptOne(id) {
   renderCard(id);
   const stale = () => findEntry(id) !== e || condKey() !== key || e.req !== token;
   try {
-    const { recipe } = await api("/api/adapt", { recipe: baseFields(e.base), condition, also, cuisine: state.cuisine });
+    const { recipe } = await api("/api/adapt", { recipe: baseFields(e.base), condition, also, cuisine: dishCuisine(e) });
     // Drop the reply if the dish was removed/replaced, the health focus changed, or a newer request started.
     if (stale()) return "stale";
     if (recipe.condition && recipe.condition !== condition) return "stale";
@@ -2083,7 +2089,7 @@ function progressHTML(title, stages) {
       <h3 id="planningTitle" class="planning-title" tabindex="-1">${esc(title)}</h3>
       <ol class="stages">${stages.map((s, i) => `<li data-stage="${i}"><span class="stage-mark" aria-hidden="true"></span><span class="stage-text">${esc(s)}</span><span class="sr-only stage-state"></span></li>`).join("")}</ol>
       <div class="planning-foot">
-        <p class="muted">Usually takes 30–40 seconds <span class="secs" aria-hidden="true"></span></p>
+        <p class="muted">Usually takes about 45 seconds <span class="secs" aria-hidden="true"></span></p>
         <button type="button" class="btn btn-quiet btn-small" data-cancel-plan>Cancel</button>
       </div>
     </div>`;

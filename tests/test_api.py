@@ -299,3 +299,22 @@ def test_index_has_absolute_link_preview_urls(client):
 def test_index_never_echoes_odd_host_headers(client, headers):
     r = client.get("/", headers=headers)
     assert "<script>alert" not in r.text and "javascript:" not in r.text and "{{ORIGIN}}" not in r.text
+
+
+def test_an_ask_cannot_undo_the_lighter_version(client, monkeypatch):
+    from app import llm
+    recipe = client.post("/api/parse", json={"text": "Dal chawal: 1 katori toor dal, 2 katori rice, 1 tomato, 1 spoon ghee"}).json()["recipe"]
+    lighter = [{"item": "toor dal", "grams": 100}, {"item": "white rice", "grams": 150}, {"item": "brown rice", "grams": 100},
+               {"item": "tomato", "grams": 120}, {"item": "ghee", "grams": 5}]
+    worse = {"ingredients": [{"item": "toor dal", "grams": 100}, {"item": "white rice", "grams": 370}, {"item": "tomato", "grams": 120}],
+             "changes": [{"what": "No cauliflower here", "why": "x"}]}
+    calls = []
+    monkeypatch.setattr(llm, "is_live", lambda: True)
+    def fake(*a, **k):
+        calls.append(1)
+        return (worse if len(calls) == 1 else {"ingredients": lighter, "changes": [{"what": "Kept the lighter amounts", "why": "y"}]},
+                {"step": "Adapt dish", "tier": "super", "model": "f", "ms": 1})
+    monkeypatch.setattr(llm, "chat_json", fake)
+    r = client.post("/api/adapt", json={"recipe": recipe, "condition": "diabetes", "request": "Dad hates cauliflower",
+                                        "current": lighter}).json()["recipe"]
+    assert len(calls) == 2 and r["changes"][0]["what"] == "Kept the lighter amounts"

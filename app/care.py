@@ -251,8 +251,10 @@ def _stop_rule(remedy: str, said: str = "") -> tuple[str, str, bool] | None:
     """Stop rules match the remedy itself; `said` (the family's whole text) only adds the swallowed case."""
     for pattern, why, instead, offer in STOP_RULES:
         if re.search(pattern, remedy or "", re.IGNORECASE):
-            if INGESTED.search(f"{remedy} {said}"):  # swallowed, not on skin: that's an emergency
-                instead = "If any was swallowed, call your local poison centre or emergency number now; don't make them vomit."
+            if INGESTED.search(f"{remedy} {said}"):  # swallowed, not on skin: that's an emergency, said first
+                why = ("If any was swallowed, this is an emergency: call your local emergency number now "
+                       "(112 in India, 911 in the US, 999 in the UK) or a poison centre. Don't make them vomit.")
+                instead = "Keep the bottle to show the doctor, and give nothing to eat or drink unless they tell you to."
                 offer = False  # no skin products in an emergency
             return why, instead, offer
     return None
