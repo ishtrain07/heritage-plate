@@ -189,19 +189,27 @@ def _translate(texts: list[str], language: str) -> tuple[list[str], list[dict]]:
     if not language or language == "English" or not llm.is_live() or not any(texts):
         return texts, []
     unique = list(dict.fromkeys(t for t in texts if t))
+    keyed = {f"t{i}": t for i, t in enumerate(unique)}  # matched by key, never by position
     try:
         data, trace = llm.chat_json("super", prompts.TRANSLATE.format(language=language),
-                                    json.dumps(unique, ensure_ascii=False), step="Translate", max_tokens=4000)
+                                    json.dumps(keyed, ensure_ascii=False), step="Translate", max_tokens=4000,
+                                    deadline_s=TRANSLATE_DEADLINE_S)
     except llm.LLMError:
         return texts, []
     out = data.get("texts")
-    if not isinstance(out, list) or len(out) != len(unique) or not all(isinstance(t, str) and t.strip() for t in out):
-        return texts, [trace]
-    done = dict(zip(unique, out))
+    if not isinstance(out, dict) or not all(isinstance(out.get(k), str) and out[k].strip() for k in keyed):
+        return texts, [trace]  # any entry missing: keep all the English rather than risk a mix-up
+    done = {t: out[k].strip() for k, t in keyed.items()}
     return [done.get(t, t) for t in texts], [trace]
 
 
+def _with_english(translated: str, english: str) -> str:
+    """Safety sentences keep the English beside the translation, so a mistranslation never stands alone."""
+    return translated if not english or translated == english else f"{translated} ({english})"
+
+
 CARD_FIELDS = ("how", "cautions", "find", "pregnancy_note")
+TRANSLATE_DEADLINE_S = 20  # a slow translation falls back to English instead of timing out the request
 
 
 def _localize(cards: list[dict], extra: list[str], language: str) -> tuple[list[str], list[dict]]:
@@ -337,11 +345,13 @@ def check_remedy(text: str, member: dict, country: str, language: str) -> tuple[
     cards = [c for r in remedies for c in r["better"]]
     extra = [*flags, *(n for r in remedies for n in r["notes"]), *(t for r in remedies for t in r["_pre"])]
     done, more = _localize(cards, extra, language)
-    flags, rest = done[:len(flags)], done[len(flags):]
+    flags, rest = [_with_english(t, e) for t, e in zip(done, flags)], done[len(flags):]
     for r in remedies:
         r["notes"], rest = rest[:len(r["notes"])], rest[len(r["notes"]):]
     for r in remedies:  # our sentence first (safety), then the model's
         (pre_why, pre_how), rest = rest[:2], rest[2:]
+        if r["safety_rule"]:
+            pre_why, pre_how = _with_english(pre_why, r["_pre"][0]), _with_english(pre_how, r["_pre"][1])
         r["why"] = " ".join(t for t in (pre_why, r["why"]) if t)[:700]
         r["how_better"] = (pre_how if r["safety_rule"] else " ".join(t for t in (r["how_better"], pre_how) if t))[:500]
         del r["_pre"]
@@ -483,7 +493,10 @@ def care_plan(members: list[dict], country: str, language: str) -> tuple[dict, l
     done, more = _localize(cards, extra, language)
     for p in plans:
         n1, n2 = len(p["red_flags"]), len(p["doctor_notes"])
-        p["red_flags"], p["doctor_notes"], done = done[:n1], done[n1:n1 + n2], done[n1 + n2:]
+        en_flags, en_notes = p["red_flags"], p["doctor_notes"]
+        p["red_flags"] = [_with_english(t, e) for t, e in zip(done[:n1], en_flags)]
+        p["doctor_notes"] = [_with_english(t, e) for t, e in zip(done[n1:n1 + n2], en_notes)]
+        done = done[n1 + n2:]
     for s in shopping.values():
         s["find"], done = done[0], done[1:]
     return {"people": plans, "shopping": list(shopping.values()), "note_for_family": note if language else "",
@@ -610,7 +623,7 @@ async def care_library():
 @router.post("/remedy")
 def remedy(body: RemedyIn, request: Request):
     """Check a home remedy, said or typed the family's way."""
-    _rate_limit(request)
+    _rate_limit(request, cost=2 if body.language not in ("", "English") else 1)  # translating costs one more call
     check_input(body.text, "remedy")
     result, trace = _guard(check_remedy, body.text.strip(), body.member.model_dump(), body.country, _check_language(body.language))
     return {"result": result, "trace": trace}
@@ -619,7 +632,7 @@ def remedy(body: RemedyIn, request: Request):
 @router.post("/plan")
 def plan(body: PlanIn, request: Request):
     """A skin & hair routine for each family member, from checked ingredients only."""
-    _rate_limit(request, cost=2)
+    _rate_limit(request, cost=3 if body.language not in ("", "English") else 2)
     for m in body.members:
         check_input(f"{m.wants} {m.details}", "details", field="details")
     result, trace = _guard(care_plan, [m.model_dump() for m in body.members], body.country, _check_language(body.language))

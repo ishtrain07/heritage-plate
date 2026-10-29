@@ -446,7 +446,7 @@ using numbers precomputed by the real engine, plus Care's example remedies, samp
 
 def build(out: Path, standalone: bool = False) -> None:
     static = ROOT / "static"
-    html = (static / "index.html").read_text(encoding="utf-8")
+    html = (static / "index.html").read_text(encoding="utf-8").replace("{{ORIGIN}}", "")  # previews: relative links
     body = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL).group(1)
     body = re.sub(r'\s*<script src="/static/[\w.-]+\.js(?:\?v=[\w.-]+)?"></script>', "", body)
     # The tiny <head> script that picks home | plate | care before first paint (no flash of Plate).

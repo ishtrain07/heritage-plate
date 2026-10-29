@@ -292,3 +292,10 @@ def test_index_has_absolute_link_preview_urls(client):
     r = client.get("/", headers={"x-forwarded-proto": "https", "x-forwarded-host": "heritage.example"})
     assert r.status_code == 200 and r.headers["cache-control"] == "no-cache"
     assert 'content="https://heritage.example/static/og.jpg"' in r.text and "{{ORIGIN}}" not in r.text
+
+
+@pytest.mark.parametrize("headers", [{"x-forwarded-host": 'evil"><script>alert(1)</script>'},
+                                     {"x-forwarded-proto": 'javascript:x"onload=1'}])
+def test_index_never_echoes_odd_host_headers(client, headers):
+    r = client.get("/", headers=headers)
+    assert "<script>alert" not in r.text and "javascript:" not in r.text and "{{ORIGIN}}" not in r.text

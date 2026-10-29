@@ -71,7 +71,7 @@ WORDS = {
              "sardine", "mackerel", "kimchi", "dashi"),
     "egg": ("egg", "mayo"),
     "dairy": ("milk", "cheese", "butter", "ghee", "cream", "yogurt", "yoghurt", "curd", "paneer", "khoa", "whey", "dahi"),
-    "pork": ("pork", "bacon", "ham", "lard", "gelatin", "salami", "pepperoni", "chorizo", "prosciutto", "pancetta"),
+    "pork": ("pork", "bacon", "ham", "lard", "gelatin", "salami", "pepperoni", "chorizo", "prosciutto", "pancetta", "jamon", "jamón"),
     "alcohol": ("wine", "beer", "rum", "brandy", "whisky", "vodka", "sake", "mirin", "liqueur", "alcohol"),
     "shellfish": ("prawn", "shrimp", "crab", "lobster", "oyster", "squid", "clam", "mussel", "scallop"),
     "root": ("onion", "garlic", "potato", "carrot", "beet", "beetroot", "radish", "turnip", "yam", "ginger", "mushroom", "shallot", "leek"),
@@ -164,7 +164,7 @@ def body_check(profile: dict) -> dict | None:
 def goals_of(profile: dict) -> list[str]:
     """Several goals can be picked; "maintain" (eat well) only counts when it's the only one."""
     goals = [g for g in (profile.get("goals") or [profile.get("goal") or "maintain"]) if g in GOALS]
-    return [g for g in goals if g != "maintain"] or ["maintain"]
+    return list(dict.fromkeys(g for g in goals if g != "maintain")) or ["maintain"]
 
 
 def calorie_target(profile: dict) -> tuple[int | None, float | None, list[str]]:
@@ -200,7 +200,9 @@ def calorie_target(profile: dict) -> tuple[int | None, float | None, list[str]]:
         if body["band"] == "low":
             notes.append(f"BMI is about {body['bmi']}, which is already low, so this plan keeps calories at "
                          "maintenance instead of cutting. Please check with a doctor.")
-            per_kg = 1.0 if older else 0.8
+            per_kg = 1.6 if muscle else 1.0 if older else 0.8  # building muscle still needs the protein
+            if muscle:
+                target = tdee + 250  # underweight: no cut, a small surplus for the muscle goal
         else:
             cut = 250 if body["band"] == "healthy" or muscle else 300 if older else 500
             if muscle:
