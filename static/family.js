@@ -127,11 +127,8 @@ function cleanFamily(d) {
   out.mode = d.mode === "plate" || d.mode === "care" ? d.mode : "";
   out.language = typeof d.language === "string" && d.language.length <= 30 ? d.language : "English";
   out.country = CARE_COUNTRY_KEYS.includes(d.country) ? d.country : "";
-  const seen = new Set();
-  const names = new Set(); // one person per name: drops accidental duplicates like "Nidi, Nidi"
-  const nameKey = (m) => (m.name || "").trim().toLowerCase();
-  out.members = fList(d.members, FAMILY_MAX).map(cleanMember)
-    .filter((m) => m && !seen.has(m.id) && seen.add(m.id) && (!nameKey(m) || (!names.has(nameKey(m)) && names.add(nameKey(m)))));
+  const seen = new Set(); // same id twice is a broken save; same name is allowed here (it's only merged when adding)
+  out.members = fList(d.members, FAMILY_MAX).map(cleanMember).filter((m) => m && !seen.has(m.id) && seen.add(m.id));
   out.plate = fIsObj(d.plate) && d.plate.v === 1 ? d.plate : null;
   if (d.migratedFrom === 1) out.migratedFrom = 1;
   const cb = fIsObj(d.careBook) ? d.careBook : {};
@@ -234,6 +231,15 @@ function setMode(mode) {
   persistFamily();
 }
 
+// "peanut" + "shellfish" → "peanut, shellfish"; if one already contains the other, keep the longer one.
+function joinNotes(a, b) {
+  const x = (a || "").trim(), y = (b || "").trim();
+  if (!x || !y) return x || y;
+  if (x.toLowerCase().includes(y.toLowerCase())) return x;
+  if (y.toLowerCase().includes(x.toLowerCase())) return y;
+  return `${x}, ${y}`.slice(0, 200);
+}
+
 function upsertMember(m) {
   const f = readFamily();
   const clean = cleanMember(m);
@@ -244,12 +250,18 @@ function upsertMember(m) {
     i = f.members.findIndex((x) => x.name.trim().toLowerCase() === key);
     if (i >= 0) {
       const old = f.members[i];
+      const given = (k) => fIsObj(m) && m[k] !== undefined && m[k] !== null && m[k] !== "";
+      const careIn = fIsObj(m.care) ? m.care : {};
+      const newCare = Object.fromEntries(Object.entries(clean.care).filter(([k, v]) => careIn[k] !== undefined && (Array.isArray(v) ? v.length : v)));
+      // Keep everything we knew; nothing given here wipes it. Allergies are joined, never replaced.
       const merged = cleanMember({
         ...old, id: old.id,
-        age: clean.age ?? old.age, sex: clean.sex || old.sex, pregnant: clean.pregnant || old.pregnant,
+        age: given("age") ? clean.age : old.age,
+        sex: given("sex") ? clean.sex : old.sex,
+        pregnant: given("pregnant") ? clean.pregnant : old.pregnant,
         conditions: [...new Set([...old.conditions, ...clean.conditions])],
-        allergies: clean.allergies || old.allergies,
-        care: { ...old.care, concerns: clean.care.concerns.length ? clean.care.concerns : old.care.concerns },
+        allergies: joinNotes(old.allergies, clean.allergies),
+        care: { ...old.care, ...newCare },
       });
       f.members[i] = merged;
       persistFamily();

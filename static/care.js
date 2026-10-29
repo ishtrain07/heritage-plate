@@ -644,6 +644,11 @@ function onPersonEdit(e) {
     renderWho();
   };
   if (e.type === "change") save(); else care.saveTimer = setTimeout(save, 300);
+  if (e.type === "change" && e.target.dataset.field === "name") {
+    const name = e.target.value.trim().toLowerCase();
+    const twin = name && careMembers().find((x) => x.id !== card.dataset.person && x.name.trim().toLowerCase() === name);
+    if (twin) toast(`There's already someone called ${twin.name}. A different name helps you tell them apart.`);
+  }
 }
 
 function addPerson() {

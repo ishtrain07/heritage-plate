@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import html
 import json
 import logging
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -215,6 +217,9 @@ def week(body: WeekIn, request: Request):
 app.include_router(care.router)  # Heritage Care: /api/care/*
 
 
+_HOST = re.compile(r"[A-Za-z0-9.-]+(:\d{1,5})?")
+
+
 @lru_cache
 def _index_html() -> str:
     return (ROOT / "static" / "index.html").read_text(encoding="utf-8")
@@ -223,9 +228,11 @@ def _index_html() -> str:
 @app.get("/")
 def index(request: Request):
     # Link previews (WhatsApp, iMessage, Slack) need absolute URLs, so fill in this site's own address.
-    proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
-    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc).split(",")[0].strip()
-    origin = f"{proto}://{host}"
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip().lower()
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
+    if proto not in ("http", "https") or not _HOST.fullmatch(host):  # never echo an odd header into the page
+        proto, host = request.url.scheme, request.url.netloc
+    origin = html.escape(f"{proto}://{host}", quote=True)
     return HTMLResponse(_index_html().replace("{{ORIGIN}}", origin), headers={"Cache-Control": "no-cache"})
 
 

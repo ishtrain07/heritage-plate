@@ -14,7 +14,7 @@ quinoa,,grain,200,368.0,64.16,7.0,14.12,6.07,0.71,5.0,USDA SR28,20035,"QUINOA,UN
 barley,pearl barley|jau,grain,150,352.0,77.72,15.6,9.91,1.16,0.24,9.0,USDA SR28,20005,"BARLEY,PEARLED,RAW"
 bulgur,bulgur wheat|burghul|dalia,grain,200,342.0,75.87,12.5,12.29,1.33,0.23,17.0,USDA SR28,20012,"BULGUR,DRY"
 couscous,,grain,200,376.0,77.43,5.0,12.76,0.64,0.12,10.0,USDA SR28,20028,"COUSCOUS,DRY"
-cornmeal,polenta|masa|makki ka atta|maize flour,grain,250,370.0,79.45,3.9,7.11,1.75,0.22,7.0,USDA SR28,20422,"CORNMEAL,DEGERMED,UNENR,YEL"
+cornmeal,polenta|makki ka atta|maize flour,grain,250,370.0,79.45,3.9,7.11,1.75,0.22,7.0,USDA SR28,20422,"CORNMEAL,DEGERMED,UNENR,YEL"
 pasta,spaghetti|penne|macaroni|fusilli,grain,400,371.0,74.67,3.2,13.04,1.51,0.28,6.0,USDA SR28,20120,"PASTA,DRY,ENR"
 egg noodles,noodles|lo mein|hakka noodles|ramen noodles|pancit canton,grain,300,384.0,71.27,3.3,14.16,4.44,1.18,21.0,USDA SR28,20409,"NOODLES,EGG,DRY,UNENR"
 rice noodles,rice vermicelli|pho noodles|pad thai noodles|bihon|sevai,grain,250,364.0,80.18,1.6,5.95,0.56,0.15,182.0,USDA SR28,20133,"RICE NOODLES,DRY"
@@ -28,7 +28,7 @@ cornstarch,corn starch|cornflour|corn flour|arrowroot,grain,20,381.0,91.27,0.9,0
 gram flour,besan|chickpea flour,legume,150,387.0,57.82,10.8,22.39,6.69,0.69,64.0,USDA SR28,16157,CHICKPEA FLOUR (BESAN)
 toor dal,arhar dal|tuvar dal|pigeon pea|arhar|red gram,legume,200,330.78,64.29,9.06,21.7,1.56,0.26,18.01,IFCT 2017,B021,"Red gram, dal"
 moong dal,mung dal|yellow moong|green gram dal,legume,200,325.76,61.96,9.37,23.88,1.35,0.25,10.14,IFCT 2017,B010,"Green gram, dal"
-masoor dal,red lentils|lentils|masoor|lentil,legume,200,322.42,62.96,10.43,24.35,0.75,0.09,10.27,IFCT 2017,B013,Lentil dal
+masoor dal,red lentils|masoor|masoor ki dal,legume,200,322.42,62.96,10.43,24.35,0.75,0.09,10.27,IFCT 2017,B013,Lentil dal
 chana dal,split chickpeas|bengal gram dal,legume,200,329.11,61.87,15.15,21.55,5.31,0.47,20.83,IFCT 2017,B001,"Bengal gram, dal"
 chickpeas,chole|kabuli chana|garbanzo|garbanzo beans|chana|hummus beans,legume,250,378.0,62.95,12.2,20.47,6.04,0.6,24.0,USDA SR28,16056,"CHICKPEAS (GARBANZO BNS,BENGAL GM),MATURE SEEDS,RAW"
 kidney beans,rajma|red kidney beans|red beans,legume,250,299.24,65.18,16.57,19.91,1.77,0.26,10.45,IFCT 2017,B020,"Rajmah, red"
@@ -90,7 +90,7 @@ lettuce,romaine|cos lettuce,vegetable,150,17.0,3.29,2.1,1.23,0.3,0.04,8.0,USDA S
 cucumber,kheera|pipino|pepino,vegetable,200,15.0,3.63,0.5,0.65,0.11,0.04,2.0,USDA SR28,11205,"CUCUMBER,WITH PEEL,RAW"
 avocado,aguacate|butter fruit,vegetable,150,160.0,8.53,6.7,2.0,14.66,2.13,7.0,USDA SR28,09037,"AVOCADOS,RAW,ALL COMM VAR"
 kimchi,,vegetable,150,15.0,2.4,1.6,1.1,0.5,0.07,498.0,USDA SR28,11118,"CABBAGE,KIMCHI"
-green chili,hari mirch|chili|chilli|chillies|chilies|green chilli|green chillies|green chilies|jalapeno|serrano|siling haba|scotch bonnet|habanero|serrano|siling labuyo,vegetable,10,45.65,11.18,4.86,2.62,0.73,0.13,3.32,IFCT 2017,G001,"Chillies, green-1"
+green chili,hari mirch|chili|chilli|chillies|chilies|green chilli|green chillies|green chilies|serrano|siling haba|scotch bonnet|habanero|siling labuyo,vegetable,10,45.65,11.18,4.86,2.62,0.73,0.13,3.32,IFCT 2017,G001,"Chillies, green-1"
 garlic,lahsun|lehsun|bawang|ajo,vegetable,10,123.8,27.15,5.22,6.92,0.16,0.03,9.42,IFCT 2017,G011,"Garlic, big clove"
 ginger,adrak|luya|jengibre,vegetable,10,54.97,14.33,5.36,2.22,0.85,0.23,10.03,IFCT 2017,G014,"Ginger, fresh"
 lemongrass,tanglad|sereh,vegetable,15,99.0,25.31,0.0,1.82,0.49,0.12,6.0,USDA SR28,11972,"LEMON GRASS (CITRONELLA),RAW"
@@ -194,7 +194,7 @@ olives,black olives|green olives|zaitoon,fat,50,115.0,6.26,3.2,0.84,10.68,1.42,7
 salt cod,saltfish|bacalao|bacalhau|bacalhau salgado,protein,200,290.0,0.0,0.0,62.82,2.37,0.46,7027.0,USDA SR28,15018,"COD,ATLANTIC,DRIED&SALTED"
 tilapia,tilapia fillet|pla nil,protein,300,96.0,0.0,0.0,20.08,1.7,0.58,52.0,USDA SR28,15261,"FISH,TILAPIA,RAW"
 sardines,sardine|tinapa|mathi|chaala,protein,150,208.0,0.0,0.0,24.62,11.45,1.53,307.0,USDA SR28,15088,"SARDINE,ATLANTIC,CND IN OIL,DRND SOL W/BONE"
-mackerel,bangda|tenggiri|saba|ikan kembung,protein,300,205.0,0.0,0.0,18.6,13.89,3.26,90.0,USDA SR28,15046,"MACKEREL,ATLANTIC,RAW"
+mackerel,bangda|tenggiri|ikan kembung,protein,300,205.0,0.0,0.0,18.6,13.89,3.26,90.0,USDA SR28,15046,"MACKEREL,ATLANTIC,RAW"
 chorizo,chouriço|longaniza,protein,150,455.0,1.86,0.0,24.1,38.27,14.38,1235.0,USDA SR28,07019,"CHORIZO,PORK AND BEEF"
 ground turkey,turkey mince|minced turkey|turkey,protein,400,148.0,0.0,0.0,19.66,7.66,2.02,58.0,USDA SR28,05305,"GROUND TURKEY,RAW"
 papaya,papita|papaw|lechosa,fruit,200,43.0,10.82,1.7,0.47,0.26,0.08,8.0,USDA SR28,09226,"PAPAYAS,RAW"

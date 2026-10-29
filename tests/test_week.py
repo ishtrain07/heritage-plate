@@ -168,3 +168,11 @@ def test_several_goals_lose_and_build_muscle():
     assert protein == round(1.6 * 90) and kcal > single and any("building muscle" in n for n in notes)
     assert dietitian.goals_of({"goals": ["maintain", "steady_sugar"]}) == ["steady_sugar"]
     assert dietitian.goals_of({"goal": "belly_fat"}) == ["belly_fat"]
+
+
+def test_underweight_muscle_goal_keeps_protein():
+    from app import dietitian
+    p = {"sex": "female", "age": 30, "height_cm": 165, "weight_kg": 48, "activity": "light"}
+    both = dietitian.calorie_target({**p, "goals": ["lose_weight", "build_muscle"]})
+    muscle = dietitian.calorie_target({**p, "goals": ["build_muscle"]})
+    assert both[:2] == muscle[:2] and both[1] == round(1.6 * 48)

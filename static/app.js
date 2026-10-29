@@ -2398,11 +2398,7 @@ async function shareCookbookPdf(btn) {
       pagebreak: { mode: ["css", "legacy"], avoid: [".cb-dish", ".cb-sec", "li"] },
     }).from($("cookbookView")).outputPdf("blob");
     const file = new File([blob], name, { type: "application/pdf" });
-    if (navigator.canShare?.({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: cookbookTitle() }); } catch (err) {
-        if (!err || err.name !== "AbortError") throw err;
-      }
-    } else {
+    const download = () => {
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = name;
@@ -2410,6 +2406,14 @@ async function shareCookbookPdf(btn) {
       a.click();
       setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       toast("PDF downloaded.");
+    };
+    if (navigator.canShare?.({ files: [file] })) {
+      // After a long wait some browsers no longer treat this as a tap and refuse to share: download instead.
+      try { await navigator.share({ files: [file], title: cookbookTitle() }); } catch (err) {
+        if (!err || err.name !== "AbortError") download();
+      }
+    } else {
+      download();
     }
   } catch {
     toast("Couldn't make the PDF here. Use Print and choose Save as PDF.", { label: "Print", run: printCookbook });

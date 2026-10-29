@@ -82,3 +82,19 @@ def test_global_foods_are_counted():
     from app import nutrition as n
     names = {f.name for f, _ in n.find_mentions(n.normalize("pozole hominy, saltfish, kamote tops, chaulai, arbi, scotch bonnet, guajillo"))}
     assert {"hominy", "salt cod", "sweet potato leaves", "amaranth leaves", "taro", "green chili", "chili powder"} <= names
+
+
+def test_no_alias_points_to_two_foods_and_new_names_resolve():
+    import csv
+    from collections import defaultdict
+
+    from app import nutrition as n
+    seen = defaultdict(set)
+    with open("data/ingredients.csv", encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            for a in [r["name"], *r["aliases"].split("|")]:
+                if a:
+                    seen[a.lower()].add(r["name"])
+    assert not {a: s for a, s in seen.items() if len(s) > 1}
+    for word, food in [("jalapeno", "jalapeno"), ("lentils", "lentils"), ("masa", "masa harina"), ("saba banana", "banana")]:
+        assert [f.name for f, _ in n.find_mentions(n.normalize(word))] == [food]

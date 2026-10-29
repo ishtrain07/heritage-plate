@@ -146,16 +146,17 @@ def flush_traces() -> None:
 
 
 def chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int = 2000,
-              fallback: bool = True) -> tuple[dict, dict]:
+              fallback: bool = True, deadline_s: float | None = None) -> tuple[dict, dict]:
     """Call a Nemotron tier and parse a JSON object from the reply (see _chat_json)."""
     try:
-        return _chat_json(tier, system, user, step=step, max_tokens=max_tokens, fallback=fallback)
+        return _chat_json(tier, system, user, step=step, max_tokens=max_tokens, fallback=fallback,
+                          deadline_s=deadline_s)
     finally:
         flush_traces()
 
 
 def _chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int = 2000,
-               fallback: bool = True) -> tuple[dict, dict]:
+               fallback: bool = True, deadline_s: float | None = None) -> tuple[dict, dict]:
     """Call a Nemotron tier and parse a JSON object from the reply.
 
     Returns (data, trace). Ultra falls back to Super if its call fails, so a
@@ -172,6 +173,7 @@ def _chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int 
         return data, {**trace, "cached": True, "ms": 0}
 
     started_all = time.perf_counter()
+    deadline = min(deadline_s, DEADLINE_S) if deadline_s else DEADLINE_S
     tiers = [tier, "super"] if tier == "ultra" and fallback else [tier]
     last_error: Exception | None = None
     for current in tiers:
@@ -183,9 +185,9 @@ def _chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int 
         attempt = 0
         while attempt < 2:
             attempt += 1
-            remaining = DEADLINE_S - (time.perf_counter() - started_all)
+            remaining = deadline - (time.perf_counter() - started_all)
             if remaining < 2:
-                raise LLMError(f"{step}: timed out after {DEADLINE_S:.0f}s")
+                raise LLMError(f"{step}: timed out after {deadline:.0f}s")
             _take_budget()
             try:
                 resp = _create(model, messages, max_tokens, current in NO_THINK_TIERS, min(timeout, remaining))

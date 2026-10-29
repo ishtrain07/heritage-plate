@@ -271,3 +271,38 @@ def test_red_flags_round_two(text, key):
 def test_swallowed_gets_no_products_and_ate_is_not_swallowed():
     assert care._stop_rule("toothpaste", "my son swallowed toothpaste")[2] is False
     assert "poison" not in care._stop_rule("toothpaste on the pimple", "I ate spicy food, then put toothpaste on the pimple")[1]
+
+
+# ---------- review round 3 ----------
+
+def _translator(monkeypatch, make):
+    monkeypatch.setattr(llm, "is_live", lambda: True)
+    def fake(tier, system, user, **k):
+        if k.get("step") == "Translate":
+            import json as _j
+            return make(_j.loads(user)), {"step": "Translate", "tier": tier, "model": "f", "ms": 1}
+        return ({"remedies": [{"remedy": "kerosene", "verdict": "keep", "why": "w", "better": []}]},
+                {"step": "x", "tier": tier, "model": "f", "ms": 1})
+    monkeypatch.setattr(llm, "chat_json", fake)
+
+
+def test_reordered_translation_cannot_move_safety_text(monkeypatch):
+    def reorder(keyed):  # values shuffled between keys
+        vals = list(keyed.values())[::-1]
+        return {"texts": {k: f"HI:{v}" for k, v in zip(keyed, vals)}}
+    _translator(monkeypatch, reorder)
+    res, _ = care.check_remedy("kerosene on lice for my son, he drank some", {"age": 6, "concerns": ["acne"]}, "IN", "Hindi")
+    r = res["remedies"][0]
+    assert "poison centre" in r["how_better"] and "Kerosene" in r["why"]  # English always kept beside safety text
+
+
+def test_missing_translation_key_keeps_all_english(monkeypatch):
+    _translator(monkeypatch, lambda keyed: {"texts": {k: "HI" for k in list(keyed)[1:]}})
+    res, _ = care.check_remedy("kerosene for lice", {}, "IN", "Hindi")
+    assert "HI" not in res["remedies"][0]["why"] and "Kerosene" in res["remedies"][0]["why"]
+
+
+def test_keyed_translation_is_used_when_complete(monkeypatch):
+    _translator(monkeypatch, lambda keyed: {"texts": {k: f"HI:{v}" for k, v in keyed.items()}})
+    res, _ = care.check_remedy("kerosene for lice", {}, "IN", "Hindi")
+    assert res["remedies"][0]["why"].startswith("HI:Kerosene") and "(Kerosene" in res["remedies"][0]["why"]

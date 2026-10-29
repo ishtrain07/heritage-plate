@@ -14,7 +14,7 @@ quinoa,,grain,200,USDA,20035
 barley,pearl barley|jau,grain,150,USDA,20005
 bulgur,bulgur wheat|burghul|dalia,grain,200,USDA,20012
 couscous,,grain,200,USDA,20028
-cornmeal,polenta|masa|makki ka atta|maize flour,grain,250,USDA,20422
+cornmeal,polenta|makki ka atta|maize flour,grain,250,USDA,20422
 pasta,spaghetti|penne|macaroni|fusilli,grain,400,USDA,20120
 egg noodles,noodles|lo mein|hakka noodles|ramen noodles|pancit canton,grain,300,USDA,20409
 rice noodles,rice vermicelli|pho noodles|pad thai noodles|bihon|sevai,grain,250,USDA,20133
@@ -28,7 +28,7 @@ cornstarch,corn starch|cornflour|corn flour|arrowroot,grain,20,USDA,20027
 gram flour,besan|chickpea flour,legume,150,USDA,16157
 toor dal,arhar dal|tuvar dal|pigeon pea|arhar|red gram,legume,200,IFCT,B021
 moong dal,mung dal|yellow moong|green gram dal,legume,200,IFCT,B010
-masoor dal,red lentils|lentils|masoor|lentil,legume,200,IFCT,B013
+masoor dal,red lentils|masoor|masoor ki dal,legume,200,IFCT,B013
 chana dal,split chickpeas|bengal gram dal,legume,200,IFCT,B001
 chickpeas,chole|kabuli chana|garbanzo|garbanzo beans|chana|hummus beans,legume,250,USDA,16056
 kidney beans,rajma|red kidney beans|red beans,legume,250,IFCT,B020
@@ -90,7 +90,7 @@ lettuce,romaine|cos lettuce,vegetable,150,USDA,11251
 cucumber,kheera|pipino|pepino,vegetable,200,USDA,11205
 avocado,aguacate|butter fruit,vegetable,150,USDA,09037
 kimchi,,vegetable,150,USDA,11118
-green chili,hari mirch|chili|chilli|chillies|chilies|green chilli|green chillies|green chilies|jalapeno|serrano|siling haba|scotch bonnet|habanero|serrano|siling labuyo,vegetable,10,IFCT,G001
+green chili,hari mirch|chili|chilli|chillies|chilies|green chilli|green chillies|green chilies|serrano|siling haba|scotch bonnet|habanero|siling labuyo,vegetable,10,IFCT,G001
 garlic,lahsun|lehsun|bawang|ajo,vegetable,10,IFCT,G011
 ginger,adrak|luya|jengibre,vegetable,10,IFCT,G014
 lemongrass,tanglad|sereh,vegetable,15,USDA,11972
@@ -194,7 +194,7 @@ olives,black olives|green olives|zaitoon,fat,50,USDA,09193
 salt cod,saltfish|bacalao|bacalhau|bacalhau salgado,protein,200,USDA,15018
 tilapia,tilapia fillet|pla nil,protein,300,USDA,15261
 sardines,sardine|tinapa|mathi|chaala,protein,150,USDA,15088
-mackerel,bangda|tenggiri|saba|ikan kembung,protein,300,USDA,15046
+mackerel,bangda|tenggiri|ikan kembung,protein,300,USDA,15046
 chorizo,chouriço|longaniza,protein,150,USDA,07019
 ground turkey,turkey mince|minced turkey|turkey,protein,400,USDA,05305
 papaya,papita|papaw|lechosa,fruit,200,USDA,09226
