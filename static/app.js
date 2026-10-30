@@ -577,7 +577,7 @@ function saveBook() {
       plan: state.plan && !state.planStale ? state.plan : null,
       week: state.week,
       profile: state.profileSet ? state.profile : null,
-      household: state.household,
+      household: state.household, householdChosen: Boolean(state.householdChosen),
     };
     writePlate(data); // the shared family store (static/family.js)
   } catch { /* storage blocked or full: the book lasts for this visit */ }
@@ -684,6 +684,7 @@ function restoreBookUnsafe(d) {
   state.profile = d.profile ? cleanProfile(d.profile) : defaultProfile();
   state.profileSet = Boolean(d.profile);
   state.household = Math.min(12, Math.max(1, Math.round(num(d.household)) || 1));
+  state.householdChosen = d.householdChosen === true;
   state.cookbookVersion += 1;
   state.saved = null;
   fillSelects();
@@ -2081,7 +2082,7 @@ function toggleSkip(key) {
   renderPlan();
   saveBook();
   const after = plan.shopping_list.length;
-  toast(after === before ? "Shopping list updated." : `Shopping list updated: ${after} items (was ${before}).`);
+  toast(state.planStale ? "Your dishes changed: update the week first, then the list follows." : after === before ? "Shopping list updated." : `Shopping list updated: ${after} items (was ${before}).`);
   document.querySelector(`[data-skip="${key}"]`)?.focus();
 }
 

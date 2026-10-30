@@ -142,8 +142,8 @@ function addToListHTML(r) {
 async function loadNews(product) {
   if (!product || product.length < 3 || /^scanned product$/i.test(product)) return;
   try {
-    const { items } = await api("/api/scan/news", { product }, 9000);
-    if (!items?.length || !$("scanOut").querySelector(".scan-card")) return;
+    const items = ((await api("/api/scan/news", { product }, 9000)).items || []).filter((x) => /^https?:\/\//i.test(x.url || ""));
+    if (!items.length || !$("scanOut").querySelector(".scan-card")) return;
     $("scanOut").querySelector(".scan-card").insertAdjacentHTML("beforeend", `
       <div class="scan-news"><h4 class="scan-h">In the news</h4>
         <ul>${items.map((x) => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a></li>`).join("")}</ul>
