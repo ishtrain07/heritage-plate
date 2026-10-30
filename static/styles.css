@@ -2269,3 +2269,11 @@ html[data-side] .side-switch a[data-side-link][aria-current="page"] { background
 .fam-photo-btn { cursor: pointer; }
 .fam-photo-btn:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
 .avatar.av-photo { background-size: cover; background-position: center; }
+/* placeholder art until photos: a large line icon on a soft gradient */
+.today-ph svg { width: 72px; height: 72px; fill: none; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; opacity: .9; }
+.ph-scan svg { stroke: var(--deep); } .ph-shop svg { stroke: var(--deep); } .ph-care svg { stroke: var(--clay); }
+.ph-scan { background: radial-gradient(circle at 70% 30%, var(--tile-sage), transparent 60%), linear-gradient(135deg, var(--surface-warm), var(--tile-green)); }
+.ph-shop { background: radial-gradient(circle at 30% 70%, var(--tile-sun), transparent 60%), linear-gradient(135deg, var(--tile-green), var(--surface-warm)); }
+.ph-care { background: radial-gradient(circle at 70% 30%, var(--tile-clay), transparent 60%), linear-gradient(135deg, var(--surface-warm), var(--tile-clay)); }
+:root[data-theme="dark"] .ph-scan, :root[data-theme="dark"] .ph-shop, :root[data-theme="dark"] .ph-care { background: linear-gradient(135deg, var(--surface-warm), var(--tile-green)); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ph-scan, :root:not([data-theme="light"]) .ph-shop, :root:not([data-theme="light"]) .ph-care { background: linear-gradient(135deg, var(--surface-warm), var(--tile-green)); } }

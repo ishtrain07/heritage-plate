@@ -32,7 +32,7 @@
       document.documentElement.setAttribute("data-side", s);
     })();
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261106">
+  <link rel="stylesheet" href="/static/styles.css?v=20261107">
 </head>
 <body>
   <a class="skip" href="#main">Skip to the app</a>
@@ -45,7 +45,7 @@
       </a>
       <nav class="side-switch" aria-label="Sections">
         <a href="#plate" data-side-link="plate"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M16 3c-2 1-3 4-3 7h3v11"/></svg><span>Food</span></a>
-        <a href="#home" data-go="insights" data-pill="health"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.3 4.3 4.3 0 0 1 19.5 10C19.5 15.4 12 20 12 20Z"/></svg><span>Health</span></a>
+        <a href="#home" data-go="insights" data-pill="health"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.3 4.3 4.3 0 0 1 19.5 10C19.5 15.4 12 20 12 20Z"/></svg><span>Insights</span></a>
         <a href="#care" data-side-link="care"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14Z"/><path d="M5 19 13 11"/></svg><span>Skin &amp; Hair</span></a>
         <a href="#plate" data-go="shop" data-pill="shop"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h2l2.2 11h10.6L20 7H6.2"/><circle cx="9" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg><span>Shop</span></a>
       </nav>
@@ -103,9 +103,9 @@
           <h2 id="todayTitle" class="sec2-title">What would you like to do today?</h2>
           <ul class="today-grid">
             <li><a class="today-card" href="#plate" data-go="plate-suggest"><span class="today-ph ph-cook" aria-hidden="true"></span><span class="today-t"><b>What can we cook?</b><span>One meal for everyone at the table</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
-            <li><a class="today-card" href="#home" data-go="scan"><span class="today-ph ph-scan" aria-hidden="true"></span><span class="today-t"><b>Can we use this?</b><span>Scan a food or skin-care label</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
-            <li><a class="today-card" href="#plate" data-go="plate-week"><span class="today-ph ph-shop" aria-hidden="true"></span><span class="today-t"><b>What should we buy?</b><span>A week of meals, one shopping list</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
-            <li><a class="today-card" href="#care" data-go="care-remedy"><span class="today-ph ph-care" aria-hidden="true"></span><span class="today-t"><b>Is Nani's remedy safe?</b><span>Skin &amp; hair, checked honestly</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
+            <li><a class="today-card" href="#home" data-go="scan"><span class="today-ph ph-scan" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/></svg></span><span class="today-t"><b>Can we use this?</b><span>Scan a food or skin-care label</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
+            <li><a class="today-card" href="#plate" data-go="plate-week"><span class="today-ph ph-shop" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1.5 10a1.5 1.5 0 0 1-1.5 1.3H7a1.5 1.5 0 0 1-1.5-1.3Z"/><path d="M8.5 9 11 4M15.5 9 13 4M9 13v4M12 13v4M15 13v4"/></svg></span><span class="today-t"><b>What should we buy?</b><span>A week of meals, one shopping list</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
+            <li><a class="today-card" href="#care" data-go="care-remedy"><span class="today-ph ph-care" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14Z"/><path d="M5 19 13 11"/></svg></span><span class="today-t"><b>Is Nani's remedy safe?</b><span>Skin &amp; hair, checked honestly</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
           </ul>
         </section>
 
@@ -696,12 +696,12 @@
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js?v=20261106"></script>
-  <script src="/static/app.js?v=20261106"></script>
-  <script src="/static/care.js?v=20261106"></script>
-  <script src="/static/scan.js?v=20261106"></script>
-  <script src="/static/setup.js?v=20261106"></script>
-  <script src="/static/insights.js?v=20261106"></script>
-  <script src="/static/shop.js?v=20261106"></script>
+  <script src="/static/family.js?v=20261107"></script>
+  <script src="/static/app.js?v=20261107"></script>
+  <script src="/static/care.js?v=20261107"></script>
+  <script src="/static/scan.js?v=20261107"></script>
+  <script src="/static/setup.js?v=20261107"></script>
+  <script src="/static/insights.js?v=20261107"></script>
+  <script src="/static/shop.js?v=20261107"></script>
 </body>
 </html>
