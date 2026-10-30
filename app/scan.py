@@ -31,42 +31,44 @@ MOCK_LABEL = ("Masala Instant Noodles\nIngredients: Refined wheat flour (maida),
               "Carbohydrate 62 g, Sugars 3 g, Fat 18 g, Sodium 1250 mg")
 
 # Text that has no place on a product label: refuse it rather than explain it.
-OBSCENE = re.compile(r"\b(porn\w*|nude|naked|sex(ual|y)?|fuck\w*|nsfw|xxx|kill (you|him|her|them))\b", re.IGNORECASE)
+OBSCENE = re.compile(r"\b(porn\w*|sex(ual|y)?|fuck\w*|nsfw|xxx|kill (you|him|her|them))\b", re.IGNORECASE)
 _read_cache: OrderedDict[str, str] = OrderedDict()
 _read_lock = threading.Lock()
 
 # Allergy note words → what a label calls them. Hindi and Hinglish names included; plant "milks" only matter for dairy.
-DAIRY_TERMS = ("milk", "whey", "casein", "caseinate", "lactose", "butter", "buttermilk", "cream", "cheese", "ghee", "curd",
+DAIRY_TERMS = ("milkfat", "butterfat", "milk", "whey", "casein", "caseinate", "lactose", "butter", "buttermilk", "cream", "cheese", "ghee", "curd",
                "yogurt", "yoghurt", "paneer", "khoya", "khoa", "dahi", "malai", "doodh")
 NUT_TERMS = ("almond", "cashew", "walnut", "hazelnut", "pistachio", "pecan", "macadamia", "brazil nut", "nut", "badam", "kaju",
              "akhrot", "pista", "praline", "marzipan")
-PEANUT_TERMS = ("peanut", "groundnut", "arachis", "moongphali", "mungfali", "मूंगफली")
+PEANUT_TERMS = ("peanut", "groundnut", "arachis", "moongphali", "moongfali", "mungfali", "मूंगफली")
 GLUTEN_TERMS = ("wheat", "maida", "atta", "gluten", "barley", "rye", "semolina", "sooji", "suji", "spelt", "malt", "गेहूं")
 FISH_TERMS = ("fish", "anchov", "tuna", "salmon", "cod", "sardine", "mackerel", "machli", "मछली")
 SHELL_TERMS = ("prawn", "shrimp", "crab", "lobster", "shellfish", "mussel", "clam", "oyster", "scallop", "squid", "jhinga")
 ALLERGY_GROUPS = [
     (("milk", "dairy", "lactose", "casein", "whey", "doodh", "दूध", "paneer", "dahi"), DAIRY_TERMS),
-    (("peanut", "groundnut", "moongphali", "mungfali", "मूंगफली"), PEANUT_TERMS),
+    (("peanut", "groundnut", "moongphali", "moongfali", "mungfali", "मूंगफली"), PEANUT_TERMS),
     (("nut", "tree", "almond", "cashew", "walnut", "hazelnut", "pistachio", "badam", "kaju", "akhrot", "बादाम", "काजू"), NUT_TERMS),
     (("gluten", "wheat", "coeliac", "celiac", "atta", "maida", "गेहूं"), GLUTEN_TERMS),
     (("egg", "anda", "अंडा"), ("egg", "albumin", "albumen", "mayonnaise", "anda")),
-    (("soy", "soya", "soybean", "tofu"), ("soy", "soya", "edamame", "tofu")),
+    (("soy", "soya", "soybean", "tofu"), ("soy", "soya", "soybean", "edamame", "tofu")),
     (("sesame", "til", "gingelly", "तिल"), ("sesame", "til", "tahini", "gingelly")),
     (("fish", "machli", "मछली"), FISH_TERMS),
     (("seafood",), FISH_TERMS + SHELL_TERMS),
     (("shellfish", "prawn", "shrimp", "crab", "jhinga", "lobster"), SHELL_TERMS),
-    (("mustard", "sarson", "rai", "सरसों"), ("mustard", "sarson")),
+    (("mustard", "sarson", "rai", "सरसों"), ("mustard", "sarson", "rai")),
     (("celery",), ("celery",)),
     (("lupin",), ("lupin",)),
     (("sulphite", "sulfite", "sulphites", "sulfites"), ("sulphite", "sulfite", "sulphur dioxide", "sulfur dioxide", "metabisulphite",
                                                        "metabisulfite", "e220", "e221", "e222", "e223", "e224")),
     (("pea",), ("pea", "peas", "pea protein")),
     (("oat", "oats"), ("oat", "oats")),
-    (("corn", "maize"), ("corn", "maize")),
+    (("corn", "maize"), ("corn", "maize", "cornflour", "cornstarch")),
 ]
 NOTE_STOP = {"allergic", "allergy", "allergies", "and", "the", "intolerant", "intolerance", "to", "no", "not", "severe", "mild",
              "very", "with", "from", "also", "some", "any", "all", "kinds", "type", "of", "or", "a", "an", "is", "has", "have"}
-NEGATED = re.compile(r"\b(free from|contains no|does not contain|no added)\b|\b\w+[- ]free\b")
+# "Free from milk", "gluten-free", "contains no nuts": blanked out before matching (never "free range").
+NEGATED = re.compile(r"\b(free from|contains no|does not contain|no added)\b[^.;\n]*|\b(?!range\b)\w+[- ]free\b(?![- ]range)"
+                     r"|\bmade in a \w+[- ]free \w+", re.IGNORECASE)
 # Per 100 g, "high" in UK front-of-pack guidance (FSA): sugars over 22.5 g, salt over 1.5 g (sodium 600 mg).
 HIGH_SUGAR_G = 22.5
 HIGH_SODIUM_MG = 600
@@ -138,7 +140,10 @@ def _vision_call(image: str) -> tuple[str, dict]:
 
 
 def _per_100g(text: str, word: str, unit: str) -> float | None:
-    m = re.search(rf"\b{word}\w*\b[^\d\n]{{0,25}}(\d+(?:[.,]\d+)?)\s*{unit}\b", text, re.IGNORECASE)
+    head = re.search(r"\b(nutrition|nutritional|typical values|per 100)\b", text, re.IGNORECASE)
+    table = text[head.start():] if head else text  # never the ingredient list ("Ingredients: sugar...")
+    m = re.search(rf"\b{word}\w*\b[^\d\n]{{0,25}}(\d+(?:[.,]\d+)?)\s*{unit}\b", table, re.IGNORECASE) \
+        or re.search(rf"\b{word}\w*\s*\({unit}\)[^\d\n]{{0,10}}(\d+(?:[.,]\d+)?)", table, re.IGNORECASE)
     return float(m.group(1).replace(",", ".")) if m else None
 
 
@@ -212,14 +217,18 @@ def _allergy_hits(parts: list[str], allergies: str) -> list[str]:
     terms, dairy, _ = allergy_terms(allergies)
     hits = []
     for p in parts:
-        if NEGATED.search(p):
-            continue
+        p0, p = p, NEGATED.sub(" ", p)
         plant = dietitian.PLANT_LOOKALIKES.sub(" ", p)  # coconut milk, cocoa butter: not dairy, but still nuts or soy
         for t in terms:
             text = plant if t in dairy else p
-            pat = rf"{re.escape(t)}" if re.match(r"[\u0900-\u097F]", t) else rf"\b{re.escape(t)}" + ("" if t == "anchov" else r"(s|es)?\b")
+            if re.match(r"[\u0900-\u097F]", t):
+                pat = re.escape(t)
+            elif len(t) >= 4:  # compounds count: soybean, cashewnuts, milkfat, cornflour
+                pat = rf"\b{re.escape(t)}" + (r"(?!odextrin)" if t == "malt" else "")
+            else:
+                pat = rf"\b{re.escape(t)}(s|es)?\b"
             if re.search(pat, text):
-                hits.append(p)
+                hits.append(p0)
                 break
     return hits
 
@@ -233,8 +242,8 @@ ANIMAL_EXTRA = {"vegan": re.compile(r"\b(honey|casein|caseinate|lactose|whey|gel
 def _diet_hits(parts: list[str], diet: str) -> list[str]:
     groups = dietitian.DIET_WORDS.get(diet, ())
     extra = ANIMAL_EXTRA.get(diet)
-    hits = [p for p in parts if not p.startswith("may contain") and not NEGATED.search(p)
-            and (dietitian._animal_word(p, groups) or (extra and extra.search(p)))]
+    hits = [p for p in parts if not p.startswith("may contain")
+            and (dietitian._animal_word(NEGATED.sub(" ", p), groups) or (extra and extra.search(NEGATED.sub(" ", p))))]
     if diet == "kosher" and any(dietitian._animal_word(p, ("meat",)) for p in parts):
         hits += [p for p in parts if dietitian._animal_word(p, ("dairy",))]
     return list(dict.fromkeys(hits))
@@ -277,6 +286,9 @@ def food_person(m: dict, parts: list[str], flags: dict) -> dict:
     if "diabetes" in conds and re.search(r"\b(maida|refined (wheat )?flour|glucose|corn syrup)\b", " ".join(parts)):
         verdict = _worse(verdict, "sometimes")
         reasons.append("Refined flour or glucose raises blood sugar quickly.")
+    missing = ("diabetes" in conds and flags.get("sugar_g") is None) or ("bp" in conds and flags.get("sodium_mg") is None)
+    if missing and flags and flags.get("basis") != "serving":
+        reasons.append("We couldn't find sugar or salt per 100 g on this label, so we couldn't compare them.")
     if conds & {"diabetes", "bp"} and flags.get("basis") == "serving":
         reasons.append("Nutrition is given per serving, so we couldn't compare sugar and salt; check the serving size.")
     return {"name": name, "verdict": verdict, "reasons": reasons or ["Nothing on the label clashes with their details."]}
@@ -287,6 +299,9 @@ def care_person(m: dict, text: str, parts: list[str]) -> dict:
     res = care.check_label(text, m)
     verdict = "avoid" if res["danger"] or res["warnings"] else ("sometimes" if any(i["high"] for i in res["irritants"]) else "fine")
     reasons = res["warnings"][:3] or ([f"{i['name']} is near the top of the list; it can irritate." for i in res["irritants"] if i["high"]][:2])
+    if (diet := m.get("diet") or "non_veg") in ("vegan", "jain", "vegetarian", "eggetarian", "halal", "kosher") and (hits := _diet_hits(parts, diet)):
+        verdict = "avoid"
+        reasons = [f"Not {dietitian.DIET_LABELS.get(diet, diet).split(' (')[0]}: lists {', '.join(hits[:3])}.", *reasons]
     allergy = allergy_reasons(m, parts)  # allergies count on skin too, with the same names as for food
     if allergy:
         verdict = _worse(verdict, "avoid" if allergy[0].startswith("Allergy:") else "check")
@@ -344,20 +359,22 @@ def check_scan(text: str, members: list[dict], language: str) -> tuple[dict, lis
         traces = []
     kind = data.get("kind") if data.get("kind") in ("food", "personal_care", "other") else "other"
     label = care.check_label(text, {})
-    if kind == "other" and (label["danger"] or label["actives"]):
-        kind = "personal_care"
+    if label["danger"] or (kind == "other" and label["actives"]):
+        kind = "personal_care"  # a dangerous ingredient always gets the skin-care checks, whatever the model said
     if kind == "other":
         raise reject("off_topic", "That doesn't look like a food or skin and hair label. Try a clear photo of the ingredients.")
     people = members or [{}]
     flags = nutrition_flags(text) if kind == "food" else {}
-    rows = [food_person(m, parts, flags) if kind == "food" else care_person(m, text, parts or care.label_parts(text)) for m in people]
+    parts = parts or care.label_parts(text)
+    rows = [food_person(m, parts, flags) if kind == "food" else care_person(m, text, parts) for m in people]
     # Allergy and safety calls are made in code, per person: drop any the model makes ("safe for nut allergies").
-    claims = re.compile(r"allerg|safe for|suitable for|\bsafe\b|nut[- ]free|dairy[- ]free|gluten[- ]free|vegan|vegetarian", re.IGNORECASE)
+    claims = re.compile(r"allerg|safe for|suitable for|\bsafe\b|\w+[- ]free\b|vegan|vegetarian|contains no|free of|"
+                        r"\bno (nuts?|dairy|milk|gluten|eggs?|soy)\b|ok for|fine for|good for (everyone|all)", re.IGNORECASE)
     clean = lambda v, n: "" if not isinstance(v, str) or claims.search(v) else v.strip()[:n]
     watch = [clean(w, 140) for w in data.get("watch", []) if isinstance(w, str)][:3] if isinstance(data.get("watch"), list) else []
     result = {"kind": kind, "product": data["product"].strip()[:60] if isinstance(data.get("product"), str) else "", "summary": clean(data.get("summary"), 240),
               "watch": [w for w in watch if w], "instead": clean(data.get("instead"), 200), "people": rows,
-              "danger": [{"name": d["name"], "why": d["why"]} for d in label["danger"]] if kind == "personal_care" else [],
+              "danger": [{"name": d["name"], "why": d["why"]} for d in label["danger"]],
               "nutrition": flags, "ingredients": ingredient_notes(kind, text, parts, people)}
     return result, traces
 
@@ -375,7 +392,7 @@ def scan(body: ScanIn, request: Request):
     if not text:
         text, trace = _guard(read_label, body.image)
         traces.append(trace)
-        if not text or "NO_LABEL" in text.upper()[:40] or not re.search(r"[a-zA-Z\u0900-\u097F]{3,}", text):
+        if not text or re.search(r"\bno[_ ]label", text[:60], re.IGNORECASE) or not re.search(r"[a-zA-Z\u0900-\u097F]{3,}", text):
             raise reject("off_topic", "We couldn't find a label in that photo. Try a closer, sharper photo of the ingredients.")
     check_input(text, "label")
     if OBSCENE.search(text):

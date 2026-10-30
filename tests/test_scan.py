@@ -124,3 +124,39 @@ def test_drinks_and_per_serving_tables():
 def test_label_warnings_are_not_crisis_signals():
     r = client.post("/api/scan", json={"text": "Ingredients: sodium fluoride, sorbitol. Do not swallow, call poison centre."})
     assert r.status_code == 200
+
+
+@pytest.mark.parametrize("allergy,label", [
+    ("egg", "Ingredients: pasteurised free range egg, flour"),
+    ("milk", "Ingredients: sugar-free chocolate (cocoa, milk solids)"),
+    ("milk", "Ingredients: rice. Allergy advice: Contains milk. Made in a nut-free kitchen"),
+    ("oat", "Ingredients: gluten-free oats, honey"),
+    ("soy", "Ingredients: soybean oil, salt"),
+    ("nuts", "Ingredients: cashewnuts, sugar"),
+    ("milk", "Ingredients: milkfat, sugar"),
+    ("corn", "Ingredients: cornflour, water"),
+    ("moongfali", "Ingredients: peanuts, jaggery"),
+])
+def test_allergy_is_caught_in_compounds_and_free_phrases(allergy, label):
+    assert _verdicts(label, [{"name": "A", "allergies": allergy}]) == {"A": "avoid"}
+
+
+def test_free_from_and_lookalikes_stay_fine():
+    for allergy, label in [("milk", "Ingredients: rice. Free from milk"), ("milk", "Ingredients: mango butter, shea butter"),
+                           ("nuts", "Ingredients: nutmeg, sugar"), ("milk", "Ingredients: maltodextrin, salt")]:
+        assert _verdicts(label, [{"name": "A", "allergies": allergy}]) == {"A": "fine"}, label
+
+
+def test_danger_and_diet_hold_whatever_the_model_says(monkeypatch):
+    monkeypatch.setattr(scan.llm, "is_live", lambda: True)
+    monkeypatch.setattr(scan.llm, "chat_json", lambda *a, **k: ({"kind": "food", "product": "Cream", "summary": "Safe for everyone."}, {}))
+    r = client.post("/api/scan", json={"text": "Aqua, Mercury, Hydroquinone 4%", "members": [{"name": "A"}]}).json()["result"]
+    assert r["danger"] and r["people"][0]["verdict"] == "avoid" and r["summary"] == ""
+    monkeypatch.setattr(scan.llm, "chat_json", lambda *a, **k: ({"kind": "personal_care", "product": "X"}, {}))
+    r = client.post("/api/scan", json={"text": "Ingredients: sugar, gelatin, pork fat", "members": [{"name": "V", "diet": "vegetarian"}]})
+    assert r.json()["result"]["people"][0]["verdict"] == "avoid"
+
+
+def test_sugar_is_read_from_the_table_not_the_ingredients():
+    assert scan.nutrition_flags("Ingredients: sugar, oats. Nutrition per 100 g: Sugars 30 g")["sugar_g"] == 30
+    assert scan.nutrition_flags("Nutrition per 100 g: Sodium (mg) 900")["sodium_mg"] == 900
