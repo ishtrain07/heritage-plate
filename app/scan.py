@@ -379,6 +379,57 @@ def check_scan(text: str, members: list[dict], language: str) -> tuple[dict, lis
     return result, traces
 
 
+# ---------- In the news (Tavily web search): optional, never part of a verdict ----------
+TAVILY_URL = "https://api.tavily.com/search"
+_news_cache: OrderedDict[str, list] = OrderedDict()
+
+
+class NewsIn(BaseModel):
+    product: str = Field(min_length=3, max_length=80)
+
+
+def product_news(product: str) -> list[dict]:
+    """Up to 3 recent web results on recalls or reformulations of a product. [] when off, slow or failing."""
+    key = os.getenv("TAVILY_API_KEY", "")
+    name = re.sub(r"\s+", " ", product).strip()
+    if not key or not name:
+        return []
+    ck = name.lower()
+    with _read_lock:
+        if ck in _news_cache:
+            return _news_cache[ck]
+    try:
+        import httpx
+
+        r = httpx.post(TAVILY_URL, headers={"Authorization": f"Bearer {key}"}, timeout=6,
+                       json={"query": f"{name} product recall OR reformulation OR ingredients change", "max_results": 3,
+                             "search_depth": "basic", "topic": "general"})
+        r.raise_for_status()
+        results = r.json().get("results", [])
+    except Exception:  # noqa: BLE001 - any failure just hides the section
+        return []
+    out = []
+    for x in results if isinstance(results, list) else []:
+        url, title = (x.get("url") or "", x.get("title") or "") if isinstance(x, dict) else ("", "")
+        if isinstance(url, str) and re.match(r"https?://", url) and isinstance(title, str) and title.strip():
+            out.append({"title": title.strip()[:120], "url": url[:500]})
+    out = out[:3]
+    with _read_lock:
+        _news_cache[ck] = out
+        while len(_news_cache) > 256:
+            _news_cache.popitem(last=False)
+    return out
+
+
+@router.post("/scan/news")
+def scan_news(body: NewsIn, request: Request):
+    """Web results about a scanned product, from Tavily. Only the product name is sent."""
+    _rate_limit(request)
+    if OBSCENE.search(body.product):
+        return {"items": []}
+    return {"items": product_news(body.product)}
+
+
 @router.post("/scan")
 def scan(body: ScanIn, request: Request):
     """Scan & check: read a label photo (or corrected text) and check it for everyone at home."""

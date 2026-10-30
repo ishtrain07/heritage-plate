@@ -3,8 +3,8 @@
 
 const setup = { step: 1, kind: "family", count: 3, people: [] };
 const SETUP_COUNTS = [[1, "Just me"], [2, "2 people"], [3, "3–4 people"], [5, "5 or more"]];
-const SETUP_GOALS = [["diabetes", "Diabetes"], ["bp", "Blood pressure"], ["cholesterol", "Cholesterol"],
-  ["lose_weight", "Lose weight"], ["build_muscle", "Build muscle"], ["steady_sugar", "Steady energy"]];
+const SETUP_COND_PICK = [["diabetes", "Diabetes"], ["bp", "Blood pressure"], ["cholesterol", "Cholesterol"]];
+const SETUP_GOAL_PICK = [["lose_weight", "Lose weight"], ["build_muscle", "Build muscle"], ["steady_sugar", "Steady energy"]];
 const SETUP_CONDS = ["diabetes", "bp", "cholesterol"];
 
 function openSetup() {
@@ -43,10 +43,17 @@ function renderSetup() {
     const named = setup.people.filter((p) => p.name.trim());
     body.innerHTML = `
       <h3 class="setup-q">Health conditions and goals</h3>
-      <p class="setup-sub">Pick as many as apply for each person, or skip. Meals, scans and daily aims use them.</p>
-      ${named.map((p, i) => `
-        <fieldset class="setup-goals"><legend>${esc(p.name.trim())}</legend><div class="pick pick-sm">${SETUP_GOALS.map(([v, l]) => `
-          <label class="pick-opt"><input type="checkbox" data-g="${i}" value="${v}"><span>${l}</span></label>`).join("")}</div></fieldset>`).join("")}`;
+      <p class="setup-sub">Pick any for each person, or skip. Meals, scans and daily aims use them.</p>
+      ${named.map((p, i) => {
+        const chips = (list) => list.map(([v, l]) => `
+          <label class="pick-opt"><input type="checkbox" data-g="${i}" value="${v}"><span>${l}</span></label>`).join("");
+        return `
+        <div class="setup-goals" role="group" aria-label="${esc(p.name.trim())}">
+          <p class="setup-person-name">${esc(p.name.trim())}</p>
+          <fieldset class="setup-sub-fs"><legend class="field-label">Health conditions</legend><div class="pick pick-sm">${chips(SETUP_COND_PICK)}</div></fieldset>
+          <fieldset class="setup-sub-fs"><legend class="field-label">Goals</legend><div class="pick pick-sm">${chips(SETUP_GOAL_PICK)}</div></fieldset>
+        </div>`;
+      }).join("")}`;
   }
   body.querySelector("input")?.focus();
 }

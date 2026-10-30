@@ -227,15 +227,15 @@ function writePlate(data) {
   const f = readFamily();
   f.plate = fIsObj(data) ? data : null;
   if (f.plate) {
-    const hasPerson = String(f.plate.parentName || "").trim() || fIsObj(f.plate.profile);
     const name = String(f.plate.parentName || "").trim().toLowerCase();
-    let i = f.members.findIndex((m) => m.fromPlate);
-    // Planning for someone already in the household (same name) is them, not a second "Mum".
-    if (i < 0 && name) i = f.members.findIndex((m) => m.name.trim().toLowerCase() === name);
+    // Planning for someone already in the household (same name) is them, not a second "Mum"; a name match wins.
+    let i = name ? f.members.findIndex((m) => m.name.trim().toLowerCase() === name) : -1;
+    if (i < 0) i = f.members.findIndex((m) => m.fromPlate && (!name || !m.name.trim()));
     if (i >= 0) {
+      f.members.forEach((m, k) => { if (k !== i && m.fromPlate) m.fromPlate = false; });
       const m = memberFromPlate(f.plate, f.members[i]);
       if (m) f.members[i] = { ...m, fromPlate: true };
-    } else if (hasPerson && f.members.length < FAMILY_MAX) {
+    } else if (name && f.members.length < FAMILY_MAX) { // never a nameless person from saved details
       const m = memberFromPlate(f.plate, null);
       if (m) f.members.unshift(m);
     }

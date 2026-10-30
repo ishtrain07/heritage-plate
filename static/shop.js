@@ -70,6 +70,8 @@ function onShopChange(e) {
       if (it) it.home = e.target.checked;
     }
   });
+  // The week's Shopping list tab shows the same ticks.
+  document.querySelectorAll(`#planOut [data-wk-shop="${CSS.escape(key)}"]`).forEach((x) => { x.checked = e.target.checked; });
   setTimeout(renderShopList, 250); // let the tick show before it moves
 }
 

@@ -160,3 +160,43 @@ def test_danger_and_diet_hold_whatever_the_model_says(monkeypatch):
 def test_sugar_is_read_from_the_table_not_the_ingredients():
     assert scan.nutrition_flags("Ingredients: sugar, oats. Nutrition per 100 g: Sugars 30 g")["sugar_g"] == 30
     assert scan.nutrition_flags("Nutrition per 100 g: Sodium (mg) 900")["sodium_mg"] == 900
+
+
+# ---- In the news (Tavily): optional, fail-safe ----
+def test_news_is_empty_without_a_key(monkeypatch):
+    monkeypatch.delenv("TAVILY_API_KEY", raising=False)
+    assert client.post("/api/scan/news", json={"product": "Choco biscuits"}).json() == {"items": []}
+
+
+def test_news_keeps_only_safe_links(monkeypatch):
+    import httpx
+
+    monkeypatch.setenv("TAVILY_API_KEY", "test")
+    scan._news_cache.clear()
+
+    class Reply:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"results": [{"title": "Recall notice", "url": "https://example.com/recall"},
+                                {"title": "Bad", "url": "javascript:alert(1)"}, "junk"]}
+
+    sent = {}
+    monkeypatch.setattr(httpx, "post", lambda url, **kw: sent.update(kw) or Reply())
+    items = client.post("/api/scan/news", json={"product": "Choco biscuits"}).json()["items"]
+    assert items == [{"title": "Recall notice", "url": "https://example.com/recall"}]
+    assert "Choco biscuits" in sent["json"]["query"] and sent["timeout"] == 6
+
+
+def test_news_failure_is_silent(monkeypatch):
+    import httpx
+
+    monkeypatch.setenv("TAVILY_API_KEY", "test")
+    scan._news_cache.clear()
+
+    def boom(*a, **k):
+        raise httpx.ConnectTimeout("slow")
+
+    monkeypatch.setattr(httpx, "post", boom)
+    assert client.post("/api/scan/news", json={"product": "Masala noodles"}).json() == {"items": []}

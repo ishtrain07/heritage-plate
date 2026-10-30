@@ -563,7 +563,12 @@ function profile() {
 // ---------- saved cookbook (this device only; works without storage) ----------
 function saveBook() {
   try {
-    if (!state.recipes.length && !state.plan && !state.profileSet) { writePlate(null); return; }
+    if (!state.recipes.length && !state.plan && !state.profileSet) {
+      // Nothing new this visit: keep details saved earlier with "Save details" (Start over clears them itself).
+      if (typeof readFamily === "function" && readFamily().plate?.profile) return;
+      writePlate(null);
+      return;
+    }
     const data = {
       v: 1, savedAt: Date.now(),
       condition: state.condition, also: state.also, cuisine: state.cuisine, language: state.language, parentName: state.parentName,
@@ -572,7 +577,7 @@ function saveBook() {
       plan: state.plan && !state.planStale ? state.plan : null,
       week: state.week,
       profile: state.profileSet ? state.profile : null,
-      household: state.household,
+      household: state.household, householdChosen: Boolean(state.householdChosen),
     };
     writePlate(data); // the shared family store (static/family.js)
   } catch { /* storage blocked or full: the book lasts for this visit */ }
@@ -625,6 +630,10 @@ function checkBook(d) {
           : [];
         d.plan = days.length ? { ...d.plan, days } : null;
         if (d.plan && d.plan.shopping_list !== undefined && !Array.isArray(d.plan.shopping_list)) d.plan.shopping_list = [];
+        if (d.plan) {
+          d.plan.skipped = Array.isArray(d.plan.skipped) ? d.plan.skipped.filter((k) => typeof k === "string" && /^\d{1,2}-\d{1,2}$/.test(k)) : [];
+          if (d.plan.full_shopping !== undefined && !Array.isArray(d.plan.full_shopping)) delete d.plan.full_shopping;
+        }
         if (d.plan && d.plan.notes !== undefined && !Array.isArray(d.plan.notes)) d.plan.notes = [];
         if (d.plan && d.plan.tips !== undefined && !Array.isArray(d.plan.tips)) d.plan.tips = [];
       }
@@ -675,6 +684,7 @@ function restoreBookUnsafe(d) {
   state.profile = d.profile ? cleanProfile(d.profile) : defaultProfile();
   state.profileSet = Boolean(d.profile);
   state.household = Math.min(12, Math.max(1, Math.round(num(d.household)) || 1));
+  state.householdChosen = d.householdChosen === true;
   state.cookbookVersion += 1;
   state.saved = null;
   fillSelects();
@@ -791,7 +801,7 @@ function setConditions(list) {
     if (e.origin === "suggested") return;
     e.adapted = null; e.prev = null; e.asking = false; e.askError = ""; e.status = "idle"; e.error = ""; e.req = null;
   });
-  if (!state.profileSet && !state.profileTouched) state.profile = defaultProfile();
+  if (!state.profileSet && !state.profileTouched) state.profile = savedOrDefaultProfile();
   $("adaptProgress").hidden = true;
   markCookbookChanged();
   syncControls();
@@ -1781,6 +1791,9 @@ function renderIntake() {
   $("pPregWrap").hidden = p.sex !== "female";
   $("pTarget").open = Boolean(p.sex || p.age || p.height_cm || p.weight_kg || p.ethnicity);
   $("pSnacks").checked = p.snacks;
+  // The list is for everyone at home: start from the household's size unless they've chosen a number.
+  const homeSize = typeof careMembers === "function" ? careMembers().length : 0;
+  if (state.household === 1 && homeSize > 1 && !state.householdChosen) state.household = Math.min(12, homeSize);
   $("pHousehold").value = state.household;
   const msg = $("intakeMsg");
   msg.className = "msg"; msg.textContent = "";
@@ -1819,11 +1832,18 @@ function readIntake() {
     name: $("pName").value.trim().slice(0, 20),
     language: $("pLang").value,
     household: Math.min(12, Math.max(1, Math.round(num($("pHousehold").value)) || 1)),
+    householdChosen: true,
   };
 }
 
+// Details saved earlier (Save details) come back, even before the saved book is resumed.
+function savedOrDefaultProfile() {
+  const saved = typeof readFamily === "function" ? readFamily().plate?.profile : null;
+  return saved && typeof saved === "object" ? cleanProfile(saved) : defaultProfile();
+}
+
 function openIntake() {
-  if (!state.profileSet && !state.profileTouched) state.profile = defaultProfile();
+  if (!state.profileSet && !state.profileTouched) state.profile = savedOrDefaultProfile();
   if (state.composerOpen) { stopListening(); resetComposer(); }
   state.intakeOpen = true;
   renderIntake();
@@ -1852,9 +1872,31 @@ function submitIntake() {
   state.profile = r.profile;
   state.parentName = r.name;
   if (r.name) state.language = r.language;
-  state.household = r.household;
+  state.household = r.household; state.householdChosen = true;
   renderNames();
   makePlan();
+}
+
+// Save their details without planning: the household, Insights and later plans all use them.
+function saveIntake() {
+  const r = readIntake();
+  const msg = $("intakeMsg");
+  if (r.error) {
+    msg.className = "msg error"; msg.textContent = r.error;
+    $(r.field).focus();
+    return;
+  }
+  msg.className = "msg"; msg.textContent = "";
+  state.profile = r.profile;
+  state.parentName = r.name;
+  if (r.name) state.language = r.language;
+  state.household = r.household; state.householdChosen = true;
+  state.profileSet = true; state.profileTouched = false;
+  renderNames();
+  saveBook();
+  if (typeof renderHomeFamily === "function") { renderHomeFamily(); renderWho(); }
+  toast(r.name ? `Saved ${r.name}'s details.` : "Saved.");
+  closeIntake();
 }
 
 // ---------- the week ----------
@@ -1969,14 +2011,17 @@ function notesBlock(plan) {
 
 function mealRow(m, dayIndex, mealIndex) {
   const slot = SLOT_NAMES[m.slot] || m.slot;
-  const top = `<p class="meal-top"><span class="meal-slot">${esc(slot)}</span><span class="meal-kcal">${esc(kcal(m.nutrition?.kcal))} kcal</span></p>`;
+  const key = `${dayIndex}-${mealIndex}`;
+  const skipped = (state.plan?.skipped || []).includes(key);
+  const skip = `<button type="button" class="meal-skip" data-skip="${key}" aria-pressed="${skipped}">${skipped ? "Skipped · undo" : "Skip"}<span class="sr-only"> ${esc(m.name)}</span></button>`;
+  const top = `<p class="meal-top"><span class="meal-slot">${esc(slot)}</span><span class="meal-kcal">${skip} ${esc(kcal(m.nutrition?.kcal))} kcal</span></p>`;
   if (m.source === "family") {
     const e = m.recipe_id != null ? findEntry(String(m.recipe_id)) : null;
     const name = e
       ? `<button type="button" class="meal-name dish-link" data-goto-dish="${esc(e.id)}">${esc(m.name)}</button>`
       : `<span class="meal-name">${esc(m.name)}</span>`;
     return `
-      <li class="meal is-family">
+      <li class="meal is-family${skipped ? " is-skipped" : ""}">
         ${top}
         ${name}
         <p class="meal-meta"><span class="tag-fam">Family dish</span><span>${esc(portionWord(m.servings))}</span>${e ? `<span class="sr-only">. Activate the name to open the recipe.</span>` : ""}</p>
@@ -1985,7 +2030,7 @@ function mealRow(m, dayIndex, mealIndex) {
   const ings = (m.ingredients || []).map((g) => `<li><span class="ing-amt">${esc(grams(g.grams))}</span><span class="ing-name">${esc(g.item)}</span></li>`).join("");
   const how = String(m.how || "").trim();
   return `
-    <li class="meal is-suggested">
+    <li class="meal is-suggested${skipped ? " is-skipped" : ""}">
       ${top}
       <details class="meal-more" data-meal="${dayIndex}-${mealIndex}">
         <summary><span class="meal-name">${esc(m.name)}</span><span class="meal-meta"><span class="tag-sug">Suggested</span><span class="meal-open"><span class="when-closed">How to make it</span><span class="when-open">Hide</span></span></span></summary>
@@ -1995,6 +2040,50 @@ function mealRow(m, dayIndex, mealIndex) {
         </div>
       </details>
     </li>`;
+}
+
+// Skipping a meal takes its ingredients off the household list straight away, in the browser (the same maths as
+// the server: the planned person's portion plus a normal portion for everyone else).
+function recomputeShopping(plan) {
+  plan.full_shopping ||= plan.shopping_list || [];
+  const cat = Object.fromEntries(plan.full_shopping.map((x) => [x.item, x.category]));
+  const others = Math.max(1, num(plan.household) || 1) - 1;
+  const skipped = new Set(plan.skipped || []);
+  const recipes = state.recipes.map((e) => current(e));
+  const need = {};
+  const add = (list, factor) => (list || []).forEach((g) => { need[g.item] = (need[g.item] || 0) + num(g.grams) * factor; });
+  for (const [i, d] of (plan.days || []).entries()) {
+    for (const [j, m] of (d.meals || []).entries()) {
+      if (skipped.has(`${i}-${j}`)) continue;
+      if (m.dish_id != null) {
+        const r = recipes[m.dish_id];
+        if (!r) return plan.full_shopping; // the dishes changed since planning: keep the planned list
+        add(r.ingredients, (num(m.servings) + others) / Math.max(1, num(r.servings)));
+      } else {
+        add(m.ingredients, 1);
+        add(m.base_ingredients || m.ingredients, others);
+      }
+    }
+  }
+  return Object.entries(need).filter(([, g]) => g > 0).map(([item, g]) => {
+    const step = g >= 50 ? 50 : 5;
+    const q = g / step;
+    const r = Math.abs((q % 1) - 0.5) < 1e-9 ? 2 * Math.round(q / 2) : Math.round(q); // halves to even, like the server
+    return { item, grams: Math.max(step, r * step), category: cat[item] || "other" };
+  });
+}
+
+function toggleSkip(key) {
+  const plan = state.plan;
+  if (!plan) return;
+  const before = (plan.shopping_list || []).length;
+  plan.skipped = (plan.skipped || []).includes(key) ? plan.skipped.filter((k) => k !== key) : [...(plan.skipped || []), key];
+  plan.shopping_list = recomputeShopping(plan);
+  renderPlan();
+  saveBook();
+  const after = plan.shopping_list.length;
+  toast(state.planStale ? "Your dishes changed: update the week first, then the list follows." : after === before ? "Shopping list updated." : `Shopping list updated: ${after} items (was ${before}).`);
+  document.querySelector(`[data-skip="${key}"]`)?.focus();
 }
 
 function dayCard(d, i, plan) {
@@ -2045,6 +2134,8 @@ function renderPlan() {
   const tab = tabs.some(([k]) => k === state.weekTab) ? state.weekTab : "meals";
   const tips = (plan.tips || []).filter((t) => String(t || "").trim());
   const hh = Math.max(1, num(plan.household) || 1);
+  // One household list: a tick here is the same "at home" tick as in the List screen (saved with the household).
+  const atHome = new Set(typeof readFamily === "function" ? readFamily().shopHome : []);
 
   const meals = `
     <div class="day-chips" role="group" aria-label="Choose a day">
@@ -2056,7 +2147,7 @@ function renderPlan() {
       <button type="button" class="btn btn-quiet btn-small" data-copy="shop">Copy list</button></div>
     ${shopGroups(plan).map(([k, items]) => `
       <div class="shop-group"><h3>${esc(SHOP_GROUPS[k])}</h3>
-        <ul class="shop">${items.map((s) => `<li><label><input type="checkbox"><span class="shop-item"><span>${esc(s.item)}</span><span class="shop-qty">${esc(grams(s.grams))}</span></span></label></li>`).join("")}</ul>
+        <ul class="shop">${items.map((s) => `<li><label><input type="checkbox" data-wk-shop="${esc(`wk:${s.item}`)}"${atHome.has(`wk:${s.item}`) ? " checked" : ""}><span class="shop-item"><span>${esc(s.item)}</span><span class="shop-qty">${esc(grams(s.grams))}</span></span></label></li>`).join("")}</ul>
       </div>`).join("")}`;
   const note = hasNote(plan) ? `
     <article class="letter" aria-labelledby="noteTitle">
@@ -2329,37 +2420,90 @@ function cookbookHTML() {
     </div>`;
 }
 
+// Quick summary for WhatsApp, iMessage or email: friendly headings, a line or two per dish, three days at a glance,
+// and the list by aisle with names only. Exact amounts go in "Shopping list only"; everything else is in the PDF.
+const SLOT_EMOJI = { breakfast: "☀️", lunch: "🍱", snack: "🍎", dinner: "🌙" };
+const AISLE_EMOJI = { grain: "🌾", legume: "🫘", vegetable: "🥦", fruit: "🍎", dairy: "🥛", protein: "🥚", fat: "🫒", nuts: "🥜",
+  sauce: "🍶", sweetener: "🍯", spice: "🧄", other: "🛒" };
 function cookbookText() {
   const plan = state.plan;
-  const L = [cookbookTitle(), coverLine(), ""];
-  state.recipes.forEach((e) => {
-    const r = current(e);
-    L.push(`== ${r.name} (serves ${r.servings}) ==`);
-    if (e.adapted) L.push(focusLine(r).text);
-    L.push("Ingredients:");
-    (r.ingredients || []).forEach((g) => L.push(`- ${grams(g.grams)} ${g.item}${g.home_measure ? ` (${g.home_measure})` : ""}`));
-    const steps = (Array.isArray(r.method) ? r.method : []).filter((s) => String(s || "").trim());
-    if (steps.length) { L.push("Method:"); steps.forEach((s, i) => L.push(`${i + 1}. ${s}`)); }
-    if (r.portion_tip) L.push(`Portion: ${r.portion_tip}`);
-    if (r.suggested && r.why) L.push(`Why it fits: ${r.why}`);
-    if (e.adapted && r.changes?.length) { L.push("What we changed:"); r.changes.slice(0, 4).forEach((c) => L.push(`- ${c.what}: ${c.why}`)); }
-    L.push("");
-  });
-  if (plan) {
-    L.push("== This week ==", `${targetLine(plan)} · ${profileWords(plan).join(" · ")}`);
-    if (state.planStale) L.push("Note: your dishes changed since this week was planned. Update the week to include them.");
-    if (bodyLine(plan.target?.body)) L.push(bodyLine(plan.target.body));
-    (plan.days || []).forEach((d) => L.push(`${DAY_NAMES[d.day] || d.day} (${kcal(d.totals?.kcal)} kcal): ${(d.meals || []).map((m) => `${SLOT_NAMES[m.slot] || m.slot} ${m.name}${m.source === "family" ? " (family dish)" : ""}`).join(" · ")}`));
-    (plan.notes || []).forEach((x) => L.push(`Note: ${x}`));
-    L.push("", `== Shopping list (for ${people(Math.max(1, num(plan.household) || 1))}) ==`);
-    (plan.shopping_list || []).forEach((s) => L.push(`- ${s.item}: ${grams(s.grams)}`));
-    if (hasNote(plan)) L.push("", `== ${noteLabel(plan)} ==`, plan.message_for_parent);
-    L.push("");
+  const cut = (t, n) => { t = String(t || "").trim(); return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t; };
+  const fam = state.family?.family ? `${state.family.family.replace(/^The /, "The ")}'s week` : "Our family's week";
+  const L = [`*${fam}*`, "One family. Different needs. Meals made simpler."];
+  const hh = plan ? Math.max(1, num(plan.household) || 1) : state.household;
+  L.push("", "👨‍👩‍👧 *Planned for the family*", `• Household: ${people(hh)}`, `• Focus: ${coverLine().replace(/^Lighter family recipes for /, "")}`);
+  if (plan && targetLine(plan)) L.push(`• Daily target: ${targetLine(plan).replace(/^About /, "about ")}`);
+  if (state.recipes.length) {
+    L.push("", "🍽️ *Family favourites, made lighter*");
+    state.recipes.forEach((e) => {
+      const r = current(e);
+      const f = e.adapted ? focusLine(r) : null;
+      const pct = f?.text.match(/\((\d+% less)\)/)?.[1];
+      const what = f?.text.split(" per serving")[0].split(":")[0].toLowerCase();
+      L.push("", `🍲 *${cut(r.name, 50)}*${pct && what ? ` · ${pct} ${what}` : ""}`);
+      if (e.adapted && r.changes?.length) L.push(r.changes.slice(0, 2).map((c) => cut(c.what, 60)).join(". ") + ".");
+    });
   }
-  if (typeof careBookText === "function") { const c = careBookText(); if (c) L.push(c, ""); }
-  if (state.recipes.length || plan) L.push(SOURCES_LINE); // food numbers only when the book has Plate pages
+  if (plan?.days?.length) {
+    L.push("", "📅 *A glimpse of the week*");
+    plan.days.slice(0, 3).forEach((d, i) => {
+      L.push("", `*${DAY_NAMES[d.day] || d.day}*`);
+      (d.meals || []).forEach((m, j) => {
+        if ((plan.skipped || []).includes(`${i}-${j}`)) return;
+        L.push(`${SLOT_EMOJI[m.slot] || "•"} ${cut(m.name, 40)}`);
+      });
+    });
+    L.push("", "The full seven days, with portions, are in the app.");
+    const home = new Set(typeof readFamily === "function" ? readFamily().shopHome : []);
+    const groups = {};
+    (plan.shopping_list || []).filter((x) => !home.has(`wk:${x.item}`))
+      .forEach((x) => { (groups[x.category in SHOP_GROUPS ? x.category : "other"] ||= []).push(x.item); });
+    L.push("", "🛒 *One shopping list for the household*");
+    Object.keys(SHOP_GROUPS).filter((k) => groups[k]).forEach((k) => L.push(`${AISLE_EMOJI[k] || "•"} ${SHOP_GROUPS[k]}: ${groups[k].join(" · ")}`));
+    L.push("Exact amounts are in the app's shopping list. Check what you already have first.");
+    if (hasNote(plan)) L.push("", `💌 *${noteLabel(plan)}*`, plan.message_for_parent);
+  }
+  if (typeof careBookText === "function") { const c = careBookText(); if (c) L.push("", c); }
+  L.push("", "🌿 Your family's food traditions, made healthier.", "_Nutrition is estimated from food tables; check changes with a doctor or dietitian._");
   return L.join("\n").trim();
 }
+
+// Shopping list only: the household's list by aisle, without what's ticked as at home, plus scanned products.
+function shoppingText() {
+  const plan = state.plan;
+  const home = new Set(typeof readFamily === "function" ? readFamily().shopHome : []);
+  const L = [`*Shopping list*${plan ? ` · for ${people(Math.max(1, num(plan.household) || 1))}` : ""}`];
+  const groups = {};
+  (plan?.shopping_list || []).filter((x) => !home.has(`wk:${x.item}`))
+    .forEach((x) => { (groups[x.category in SHOP_GROUPS ? x.category : "other"] ||= []).push(x); });
+  Object.keys(SHOP_GROUPS).filter((k) => groups[k]).forEach((k) => {
+    L.push("", `*${SHOP_GROUPS[k]}*`);
+    groups[k].forEach((x) => L.push(`☐ ${x.item}: ${grams(x.grams)}`));
+  });
+  const extra = typeof readFamily === "function" ? readFamily().shopping.filter((x) => !x.home) : [];
+  if (extra.length) {
+    L.push("", "*From our scans*");
+    extra.forEach((x) => L.push(`☐ ${x.item}${x.for.length ? ` (for ${x.for.join(", ")})` : ""}`));
+  }
+  if (L.length === 1) L.push("", "Nothing left to buy.");
+  return L.join("\n");
+}
+
+function openShareChoice() {
+  const dlg = $("shareDlg");
+  dlg.querySelector('input[value="list"]').disabled = !state.plan && !(typeof readFamily === "function" && readFamily().shopping.length);
+  if (!dlg.open) dlg.showModal();
+}
+
+$("shareForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const kind = $("shareForm").querySelector('input[name="shareKind"]:checked')?.value || "summary";
+  $("shareDlg").close();
+  if (kind === "pdf") shareCookbookPdf(null);
+  else if (kind === "list") shareText("Shopping list", shoppingText());
+  else shareText(cookbookTitle(), withHomeLink(cookbookText()));
+});
+$("shareDlg").addEventListener("click", (e) => { if (e.target === $("shareDlg") || e.target.closest("[data-share-act=close]")) $("shareDlg").close(); });
 
 function renderCookbookView() { $("cookbookView").innerHTML = cookbookHTML(); }
 
@@ -2456,10 +2600,10 @@ $("goalChips").addEventListener("change", (e) => { if (e.target.name === "goalCh
 $("cuisine").addEventListener("change", (e) => { state.cuisine = e.target.value; syncControls(); saveBook(); });
 $("speechLang").addEventListener("change", (e) => { state.speechLang = e.target.value; updateMicHint(); });
 
-$("heroSuggest").addEventListener("click", () => openComposer({ mode: "suggest" }));
-$("heroWeek").addEventListener("click", openIntake);
+$("heroSuggest")?.addEventListener("click", () => openComposer({ mode: "suggest" }));
+$("heroWeek")?.addEventListener("click", openIntake);
 $("composerSkip").addEventListener("click", openIntake);
-$("heroSample").addEventListener("click", (e) => {
+$("heroSample")?.addEventListener("click", (e) => {
   e.preventDefault();
   scrollToEl($("samples"));
   $("samples").focus({ preventScroll: true });
@@ -2609,6 +2753,7 @@ $("plan").addEventListener("click", () => { if (state.profileSet) makePlan(); el
 // ---------- intake events ----------
 $("intakeForm").addEventListener("submit", (e) => { e.preventDefault(); submitIntake(); });
 $("intakeCancel").addEventListener("click", closeIntake);
+$("intakeSave").addEventListener("click", saveIntake);
 $("intakeForm").addEventListener("input", (e) => {
   state.profileTouched = true;
   const id = e.target.id;
@@ -2697,12 +2842,21 @@ function onAction(e) {
   const act = b.dataset.act;
   if (act === "share-pdf") shareCookbookPdf(b);
   else if (act === "print") printCookbook();
-  else if (act === "share") shareText(cookbookTitle(), withHomeLink(cookbookText()));
+  else if (act === "share") openShareChoice();
   else if (act === "share-note" && state.plan) shareText(noteLabel(state.plan), state.plan.message_for_parent || "");
   else if (act === "open-cookbook") openCookbook();
   else if (act === "close-cookbook") closeCookbook();
 }
 $("readyBar").addEventListener("click", onAction);
+$("planOut").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-skip]");
+  if (b) { e.preventDefault(); toggleSkip(b.dataset.skip); }
+});
+$("planOut").addEventListener("change", (e) => {
+  const key = e.target.dataset?.wkShop;
+  if (!key || typeof updateShopping !== "function") return;
+  updateShopping((f) => { f.shopHome = e.target.checked ? [...new Set([...f.shopHome, key])] : f.shopHome.filter((k) => k !== key); });
+});
 $("cookbookView").addEventListener("click", onAction);
 window.addEventListener("beforeprint", renderCookbookView);
 
