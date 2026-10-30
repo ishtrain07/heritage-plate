@@ -57,7 +57,8 @@ const care = {
   screen: "care",
   library: null,
   remedyWho: "",      // member id, "" = anyone
-  plateWho: "",       // who Plate's input card is for (member id)
+  plateWho: "",       // who Plate's input card is for (first picked member id)
+  plateWhoList: [],   // everyone picked in "Who's eating?" (empty = Everyone)
   famAdding: false,   // home's "Add someone" form is open
   labelWho: "",
   remedy: null,       // {text, who, result, saved}
@@ -211,19 +212,23 @@ function micFor({ btn, box, hint, msg, idle }) {
 }
 
 // ---------- chips: who is it for, examples, country & language ----------
-function whoChipsHTML(name, selected) {
+function whoChipsHTML(name, selected, multi = null) {
   const ms = careMembers();
-  const opt = (v, l) => `<label class="pick-opt"><input type="radio" name="${name}" value="${esc(v)}"${v === selected ? " checked" : ""}><span>${esc(l)}</span></label>`;
+  // Plate picks several people (checkboxes; "Everyone" clears the rest); Care picks one.
+  const on = (v) => (multi ? (v === "" ? !multi.length : multi.includes(v)) : v === selected);
+  const opt = (v, l) => `<label class="pick-opt"><input type="${multi ? "checkbox" : "radio"}" name="${name}" value="${esc(v)}"${on(v) ? " checked" : ""}><span>${esc(l)}</span></label>`;
   return [opt("", "Everyone"), ...ms.map((m, i) => opt(m.id, memberLabel(m, i)))].join("")
     + (ms.length < FAMILY_MAX ? `<button type="button" class="chip-add" data-care-act="quick-add" data-for="${esc(name)}"><span aria-hidden="true">+</span> Add</button>` : "");
 }
 function renderWho() {
   if (care.remedyWho && !findMember(care.remedyWho)) care.remedyWho = "";
   if (care.labelWho && !findMember(care.labelWho)) care.labelWho = "";
+  care.plateWhoList = care.plateWhoList.filter((id) => findMember(id));
   if (care.plateWho && !findMember(care.plateWho)) care.plateWho = "";
+  if (care.plateWho && !care.plateWhoList.includes(care.plateWho)) care.plateWhoList = [care.plateWho, ...care.plateWhoList];
   $("careWho").innerHTML = whoChipsHTML("careWhoPick", care.remedyWho);
   $("labelWho").innerHTML = whoChipsHTML("labelWhoPick", care.labelWho);
-  $("plateWho").innerHTML = whoChipsHTML("plateWhoPick", care.plateWho);
+  $("plateWho").innerHTML = whoChipsHTML("plateWhoPick", care.plateWho, care.plateWhoList);
   renderPlateXlink();
 }
 const WHO_HOLDERS = { careWhoPick: "careWho", labelWhoPick: "labelWho", plateWhoPick: "plateWho" };
@@ -248,7 +253,7 @@ function quickAddSave(forName) {
   const m = upsertMember({ name, care: {} });
   if (!m) { toast("Your family book holds up to 6 people."); return; }
   if (forName === "labelWhoPick") care.labelWho = m.id;
-  else if (forName === "plateWhoPick") care.plateWho = m.id;
+  else if (forName === "plateWhoPick") { care.plateWho = m.id; care.plateWhoList = [...new Set([...care.plateWhoList, m.id])]; }
   else care.remedyWho = m.id;
   renderWho();
   renderPeople();
@@ -1282,7 +1287,7 @@ function removeFromHome(id) {
 // Plate's week for one person: their name, health and body details go into the intake, ready to plan.
 function goMealsFor(id) {
   const m = findMember(id);
-  if (m) care.plateWho = m.id;
+  if (m) { care.plateWho = m.id; care.plateWhoList = [m.id]; }
   goTo("plate");
   renderWho();
   if (m && m.conditions.length) setConditions(m.conditions); // Plate is now for them: same as picking them in "For whom?"
@@ -1395,11 +1400,36 @@ function renderPlateXlink() {
 }
 
 // Plate's "For whom?": picking someone with a health condition makes the dishes lighter for it.
-function pickPlateWho(id) {
-  care.plateWho = id;
-  const m = findMember(id);
-  if (m && m.conditions.length) setConditions(m.conditions);
-  renderPlateXlink();
+// Several people can be picked; "Everyone" clears them. Their health conditions all apply.
+function pickPlateWho(id, checked = true) {
+  if (!id) care.plateWhoList = [];
+  else care.plateWhoList = checked ? [...new Set([...care.plateWhoList, id])] : care.plateWhoList.filter((x) => x !== id);
+  care.plateWho = care.plateWhoList[0] || "";
+  const conds = [...new Set(care.plateWhoList.flatMap((x) => findMember(x)?.conditions || []))];
+  if (conds.length) setConditions(conds);
+  renderWho();
+  $("plateWho").querySelector(`input[value="${CSS.escape(id)}"]`)?.focus(); // keep keyboard focus on the chip
+}
+
+// The week form starts from who's eating: the first person's details, and "Cooking for" = how many were picked.
+function prefillIntakeFromWho() {
+  const m = findMember(care.plateWho);
+  if (!m) return;
+  if (!$("pName").value.trim() && m.name) $("pName").value = m.name.slice(0, 20);
+  if (m.conditions.length) document.querySelectorAll('#pCond input[name="cond"]').forEach((x) => { x.checked = x.checked || m.conditions.includes(x.value); });
+  if (m.age != null && !$("pAge").value) $("pAge").value = m.age;
+  const sex = m.sex && document.querySelector(`#pSex input[value="${m.sex}"]`);
+  if (sex && !document.querySelector("#pSex input:checked")) { sex.checked = true; $("pPregWrap").hidden = m.sex !== "female"; }
+  if (m.pregnant && m.sex === "female") $("pPregnant").checked = true;
+  if (m.goals?.length) {
+    document.querySelectorAll('#pGoal input[value="maintain"]').forEach((x) => { x.checked = false; });
+    m.goals.forEach((g) => { const x = document.querySelector(`#pGoal input[value="${g}"]`); if (x) x.checked = true; });
+    if (typeof goalsHelp === "function") $("goalHelp").textContent = goalsHelp(checkedGoals());
+  }
+  const diet = m.diet && document.querySelector(`#pDiet input[value="${m.diet}"]`);
+  if (diet) diet.checked = true;
+  if (m.allergies && !$("pAvoid").value.trim()) $("pAvoid").value = m.allergies.slice(0, 200);
+  if (care.plateWhoList.length > 1) $("pHousehold").value = Math.min(12, care.plateWhoList.length);
 }
 
 // ---------- events ----------
@@ -1472,7 +1502,7 @@ function setupCare() {
     if (b?.dataset.careAct === "quick-add") quickAddForm(b.dataset.for);
     else if (b?.dataset.careAct === "quick-add-save") quickAddSave(b.dataset.for);
   });
-  plateWho.addEventListener("change", (e) => { if (e.target.name === "plateWhoPick") pickPlateWho(e.target.value); });
+  plateWho.addEventListener("change", (e) => { if (e.target.name === "plateWhoPick") pickPlateWho(e.target.value, e.target.checked); });
   plateWho.addEventListener("keydown", (e) => {
     if (!e.target.closest(".quick-add")) return;
     if (e.key === "Enter") { e.preventDefault(); quickAddSave("plateWhoPick"); }

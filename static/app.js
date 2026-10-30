@@ -318,7 +318,7 @@ function readableError(detail, status) {
 async function api(path, body, timeoutMs = 120000, signal = null) {
   try { return await apiOnce(path, body, timeoutMs, signal); }
   catch (err) {
-    if (!err.retryable || signal?.aborted) throw err;
+    if (!(err.retryable || err.network) || signal?.aborted) throw err;
     return apiOnce(path, body, timeoutMs, signal);
   }
 }
@@ -338,7 +338,9 @@ async function apiOnce(path, body, timeoutMs, signal) {
     });
   } catch (err) {
     if (signal?.aborted) { const e = new Error("Cancelled."); e.cancelled = true; throw e; }
-    throw new Error(err.name === "AbortError" ? "This is taking too long. Please try again." : "Can't reach the server. Check your connection and try again.");
+    const e = new Error(err.name === "AbortError" ? "This is taking too long. Please try again." : "Can't reach the server. Check your connection and try again.");
+    if (err.name !== "AbortError") e.network = true; // a dropped connection gets one quiet retry
+    throw e;
   } finally { clearTimeout(timer); if (signal) signal.removeEventListener("abort", onCancel); }
   if (signal?.aborted) { const e = new Error("Cancelled."); e.cancelled = true; throw e; }
   const data = await res.json().catch(() => ({}));
@@ -1847,6 +1849,7 @@ function openIntake() {
   if (state.composerOpen) { stopListening(); resetComposer(); }
   state.intakeOpen = true;
   renderIntake();
+  if (typeof prefillIntakeFromWho === "function") prefillIntakeFromWho(); // who's eating, picked on the recipe card
   refreshButtons();
   scrollToEl($("intake"));
   $("intakeTitle").focus({ preventScroll: true });
