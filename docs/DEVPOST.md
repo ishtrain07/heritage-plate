@@ -1,9 +1,9 @@
-# Heritage — Devpost project page (ready to paste)
+# Nouri — Devpost project page (ready to paste)
 
-**Project name:** Heritage: Keep what works from home
+**Project name:** Nouri: Keep what works from home
 
-**Elevator pitch (180/200):** Heritage makes family recipes healthier for diabetes, BP and cholesterol, plans
-the week's meals and fact-checks home remedies for skin & hair, in any language, with NVIDIA Nemotron.
+**Elevator pitch (under 200):** One household, one plan: Nouri makes home recipes healthier, plans meals and one
+shopping list, scans any food or skin-care label for each person, and checks Nani's remedies. On Nemotron.
 
 ---
 
@@ -25,25 +25,33 @@ We watched what that did. Mum stopped making Dad's favourite parathas, or made t
 
 When we talked to friends, we realised this wasn't just our story. A friend's Lola and her adobo. Another's abuela and her pozole. Different kitchens, different languages, the same pride in recipes handed down for generations, the same grandmother with a remedy for everything, and the same health worries at the table.
 
+And it isn't only families. Flatmates share a fridge and a shopping list but not a diet: one is vegan, one has a peanut allergy, one is trying to build muscle. Every household ends up cooking twice and buying twice.
+
 These recipes aren't just recipes. They're how our families say *I love you*. Asking someone to give them up isn't diet advice; it's asking them to let go of a piece of home.
 
-So we built Heritage, for every family that doesn't want to choose between their health and their heritage. **Keep what works from home. Fix what doesn't.** Keep the dish, keep Nani's ritual, keep the memory, and make them healthier, in your family's own words and language.
+So we built Nouri, for every household that doesn't want to choose between their health and their heritage. **Keep what works from home. Fix what doesn't.** Keep the dish, keep Nani's ritual, keep the memory, and make them healthier, in your family's own words and language.
 
 ## What it does
 
-Say it the way it's said at home, in any language, by voice or text.
+Set up your household once, family or flatmates, in three short steps. Then everything works for everyone at once. Say it the way it's said at home, in any language, by voice or text, or just take a photo.
 
-**Heritage Plate (food)**
+**Food: healthier meals everyone can share**
 - Reads a real family recipe ("3 katori atta, 2 boiled aloo, ghee on top") and makes it lighter for diabetes, blood pressure or cholesterol, with a few changes that keep it recognisably Mum's dish.
 - Shows honest before → after numbers per serving: Mum's aloo paratha goes from 62 g to 47 g of sugar-raising carbs.
-- Plans a week of meals like a dietitian: a personal calorie target, several goals at once, diets from vegan to halal, kosher-style and Jain, allergies respected, one shopping list and a warm note to the parent in their language.
+- Plans a week of meals like a dietitian, with **one shopping list for the whole household**: a personal calorie target, several goals at once, diets from vegan to halal, kosher-style and Jain, and allergies respected.
 
-**Heritage Care (skin & hair)**
-- Checks any home remedy and gives a clear verdict (keep, fine with care, swap or stop), what it really does, and the proven ingredient that works better, with strength and where to find it. No brands, no sales.
-- Builds a simple morning, night and shower routine for each person in the family.
-- Reads any product label and flags irritants and dangerous hidden ingredients, like steroids, mercury and hydroquinone in "fairness" creams.
+**Scan & check: "Can we use this?"**
+- Photograph any food or skin-care label. Nouri reads it and gives each person their own answer: *fine for Mum (but high in sugar for her diabetes), not for Priya (milk solids, she's vegan), not for Arjun (hazelnut, nut allergy).*
+- It catches "may contain" warnings and hidden dangers in creams (steroids, mercury, hydroquinone), shows what it read so you can fix a misread, and suggests a simple swap. No brands, no red/green scores.
 
-**One family at the centre.** Add Mum, Dad or Nani once and both sides work for them. Everything saves to a family book you can share as a PDF with the doctor.
+**Care: skin & hair, and Nani's remedies**
+- Checks any home remedy with a clear verdict (keep, fine with care, swap or stop), and names the proven ingredient that works better.
+- Builds a simple morning, night and shower routine for each person.
+
+**Household insights**
+- Daily aims for each person, worked out in code from published guidance: calories, protein, fibre, sodium, added sugar, carbs per meal for diabetes, water and activity, each with its source (WHO, ICMR-NIN, ADA, EFSA). Over-65s, pregnancy and children are handled differently.
+
+**Shared without accounts.** An invite link puts the same household on another phone. Everything saves to a family book you can share as a PDF with the doctor.
 
 ## How we built it
 
@@ -54,6 +62,8 @@ Say it the way it's said at home, in any language, by voice or text.
 | Read the recipe from voice or text | Nemotron 3 **Nano** | Fast, structured extraction |
 | Make it lighter, check remedies, build care plans, translate | Nemotron 3 **Super** | Careful, constrained reasoning |
 | Plan the whole week and write to the parent | Nemotron 3 **Ultra** | Planning across many dishes, in the parent's language |
+| Explain a scanned label | Nemotron 3 **Super** | Plain-language summary and a swap |
+| Copy the words off a label photo | Gemma 3 27B (on Nebius) | No Nemotron model on Token Factory takes images yet, so a vision model only transcribes; Nemotron and our code do all the judging |
 
 **The AI never makes up numbers or safety rules.** That was our core design decision.
 - Nutrition is calculated in code from published food tables (Indian Food Composition Tables 2017 and USDA SR28, 205 foods with their home-language names). If we can't measure an ingredient, we say "not counted" and never claim a "% less".
@@ -64,13 +74,14 @@ $$\text{BMR} = 10\,w + 6.25\,h - 5\,a + s, \qquad s = \begin{cases} +5 & \text{m
 - Care can only recommend ingredients from a checked library where every entry cites a source (NHS, American Academy of Dermatology and others). Pregnancy rules, age limits, prescription-only items, allergies and "see a doctor first" warnings are enforced in code *after* the AI answers.
 - **Guardrails before the AI:** dangerous remedies (kerosene for lice, bleach, mercury, steroid creams) always get "stop", whatever the AI says. Non-food or nonsense input gets a friendly prompt. Signs of self-harm get a calm message with helplines and never reach the AI.
 
-**Stack:** Python and FastAPI on Vercel, a plain HTML/CSS/JavaScript front end with voice input and PDF export, LangSmith tracing on every model call, 198 automated tests and Playwright testing on phone and desktop.
+**Stack:** Python and FastAPI on Vercel, a plain HTML/CSS/JavaScript front end with voice input and PDF export, LangSmith tracing on every model call, 216 automated tests and Playwright testing on phone and desktop.
 
 ## Challenges we ran into
 
 - **Messy, spoken recipes.** "Thoda ghee", "1 katori", Hinglish and Spanish all had to become honest grams without letting the model guess the numbers.
 - **Safety without being annoying.** False alarms ("a dinner that won't kill me with carbs") frustrate people; missed warnings hurt them. We ran two rounds of adversarial review with about 80 tricky inputs in English, Hinglish and Spanish, and tuned every rule.
 - **Answering fully in the family's language.** Our checked facts are written in English, so the model answers in Hindi (or any language) and our library and safety text are translated in the same flow.
+- **Labels are messy.** Product names ("Choco *Cream* Biscuits") and nutrition tables ("*nut*rition") tripped naive matching, so we read only the ingredient list and "may contain" lines, and match whole words.
 - **Diet rules that respect culture.** Jain means no root vegetables; kosher-style means never meat with dairy in one dish; "eggplant" is not egg, and "rumali roti" is not rum.
 
 ## Accomplishments that we're proud of
@@ -83,18 +94,20 @@ $$\text{BMR} = 10\,w + 6.25\,h - 5\,a + s, \qquad s = \begin{cases} +5 & \text{m
 
 Small models are great at structure and big models at judgement, but neither should be trusted with facts on its own. Pairing Nemotron's understanding with checked tables and code rules gave us answers a family can actually trust.
 
-## What's next for Heritage: Keep what works from home
+## What's next for Nouri: Keep what works from home
 
 - Testing with families and diabetes educators. [Add a real quote or "tried with N families" here if you have one.]
 - More cuisines in the food tables (West African, Caribbean, Middle Eastern) and more checked remedies.
 - Sharing the family plan with the parent's doctor or dietitian.
+- A shared pantry with quantities and expiry dates, so the shopping list skips what you already have.
+- Barcode lookup and synced household accounts.
 - A fully translated interface.
 
 ---
 
-## Built with (25 tags)
+## Built with (26 tags)
 
-python, fastapi, javascript, html5, css3, nvidia-nemotron, nemotron-nano, nemotron-super, nemotron-ultra, nebius,
+python, fastapi, javascript, html5, css3, nvidia-nemotron, nemotron-nano, nemotron-super, nemotron-ultra, gemma, nebius,
 nebius-token-factory, openai-api, langsmith, vercel, pydantic, pytest, playwright, web-speech-api, html2pdf,
 usda-food-data, ifct-2017, github, llm, generative-ai, accessibility
 
