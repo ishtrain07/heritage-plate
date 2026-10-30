@@ -312,6 +312,9 @@ function setSide(side) {
   // Both carry it: <html> is set before first paint by the inline script in index.html, <body> by us.
   document.documentElement.dataset.side = side;
   document.body.dataset.side = side;
+  document.querySelectorAll("[data-tab-link]").forEach((a) => {
+    if (a.dataset.tabLink === side) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
   document.querySelectorAll("[data-side-link]").forEach((a) => {
     if (a.dataset.sideLink === side) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
@@ -982,6 +985,7 @@ function careCloseBook() {
 const ICONS = {
   plate: `<svg class="ic" viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></svg>`,
   care: `<svg class="ic" viewBox="0 0 24 24" focusable="false"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14Z"/><path d="M5 19 13 11"/></svg>`,
+  people: `<svg class="ic" viewBox="0 0 24 24" focusable="false"><circle cx="9" cy="8" r="3"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.8 14.1a4.5 4.5 0 0 1 4.7 4.9"/></svg>`,
 };
 
 // Change side without a hashchange of our own, so the shortcut's next step (focus, prefill) isn't undone by route().
@@ -1008,12 +1012,18 @@ function famAddFormHTML() {
           <div class="pick pick-sm">${[["female", "Female"], ["male", "Male"]].map(([v, l]) => `<label class="pick-opt"><input type="radio" name="famSex" value="${v}"><span>${l}</span></label>`).join("")}</div>
         </fieldset>
       </div>
+      <div class="fam-row">
+        <label class="field"><span class="field-label">Diet <span class="opt">optional</span></span>
+          <select id="famDiet"><option value="">Eats everything</option>${[["vegetarian", "Vegetarian"], ["eggetarian", "Eggetarian"], ["vegan", "Vegan"], ["pescatarian", "Pescatarian"], ["jain", "Jain"], ["halal", "Halal"], ["kosher", "Kosher-style"]].map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label>
+        <label class="field"><span class="field-label">Allergies <span class="opt">optional</span></span>
+          <input id="famAllergies" type="text" maxlength="200" autocomplete="off" placeholder="peanuts, milk…"></label>
+      </div>
       <fieldset class="fam-fs"><legend class="field-label">Any of these? <span class="opt">optional</span></legend>
         <div class="pick pick-sm">${COND_PICK.map(([v, l]) => `<label class="pick-opt"><input type="checkbox" name="famCond" value="${v}"><span>${l}</span></label>`).join("")}</div>
       </fieldset>
       <p id="famMsg" class="msg" role="status" aria-live="polite"></p>
       <div class="fam-form-btns">
-        <button type="submit" class="btn btn-primary btn-small">Add to the family</button>
+        <button type="submit" class="btn btn-primary btn-small">Add</button>
         <button type="button" class="btn-link" data-fam-act="cancel">Cancel</button>
       </div>
     </form>`;
@@ -1022,10 +1032,21 @@ function famAddFormHTML() {
 // Small spot art for empty states: a crop of the home hero photo (turmeric roots and cardamom).
 const SPOT_ART = `<img class="spot-art" src="/static/hero/spices-thumb.jpg" width="240" height="166" alt="" loading="lazy">`;
 
+// Home's household row: "All", one avatar per person, and "+". Manage opens the full list (remove, meals, skin & hair).
 function renderHomeFamily() {
   const box = $("famBody");
   if (!box) return;
   const ms = careMembers();
+  const manage = document.querySelector('#homeFamily [data-fam-act="manage"]');
+  if (manage) manage.setAttribute("aria-expanded", String(Boolean(care.famManage)));
+  const sub = (m) => { const bits = memberLine(m); return bits.length ? bits[0][0].toUpperCase() + bits[0].slice(1) : m.age != null ? `${m.age} years` : "Add details"; };
+  const row = `
+    <ul class="av-row">
+      <li><button type="button" class="av-item" data-fam-act="manage"><span class="av av-all" aria-hidden="true">${ICONS.people}</span><span class="av-name">All</span><span class="av-sub">${ms.length ? `${ms.length} ${ms.length === 1 ? "person" : "people"}` : "No one yet"}</span></button></li>
+      ${ms.map((m, i) => { const name = memberLabel(m, i); return `
+      <li><button type="button" class="av-item" data-fam-go="meals" data-id="${esc(m.id)}"><span class="av fam-${(i % 4) + 1}" aria-hidden="true">${esc((name[0] || "?").toUpperCase())}</span><span class="av-name">${esc(name)}</span><span class="av-sub">${esc(sub(m))}</span></button></li>`; }).join("")}
+      ${ms.length < FAMILY_MAX ? `<li><button type="button" class="av-item" data-fam-act="add"><span class="av av-add" aria-hidden="true">+</span><span class="av-name">Add</span><span class="av-sub">family or flatmate</span></button></li>` : ""}
+    </ul>`;
   const list = ms.map((m, i) => {
     const name = memberLabel(m, i);
     const bits = memberLine(m);
@@ -1043,11 +1064,10 @@ function renderHomeFamily() {
         </span>
       </li>`;
   }).join("");
-  const add = ms.length >= FAMILY_MAX ? ""
-    : care.famAdding ? famAddFormHTML()
-    : `<button type="button" class="chip-add fam-add" data-fam-act="add"><span aria-hidden="true">+</span> Add someone</button>`;
-  box.innerHTML = `${ms.length ? `<ul class="fam-list">${list}</ul>`
-    : `<p class="fam-empty">${SPOT_ART}<span><b>Start with one person:</b> Mum, Dad or you.</span></p>`}${add}`;
+  const form = care.famAdding && ms.length < FAMILY_MAX ? famAddFormHTML() : "";
+  const full = care.famManage && ms.length ? `<ul class="fam-list">${list}</ul>` : "";
+  const empty = !ms.length && !form ? `<p class="fam-hint">Add the people you cook and shop for: family or flatmates. Saved on this device; share it with an invite link.</p>` : "";
+  box.innerHTML = `${row}${empty}${full}${form}`;
 }
 
 function famAddSave() {
@@ -1062,7 +1082,9 @@ function famAddSave() {
   const conditions = [...document.querySelectorAll('#famBody input[name="famCond"]:checked')].map((x) => x.value);
   const ageRaw = ($("famAge")?.value || "").trim();
   const sex = document.querySelector('#famBody input[name="famSex"]:checked')?.value || null;
-  const m = upsertMember({ name, conditions, age: ageRaw === "" ? null : Number(ageRaw), sex, care: {} });
+  const diet = $("famDiet")?.value || "";
+  const allergies = ($("famAllergies")?.value || "").trim();
+  const m = upsertMember({ name, conditions, age: ageRaw === "" ? null : Number(ageRaw), sex, diet, allergies, care: {} });
   if (!m) { toast("Your family book holds up to 6 people."); return; }
   care.famAdding = false;
   renderHomeFamily();
@@ -1074,6 +1096,8 @@ function famAddSave() {
 function onHomeFamilyClick(e) {
   const act = e.target.closest("[data-fam-act]")?.dataset.famAct;
   if (act === "add") { care.famAdding = true; renderHomeFamily(); $("famName")?.focus(); return; }
+  if (act === "manage") { care.famManage = !care.famManage; renderHomeFamily(); return; }
+  if (act === "invite") { if (typeof inviteHousehold === "function") inviteHousehold(); return; }
   if (act === "cancel") { care.famAdding = false; renderHomeFamily(); $("famBody").querySelector(".fam-add")?.focus(); return; }
   if (act === "remove") { removeFromHome(e.target.closest("[data-id]").dataset.id); return; }
   const go = e.target.closest("[data-fam-go]");
@@ -1122,7 +1146,20 @@ function goCareFor(id) {
 
 // Home's "what you can do" shortcuts, and the cross-links. Each lands on the right screen, ready to go.
 function runShortcut(kind, id) {
-  if (kind === "plate-dal") {
+  if (kind === "get-started") {
+    goTo("home");
+    care.famAdding = true;
+    renderHomeFamily();
+    scrollToEl($("homeFamily"));
+    $("famName")?.focus({ preventScroll: true });
+  } else if (kind === "scan") {
+    if (typeof openScan === "function") openScan();
+  } else if (kind === "shop") {
+    goTo("plate");
+    if (typeof state !== "undefined" && state.plan) { selectTab("shop"); scrollToEl($("planOut")); } else openIntake();
+  } else if (kind === "book") {
+    openCookbook();
+  } else if (kind === "plate-dal") {
     goTo("plate");
     setConditions(["diabetes"]);
     scrollToEl($("composer"));

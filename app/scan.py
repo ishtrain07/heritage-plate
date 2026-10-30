@@ -204,7 +204,7 @@ def check_scan(text: str, members: list[dict], language: str) -> tuple[dict, lis
         traces = [trace]
     else:
         lib_hit = care.check_label(text, {})
-        data = {"kind": "personal_care" if lib_hit["actives"] or lib_hit["danger"] else "food", "product": parts[0][:40] if parts else "",
+        data = {"kind": "personal_care" if lib_hit["actives"] or lib_hit["danger"] else "food", "product": "",
                 "summary": "", "watch": [], "instead": ""}
         traces = []
     kind = data.get("kind") if data.get("kind") in ("food", "personal_care", "other") else "other"

@@ -32,7 +32,7 @@
       document.documentElement.setAttribute("data-side", s);
     })();
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261102">
+  <link rel="stylesheet" href="/static/styles.css?v=20261103">
 </head>
 <body>
   <a class="skip" href="#main">Skip to the app</a>
@@ -40,19 +40,17 @@
   <header class="top">
     <div class="wrap top-inner">
       <a class="brand" href="#home" aria-label="Nouri, home">
-        <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
-          <circle class="bm-plate" cx="20" cy="20" r="18" stroke-width="2.5"/>
-          <circle class="bm-dish" cx="20" cy="20" r="11.5"/>
-          <path class="bm-leaf" d="M14 23c3-7 9-9 13-9-1 6-5 11-12 11"/>
-          <path class="bm-vein" d="M15 24c3-3 6-5 9-7" stroke-width="1.4" stroke-linecap="round"/>
-        </svg>
-        <span>Nouri</span>
+        <span class="brand-ring" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14Z"/><path d="M5 19 13 11"/></svg></span>
+        <span class="brand-words"><span class="brand-name">Nouri</span><span class="brand-tag">Good food. Healthier tomorrows.</span></span>
       </a>
-      <nav class="side-switch" aria-label="Plate or Care">
-        <a href="#plate" data-side-link="plate"><span class="sw-name">Plate</span><span class="sw-sub">food</span></a>
-        <a href="#care" data-side-link="care"><span class="sw-name">Care</span><span class="sw-sub">skin &amp; hair</span></a>
+      <nav class="side-switch" aria-label="Sections">
+        <a href="#plate" data-side-link="plate"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M16 3c-2 1-3 4-3 7h3v11"/></svg><span>Food</span></a>
+        <a href="#plate" data-go="plate-week" data-pill="health"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.3 4.3 4.3 0 0 1 19.5 10C19.5 15.4 12 20 12 20Z"/></svg><span>Health</span></a>
+        <a href="#care" data-side-link="care"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14Z"/><path d="M5 19 13 11"/></svg><span>Skin &amp; Hair</span></a>
+        <a href="#plate" data-go="shop" data-pill="shop"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h2l2.2 11h10.6L20 7H6.2"/><circle cx="9" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg><span>Shop</span></a>
       </nav>
       <div class="top-end">
+        <button class="scan-btn" type="button" data-go="scan" aria-label="Scan a label"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/></svg></button>
         <button id="themeToggle" class="theme-btn" type="button" data-mode="system" aria-label="Colour theme: system. Switch theme">
           <svg class="ic-system" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17Z" fill="currentColor"/></svg>
           <svg class="ic-light" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -63,70 +61,61 @@
   </header>
 
   <main id="main">
-    <!-- Umbrella home: the 10-second pitch, shortcuts into both sides, and the family they're for -->
+    <!-- Home: the 10-second pitch, quick actions, the household, and "what would you like to do today?" -->
     <div id="homeView" class="home-view">
-      <section class="hero home-hero" aria-labelledby="homeTitle">
-        <div class="wrap">
-          <div class="home-grid">
-            <!-- hero photo: Anju Ravindranath on Unsplash (Nihdo084Yos); sizes in static/hero -->
-            <figure class="hero-art hero-photo">
-              <picture>
-                <source type="image/webp" srcset="/static/hero/spices-640.webp 640w, /static/hero/spices-1080.webp 1080w, /static/hero/spices-1600.webp 1600w" sizes="(min-width: 1000px) 480px, 100vw">
-                <img src="/static/hero/spices-1080.jpg" srcset="/static/hero/spices-640.jpg 640w, /static/hero/spices-1080.jpg 1080w, /static/hero/spices-1600.jpg 1600w" sizes="(min-width: 1000px) 480px, 100vw" width="1600" height="1129" alt="A family spice box laid out on dark slate: turmeric roots, curry leaves, cardamom, cinnamon, dried red chillies, cumin and fenugreek" fetchpriority="high" decoding="async">
-              </picture>
-            </figure>
-            <div class="home-copy">
-              <p class="eyebrow">Your family's health helper</p>
-              <h1 id="homeTitle" tabindex="-1">Keep what works from home.<br><span class="accent">Fix what doesn't.</span></h1>
-              <p class="lede home-lede">Your family's recipes made lighter, a week of meals for diabetes, blood pressure or cholesterol, and home remedies for skin and hair checked honestly. Just say it, in any language.</p>
-              <div class="shortcuts" role="group" aria-labelledby="scTitle">
-                <h2 id="scTitle" class="sr-only">What you can do</h2>
-                <section class="sc-group" aria-labelledby="scPlateH">
-                  <h3 id="scPlateH" class="sc-h"><span class="sc-dot" aria-hidden="true"></span>Plate <span class="sc-h-sub">food</span></h3>
-                  <ul class="sc-list">
-                    <li><a class="sc" href="#plate" data-go="plate-dal"><span class="sc-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" focusable="false"><path d="M3.5 11h17a8.5 8.5 0 0 1-17 0Z"/><path d="M9 7.5c0-1.6 1.2-2 1.2-3.5M13.5 7.5c0-1.6 1.2-2 1.2-3.5"/></svg></span><span class="sc-t">Make Mum's dal diabetes-friendly</span></a></li>
-                    <li><a class="sc" href="#plate" data-go="plate-week"><span class="sc-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" focusable="false"><rect x="4" y="5" width="16" height="15" rx="3"/><path d="M8 3v4M16 3v4M4 10h16M8.5 14h2M13.5 14h2"/></svg></span><span class="sc-t">Plan a week of meals</span></a></li>
-                    <li><a class="sc" href="#plate" data-go="plate-suggest"><span class="sc-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" focusable="false"><path d="M12 3.5 13.9 9 19.5 11l-5.6 2L12 18.5 10.1 13 4.5 11l5.6-2Z"/><path d="M18.5 3.5v3M17 5h3"/></svg></span><span class="sc-t">Suggest a healthy dish</span></a></li>
-                  </ul>
-                </section>
-                <section class="sc-group care-scope" aria-labelledby="scCareH">
-                  <h3 id="scCareH" class="sc-h"><span class="sc-dot" aria-hidden="true"></span>Care <span class="sc-h-sub">skin &amp; hair</span></h3>
-                  <ul class="sc-list">
-                    <li><a class="sc" href="#care" data-go="care-remedy"><span class="sc-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" focusable="false"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14Z"/><path d="M5 19 13 11"/></svg></span><span class="sc-t">Is haldi good for acne?</span></a></li>
-                    <li><a class="sc" href="#care-plan" data-go="care-plan"><span class="sc-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" focusable="false"><circle cx="9" cy="8" r="3"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.8 14.1a4.5 4.5 0 0 1 4.7 4.9"/></svg></span><span class="sc-t">A skin &amp; hair plan for the family</span></a></li>
-                    <li><a class="sc" href="#care-label" data-go="care-label"><span class="sc-ic" aria-hidden="true"><svg class="ic" viewBox="0 0 24 24" focusable="false"><path d="M9.5 3h5v3l2.5 3.5V20a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V9.5L9.5 6Z"/><path d="M7 12.5h10M7 17h10"/></svg></span><span class="sc-t">Check a product label</span></a></li>
-                  </ul>
-                </section>
-              </div>
+      <div class="wrap home2">
+        <section class="hero2" aria-labelledby="homeTitle">
+          <!-- hero photo: Anju Ravindranath on Unsplash (Nihdo084Yos); sizes in static/hero -->
+          <picture class="hero2-photo">
+            <source type="image/webp" srcset="/static/hero/spices-640.webp 640w, /static/hero/spices-1080.webp 1080w, /static/hero/spices-1600.webp 1600w" sizes="(min-width: 1000px) 1100px, 100vw">
+            <img src="/static/hero/spices-1080.jpg" srcset="/static/hero/spices-640.jpg 640w, /static/hero/spices-1080.jpg 1080w, /static/hero/spices-1600.jpg 1600w" sizes="(min-width: 1000px) 1100px, 100vw" width="1600" height="1129" alt="" fetchpriority="high" decoding="async">
+          </picture>
+          <div class="hero2-copy">
+            <p class="hero2-eyebrow">Your household's health helper</p>
+            <h1 id="homeTitle" tabindex="-1">Keep what works from home.<br><em>Fix what doesn't.</em></h1>
+            <p class="hero2-lede">Healthier meals everyone can share, one smart shopping list, label checks for food and skin care, and home remedies checked honestly. For families and flatmates, in any language.</p>
+            <div class="hero2-ctas">
+              <a class="btn hero2-btn" href="#home" data-go="get-started">Get started <span aria-hidden="true">→</span></a>
+              <button id="homeSample" class="hero2-link" type="button">or try a sample family</button>
             </div>
-            <section id="homeFamily" class="fam-card" aria-labelledby="famTitle">
-              <div class="fam-head">
-                <h2 id="famTitle" class="fam-title">Your family</h2>
-                <p class="fam-sub">Who Plate and Care are for. Saved on this device only.</p>
-              </div>
-              <div id="famBody" class="fam-body">
-                <p class="fam-empty"><img class="spot-art" src="/static/hero/spices-thumb.jpg" width="240" height="166" alt="" loading="lazy"><span><b>Start with one person:</b> Mum, Dad or you.</span></p>
-              </div>
-            </section>
-            <ol class="steps3" aria-label="How it works, in 3 steps">
-              <li><span class="s3-n" aria-hidden="true">1</span><span><b>Say it</b><span class="s3-sub">a recipe or a home remedy, in any language</span></span></li>
-              <li><span class="s3-n" aria-hidden="true">2</span><span><b>We check it</b><span class="s3-sub">against food tables and cited sources</span></span></li>
-              <li><span class="s3-n" aria-hidden="true">3</span><span><b>Get your plan</b><span class="s3-sub">lighter dishes, a week of meals, a care plan</span></span></li>
-            </ol>
-            <div class="home-ex" data-rotator-copy></div>
           </div>
-          <div class="home-sample">
-            <button id="homeSample" class="btn btn-outline btn-cta" type="button">Try a sample family</button>
-            <span class="home-sample-sub">One tap: see a family's dishes made lighter. No typing.</span>
+        </section>
+
+        <ul class="tiles4" aria-label="Quick actions">
+          <li><a class="tile" href="#home" data-go="get-started"><span class="tile-ic t-green" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><path d="M18 8v6M15 11h6"/></svg></span><span>Add family or flatmates</span></a></li>
+          <li><a class="tile" href="#home" data-go="scan"><span class="tile-ic t-sage" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/></svg></span><span>Scan a label</span></a></li>
+          <li><a class="tile" href="#plate" data-go="plate-week"><span class="tile-ic t-clay" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1.5 10a1.5 1.5 0 0 1-1.5 1.3H7a1.5 1.5 0 0 1-1.5-1.3Z"/><path d="M8.5 9 11 4M15.5 9 13 4M9 13v4M12 13v4M15 13v4"/></svg></span><span>One smart shopping list</span></a></li>
+          <li><a class="tile" href="#plate" data-go="plate-dal"><span class="tile-ic t-sun" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 11h17a8.5 8.5 0 0 1-17 0Z"/><path d="M9 7.5c0-1.6 1.2-2 1.2-3.5M13.5 7.5c0-1.6 1.2-2 1.2-3.5"/></svg></span><span>Make a family dish lighter</span></a></li>
+        </ul>
+
+        <section id="homeFamily" class="card2 fam2" aria-labelledby="famTitle">
+          <div class="sec2-head">
+            <h2 id="famTitle" class="sec2-title">Your household, in one place</h2>
+            <span class="sec2-acts">
+              <button type="button" class="sec2-link" data-fam-act="invite">Invite <span aria-hidden="true">↗</span></button>
+              <button type="button" class="sec2-link" data-fam-act="manage" aria-expanded="false">Manage <span aria-hidden="true">›</span></button>
+            </span>
           </div>
-          <ul class="trust-badges" aria-label="Why you can trust it">
-            <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19V5m0 14h16M8 15v-4m4 4V8m4 7v-6" /></svg><span><b>Real numbers</b> from IFCT and USDA food tables</span></li>
-            <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg><span><b>Dangerous remedies</b> always flagged, by rules in code</span></li>
-            <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 4h9l3 3v13H6z"/><path d="M9 11h6M9 15h6"/></svg><span><b>Safer options</b> from cited sources</span></li>
-            <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg><span><b>No ads, no brands,</b> <span class="nowrap">no sign-up</span></span></li>
+          <div id="famBody" class="fam-body"></div>
+        </section>
+
+        <section class="today2" aria-labelledby="todayTitle">
+          <h2 id="todayTitle" class="sec2-title">What would you like to do today?</h2>
+          <ul class="today-grid">
+            <li><a class="today-card" href="#plate" data-go="plate-suggest"><span class="today-ph ph-cook" aria-hidden="true"></span><span class="today-t"><b>What can we cook?</b><span>One meal for everyone at the table</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
+            <li><a class="today-card" href="#home" data-go="scan"><span class="today-ph ph-scan" aria-hidden="true"></span><span class="today-t"><b>Can we use this?</b><span>Scan a food or skin-care label</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
+            <li><a class="today-card" href="#plate" data-go="plate-week"><span class="today-ph ph-shop" aria-hidden="true"></span><span class="today-t"><b>What should we buy?</b><span>A week of meals, one shopping list</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
+            <li><a class="today-card" href="#care" data-go="care-remedy"><span class="today-ph ph-care" aria-hidden="true"></span><span class="today-t"><b>Is Nani's remedy safe?</b><span>Skin &amp; hair, checked honestly</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
           </ul>
-        </div>
-      </section>
+        </section>
+
+        <ul class="trust-badges" aria-label="Why you can trust it">
+          <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19V5m0 14h16M8 15v-4m4 4V8m4 7v-6" /></svg><span><b>Real numbers</b> from IFCT and USDA food tables</span></li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3 5 6v5c0 4.5 3 8.3 7 10 4-1.7 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg><span><b>Allergies and diets</b> checked by rules in code</span></li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 4h9l3 3v13H6z"/><path d="M9 11h6M9 15h6"/></svg><span><b>Safer options</b> from cited sources</span></li>
+          <li><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg><span><b>No ads, no brands,</b> <span class="nowrap">no sign-up</span></span></li>
+        </ul>
+      </div>
     </div>
     <div id="flowView">
       <div class="wrap"><div id="resume"></div></div>
@@ -615,10 +604,44 @@
     </div>
   </dialog>
 
+  <nav class="bottom-nav" aria-label="Main">
+    <a href="#home" data-tab-link="home"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 11 12 4l8 7v8.5a.5.5 0 0 1-.5.5H15v-6H9v6H4.5a.5.5 0 0 1-.5-.5Z"/></svg><span>Home</span></a>
+    <a href="#plate" data-tab-link="plate"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M16 3c-2 1-3 4-3 7h3v11"/></svg><span>Recipes</span></a>
+    <button type="button" class="bn-plus" data-go="scan" aria-label="Scan a label"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
+    <a href="#plate" data-go="shop"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h2l2.2 11h10.6L20 7H6.2"/><circle cx="9" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg><span>List</span></a>
+    <a href="#home" data-go="book"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20V10M10 20V4M15 20v-8M20 20V7"/></svg><span>Insights</span></a>
+  </nav>
+
+  <dialog id="scanDlg" class="scan-dlg" aria-labelledby="scanTitle">
+    <div class="scan-inner">
+      <div class="how-head">
+        <h2 id="scanTitle">Scan &amp; check</h2>
+        <button class="how-x" type="button" data-scan-act="close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p class="scan-lede">A photo of the ingredient label: food, skin or hair care. We check it for everyone at home.</p>
+      <div id="scanPick" class="scan-pick">
+        <label class="scan-drop">
+          <input id="scanFile" type="file" accept="image/*" capture="environment" class="sr-only">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/></svg>
+          <b>Take or choose a photo</b>
+          <span>Food, skin care, hair care</span>
+        </label>
+        <button type="button" class="btn-link" data-scan-act="type">or type the ingredients</button>
+      </div>
+      <div id="scanWho" class="scan-who"></div>
+      <div id="scanStatus" class="scan-status" role="status" aria-live="polite"></div>
+      <div id="scanOut" class="scan-out"></div>
+      <p class="scan-foot">Gemma 3 reads the label · NVIDIA Nemotron explains it · allergies, diets and safety are checked by rules in code. Not medical advice.</p>
+    </div>
+  </dialog>
+
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js?v=20261102"></script>
-  <script src="/static/app.js?v=20261102"></script>
-  <script src="/static/care.js?v=20261102"></script>
+  <script src="/static/family.js?v=20261103"></script>
+  <script src="/static/app.js?v=20261103"></script>
+  <script src="/static/care.js?v=20261103"></script>
+  <script src="/static/scan.js?v=20261103"></script>
 </body>
 </html>
