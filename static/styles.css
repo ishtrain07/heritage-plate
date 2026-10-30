@@ -2189,3 +2189,4 @@ body { background: var(--bg); }
 .fam-edit-acts { display: inline-flex; gap: 4px; }
 .fam-form-h { margin: 0 0 6px; font-weight: 650; font-size: 1.0625rem; }
 .ins-aim { min-width: 0; overflow-wrap: anywhere; }
+.side-switch a[data-side-link="plate"][aria-current="page"], .side-switch a[data-side-link="care"][aria-current="page"] { background: var(--deep); color: var(--on-deep); }
