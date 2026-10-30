@@ -83,7 +83,7 @@
 
         <ul class="tiles4" aria-label="Quick actions">
           <li><a class="tile" href="#home" data-go="get-started"><span class="tile-ic t-green" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><path d="M18 8v6M15 11h6"/></svg></span><span>Add family or flatmates</span></a></li>
-          <li><a class="tile" href="#home" data-go="scan"><span class="tile-ic t-sage" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/></svg></span><span>Scan a label</span></a></li>
+          <li><a class="tile" href="#home" data-go="scan"><span class="tile-ic t-sage" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/></svg></span><span>Scan a food or skin-care label</span></a></li>
           <li><a class="tile" href="#plate" data-go="plate-week"><span class="tile-ic t-clay" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1.5 10a1.5 1.5 0 0 1-1.5 1.3H7a1.5 1.5 0 0 1-1.5-1.3Z"/><path d="M8.5 9 11 4M15.5 9 13 4M9 13v4M12 13v4M15 13v4"/></svg></span><span>One smart shopping list</span></a></li>
           <li><a class="tile" href="#plate" data-go="plate-dal"><span class="tile-ic t-sun" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 11h17a8.5 8.5 0 0 1-17 0Z"/><path d="M9 7.5c0-1.6 1.2-2 1.2-3.5M13.5 7.5c0-1.6 1.2-2 1.2-3.5"/></svg></span><span>Make a family dish lighter</span></a></li>
         </ul>
@@ -609,8 +609,45 @@
     <a href="#plate" data-tab-link="plate"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M16 3c-2 1-3 4-3 7h3v11"/></svg><span>Recipes</span></a>
     <button type="button" class="bn-plus" data-go="scan" aria-label="Scan a label"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
     <a href="#plate" data-go="shop"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 4h2l2.2 11h10.6L20 7H6.2"/><circle cx="9" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg><span>List</span></a>
-    <a href="#home" data-go="book"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20V10M10 20V4M15 20v-8M20 20V7"/></svg><span>Insights</span></a>
+    <a href="#home" data-go="insights"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 20V10M10 20V4M15 20v-8M20 20V7"/></svg><span>Insights</span></a>
   </nav>
+
+  <dialog id="setupDlg" class="scan-dlg setup-dlg" aria-labelledby="setupTitle">
+    <form class="scan-inner" id="setupForm" novalidate>
+      <div class="how-head">
+        <h2 id="setupTitle">Set up your household</h2>
+        <button class="how-x" type="button" data-setup-act="close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="setup-prog" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p id="setupStep" class="setup-step">Step 1 of 3</p>
+      <div id="setupBody"></div>
+      <p id="setupMsg" class="msg" role="status" aria-live="polite"></p>
+      <div class="setup-btns">
+        <button type="button" class="btn-link" data-setup-act="skip">Skip</button>
+        <button type="submit" class="btn btn-primary">Continue <span aria-hidden="true">→</span></button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="insightsDlg" class="scan-dlg ins-dlg" aria-labelledby="insTitle">
+    <div class="scan-inner">
+      <div class="how-head">
+        <h2 id="insTitle">Household insights</h2>
+        <button class="how-x" type="button" data-ins-act="close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p class="scan-lede">Daily aims for everyone at home, worked out from published guidance. Every number says where it comes from.</p>
+      <div id="insBody" class="ins-body" aria-live="polite"></div>
+      <div class="ins-btns">
+        <button type="button" class="btn btn-quiet btn-small" data-ins-act="book">Open the family book</button>
+        <button type="button" class="btn btn-primary btn-small" data-ins-act="week">Plan the week</button>
+      </div>
+      <p class="scan-foot">Guidance, not medical advice. Check targets with their doctor or dietitian, especially with diabetes, kidney disease or in pregnancy.</p>
+    </div>
+  </dialog>
 
   <dialog id="scanDlg" class="scan-dlg" aria-labelledby="scanTitle">
     <div class="scan-inner">
@@ -643,5 +680,7 @@
   <script src="/static/app.js?v=20261103"></script>
   <script src="/static/care.js?v=20261103"></script>
   <script src="/static/scan.js?v=20261103"></script>
+  <script src="/static/setup.js?v=20261103"></script>
+  <script src="/static/insights.js?v=20261103"></script>
 </body>
 </html>

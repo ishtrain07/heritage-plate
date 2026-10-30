@@ -325,7 +325,7 @@ function setSide(side) {
 
 // ---------- invite link: share the household with another phone, no accounts ----------
 const INVITE_MAX = 8000;
-const INVITE_FIELDS = ["name", "age", "sex", "pregnant", "conditions", "allergies", "diet", "care"];
+const INVITE_FIELDS = ["name", "relation", "age", "sex", "pregnant", "conditions", "allergies", "diet", "care"];
 
 function b64urlEncode(text) {
   const bytes = new TextEncoder().encode(text);
@@ -1059,37 +1059,47 @@ function memberLine(m) {
     ...(m.pregnant ? ["pregnant"] : []), DIET_SHORT[m.diet], ...(m.allergies ? [`no ${m.allergies.split(/[,;]/)[0].trim()}`] : [])].filter(Boolean);
 }
 
-function famAddFormHTML() {
+const RELATIONS = [["me", "Me"], ["partner", "Partner"], ["mum", "Mum"], ["dad", "Dad"], ["child", "Child"], ["grandparent", "Grandparent"],
+  ["sibling", "Sibling"], ["flatmate", "Flatmate"], ["other", "Other"]];
+const DIET_PICK = [["vegetarian", "Vegetarian"], ["eggetarian", "Eggetarian"], ["vegan", "Vegan"], ["pescatarian", "Pescatarian"],
+  ["jain", "Jain"], ["halal", "Halal"], ["kosher", "Kosher-style"]];
+
+// Add someone, or edit them (m given): the same short form, filled in.
+function famAddFormHTML(m = null) {
+  const sel = (on) => (on ? " selected" : "");
+  const chk = (on) => (on ? " checked" : "");
   return `
     <form class="fam-form" data-fam-form novalidate>
-      <label class="field"><span class="field-label">What you call them</span>
-        <input id="famName" type="text" maxlength="30" autocomplete="off" placeholder="Mum, Dad, Nani, me…"></label>
+      <p class="fam-form-h">${m ? `Edit ${esc(m.name)}` : "Add someone"}</p>
+      <div class="fam-row">
+        <label class="field"><span class="field-label">Name</span>
+          <input id="famName" type="text" maxlength="30" autocomplete="off" placeholder="Priya, Mum, Sam…" value="${esc(m?.name || "")}"></label>
+        <label class="field"><span class="field-label">Relation <span class="opt">optional</span></span>
+          <select id="famRel"><option value="">Choose</option>${RELATIONS.map(([v, l]) => `<option value="${v}"${sel(m?.relation === v)}>${l}</option>`).join("")}</select></label>
+      </div>
       <div class="fam-row">
         <label class="field fam-age-f"><span class="field-label">Age <span class="opt">optional</span></span>
-          <input id="famAge" type="number" inputmode="numeric" min="0" max="120" step="1"></label>
+          <input id="famAge" type="number" inputmode="numeric" min="0" max="120" step="1" value="${m?.age ?? ""}"></label>
         <fieldset class="fam-fs"><legend class="field-label">Sex <span class="opt">optional</span></legend>
-          <div class="pick pick-sm">${[["female", "Female"], ["male", "Male"]].map(([v, l]) => `<label class="pick-opt"><input type="radio" name="famSex" value="${v}"><span>${l}</span></label>`).join("")}</div>
+          <div class="pick pick-sm">${[["female", "Female"], ["male", "Male"]].map(([v, l]) => `<label class="pick-opt"><input type="radio" name="famSex" value="${v}"${chk(m?.sex === v)}><span>${l}</span></label>`).join("")}</div>
         </fieldset>
       </div>
       <div class="fam-row">
         <label class="field"><span class="field-label">Diet <span class="opt">optional</span></span>
-          <select id="famDiet"><option value="">Eats everything</option>${[["vegetarian", "Vegetarian"], ["eggetarian", "Eggetarian"], ["vegan", "Vegan"], ["pescatarian", "Pescatarian"], ["jain", "Jain"], ["halal", "Halal"], ["kosher", "Kosher-style"]].map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select></label>
+          <select id="famDiet"><option value="">Eats everything</option>${DIET_PICK.map(([v, l]) => `<option value="${v}"${sel(m?.diet === v)}>${l}</option>`).join("")}</select></label>
         <label class="field"><span class="field-label">Allergies <span class="opt">optional</span></span>
-          <input id="famAllergies" type="text" maxlength="200" autocomplete="off" placeholder="peanuts, milk…"></label>
+          <input id="famAllergies" type="text" maxlength="200" autocomplete="off" placeholder="peanuts, milk…" value="${esc(m?.allergies || "")}"></label>
       </div>
       <fieldset class="fam-fs"><legend class="field-label">Any of these? <span class="opt">optional</span></legend>
-        <div class="pick pick-sm">${COND_PICK.map(([v, l]) => `<label class="pick-opt"><input type="checkbox" name="famCond" value="${v}"><span>${l}</span></label>`).join("")}</div>
+        <div class="pick pick-sm">${COND_PICK.map(([v, l]) => `<label class="pick-opt"><input type="checkbox" name="famCond" value="${v}"${chk(m?.conditions?.includes(v))}><span>${l}</span></label>`).join("")}</div>
       </fieldset>
       <p id="famMsg" class="msg" role="status" aria-live="polite"></p>
       <div class="fam-form-btns">
-        <button type="submit" class="btn btn-primary btn-small">Add</button>
+        <button type="submit" class="btn btn-primary btn-small">${m ? "Save" : "Add"}</button>
         <button type="button" class="btn-link" data-fam-act="cancel">Cancel</button>
       </div>
     </form>`;
 }
-
-// Small spot art for empty states: a crop of the home hero photo (turmeric roots and cardamom).
-const SPOT_ART = `<img class="spot-art" src="/static/hero/spices-thumb.jpg" width="240" height="166" alt="" loading="lazy">`;
 
 // Home's household row: "All", one avatar per person, and "+". Manage opens the full list (remove, meals, skin & hair).
 function renderHomeFamily() {
@@ -1098,7 +1108,8 @@ function renderHomeFamily() {
   const ms = careMembers();
   const manage = document.querySelector('#homeFamily [data-fam-act="manage"]');
   if (manage) manage.setAttribute("aria-expanded", String(Boolean(care.famManage)));
-  const sub = (m) => { const bits = memberLine(m); return bits.length ? bits[0][0].toUpperCase() + bits[0].slice(1) : m.age != null ? `${m.age} years` : "Add details"; };
+  const rel = (m) => RELATIONS.find(([v]) => v === m.relation)?.[1] || "";
+  const sub = (m) => { const bits = [rel(m), ...memberLine(m)].filter(Boolean); return bits.length ? bits[0][0].toUpperCase() + bits[0].slice(1) : m.age != null ? `${m.age} years` : "Add details"; };
   const row = `
     <ul class="av-row">
       <li><button type="button" class="av-item" data-fam-act="manage"><span class="av av-all" aria-hidden="true">${ICONS.people}</span><span class="av-name">All</span><span class="av-sub">${ms.length ? `${ms.length} ${ms.length === 1 ? "person" : "people"}` : "No one yet"}</span></button></li>
@@ -1116,14 +1127,18 @@ function renderHomeFamily() {
           <span class="fam-name">${esc(name)}${m.age != null ? `<span class="fam-age">, ${esc(m.age)}</span>` : ""}</span>
           <span class="fam-status">${bits.length ? esc(bits.join(" · ")) : "No details yet"}</span>
         </span>
-        <button type="button" class="fam-remove" data-fam-act="remove" data-id="${esc(m.id)}">Remove<span class="sr-only"> ${esc(name)}</span></button>
+        <span class="fam-edit-acts">
+          <button type="button" class="fam-remove" data-fam-act="edit" data-id="${esc(m.id)}">Edit<span class="sr-only"> ${esc(name)}</span></button>
+          <button type="button" class="fam-remove" data-fam-act="remove" data-id="${esc(m.id)}">Remove<span class="sr-only"> ${esc(name)}</span></button>
+        </span>
         <span class="fam-acts">
           <button type="button" class="fam-go" data-fam-go="meals" data-id="${esc(m.id)}">${ICONS.plate}<span>Meals<span class="sr-only"> for ${esc(name)}</span></span></button>
           <button type="button" class="fam-go care-scope" data-fam-go="care" data-id="${esc(m.id)}">${ICONS.care}<span>Skin &amp; hair<span class="sr-only"> for ${esc(name)}</span></span></button>
         </span>
       </li>`;
   }).join("");
-  const form = care.famAdding && ms.length < FAMILY_MAX ? famAddFormHTML() : "";
+  const editing = care.famEditing ? findMember(care.famEditing) : null;
+  const form = editing ? famAddFormHTML(editing) : care.famAdding && ms.length < FAMILY_MAX ? famAddFormHTML() : "";
   const full = care.famManage && ms.length ? `<ul class="fam-list">${list}</ul>` : "";
   const empty = !ms.length && !form ? `<p class="fam-hint">Add the people you cook and shop for: family or flatmates. Saved on this device; share it with an invite link.</p>` : "";
   const join = care.pendingJoin ? `
@@ -1149,23 +1164,29 @@ function famAddSave() {
   const sex = document.querySelector('#famBody input[name="famSex"]:checked')?.value || null;
   const diet = $("famDiet")?.value || "";
   const allergies = ($("famAllergies")?.value || "").trim();
-  const m = upsertMember({ name, conditions, age: ageRaw === "" ? null : Number(ageRaw), sex, diet, allergies, care: {} });
-  if (!m) { toast("Your family book holds up to 6 people."); return; }
+  const relation = $("famRel")?.value || "";
+  const fields = { name, relation, conditions, age: ageRaw === "" ? null : Number(ageRaw), sex, diet, allergies };
+  const old = care.famEditing ? findMember(care.famEditing) : null;
+  // Editing replaces what they typed here and keeps everything else (skin & hair details, pregnancy).
+  const m = old ? upsertMember({ ...old, ...fields, pregnant: sex === "male" ? false : old.pregnant }) : upsertMember({ ...fields, care: {} });
+  if (!m) { toast("Your household holds up to 6 people."); return; }
   care.famAdding = false;
+  care.famEditing = "";
   renderHomeFamily();
   renderWho();
-  announce(`Added ${name}.`);
+  announce(old ? `Saved ${name}.` : `Added ${name}.`);
   ($("famBody").querySelector(`[data-fam-go="meals"][data-id="${CSS.escape(m.id)}"]`) || $("famBody").querySelector(".fam-add"))?.focus();
 }
 
 function onHomeFamilyClick(e) {
   const act = e.target.closest("[data-fam-act]")?.dataset.famAct;
-  if (act === "add") { care.famAdding = true; renderHomeFamily(); $("famName")?.focus(); return; }
+  if (act === "add") { care.famAdding = true; care.famEditing = ""; renderHomeFamily(); $("famName")?.focus(); return; }
+  if (act === "edit") { care.famEditing = e.target.closest("[data-id]").dataset.id; care.famAdding = false; renderHomeFamily(); $("famName")?.focus(); return; }
   if (act === "join") { acceptInvite(); return; }
   if (act === "join-no") { care.pendingJoin = null; renderHomeFamily(); return; }
   if (act === "manage") { care.famManage = !care.famManage; renderHomeFamily(); return; }
   if (act === "invite") { if (typeof inviteHousehold === "function") inviteHousehold(); return; }
-  if (act === "cancel") { care.famAdding = false; renderHomeFamily(); $("famBody").querySelector(".fam-add")?.focus(); return; }
+  if (act === "cancel") { care.famAdding = false; care.famEditing = ""; renderHomeFamily(); $("famBody").querySelector(".fam-add")?.focus(); return; }
   if (act === "remove") { removeFromHome(e.target.closest("[data-id]").dataset.id); return; }
   const go = e.target.closest("[data-fam-go]");
   if (go) { if (go.dataset.famGo === "meals") goMealsFor(go.dataset.id); else goCareFor(go.dataset.id); }
@@ -1213,7 +1234,10 @@ function goCareFor(id) {
 
 // Home's "what you can do" shortcuts, and the cross-links. Each lands on the right screen, ready to go.
 function runShortcut(kind, id) {
-  if (kind === "get-started") {
+  if (kind === "get-started" && !careMembers().length && typeof openSetup === "function") {
+    goTo("home");
+    openSetup();
+  } else if (kind === "get-started" || kind === "get-started-form") {
     goTo("home");
     care.famAdding = true;
     renderHomeFamily();
@@ -1224,6 +1248,8 @@ function runShortcut(kind, id) {
   } else if (kind === "shop") {
     goTo("plate");
     if (typeof state !== "undefined" && state.plan) { selectTab("shop"); scrollToEl($("planOut")); } else openIntake();
+  } else if (kind === "insights") {
+    if (typeof openInsights === "function") openInsights();
   } else if (kind === "book") {
     openCookbook();
   } else if (kind === "plate-dal") {

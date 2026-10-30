@@ -2134,3 +2134,58 @@ body { background: var(--bg); }
 .join-card { margin-top: var(--s4); padding: 14px 16px; border-radius: 16px; background: var(--tile-green); color: var(--ink); display: grid; gap: 10px; }
 .join-card p { margin: 0; }
 .join-btns { display: flex; gap: var(--s4); align-items: center; flex-wrap: wrap; }
+.setup-prog { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.setup-prog span { height: 6px; border-radius: 999px; background: var(--track); }
+.setup-prog span.on { background: var(--deep); }
+.setup-step { margin: -6px 0 0; color: var(--muted); font-size: .875rem; text-align: right; }
+.setup-q { margin: 0; font-size: 1.375rem; font-weight: 650; }
+.setup-sub { margin: 4px 0 14px; color: var(--muted); }
+.setup-kind { margin-bottom: 12px; }
+.setup-radios { display: grid; gap: 4px; }
+.setup-radio { display: flex; align-items: center; gap: 12px; min-height: 48px; font-size: 1.0625rem; cursor: pointer; }
+.setup-radio input { width: 22px; height: 22px; accent-color: var(--deep); }
+.setup-people { display: grid; gap: 10px; }
+.setup-person { display: grid; grid-template-columns: 1fr 88px; gap: 10px; }
+.setup-person input { width: 100%; }
+.setup-goals { border: 0; padding: 0; margin: 0 0 12px; }
+.setup-goals legend { font-weight: 650; margin-bottom: 6px; }
+.setup-btns { display: flex; justify-content: space-between; align-items: center; }
+.setup-btns .btn-primary { background: var(--ink); color: var(--bg); border-radius: 999px; padding: 12px 26px; }
+.ins-dlg { width: min(720px, calc(100vw - 24px)); }
+.ins-body { display: grid; gap: var(--s4); }
+.ins-summary { display: flex; gap: 8px; flex-wrap: wrap; }
+.ins-chip { padding: 6px 12px; border-radius: 999px; background: var(--tile-green); color: var(--deep); font-size: .9375rem; }
+.ins-week { border-radius: 18px; background: var(--surface-warm); padding: 14px 16px; }
+.ins-h { margin: 0 0 8px; font-weight: 650; }
+.ins-stats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.ins-stats li { display: grid; }
+.ins-stats b { font-family: var(--serif); font-size: 1.25rem; font-weight: 600; }
+.ins-stats span { color: var(--muted); font-size: .8125rem; }
+.ins-person { border: 1px solid var(--card-line); border-radius: 20px; padding: 16px; display: grid; gap: 12px; }
+.ins-head { display: flex; gap: 12px; align-items: center; }
+.ins-head .av { width: 52px; height: 52px; font-size: 1.375rem; flex: none; }
+.ins-head > span:last-child { display: grid; }
+.ins-name { font-size: 1.125rem; }
+.ins-sub { color: var(--muted); font-size: .875rem; }
+.ins-aims { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.ins-aim { display: grid; gap: 2px; padding: 10px 12px; border-radius: 14px; background: var(--surface-warm); border-left: 4px solid var(--deep); }
+.ins-kcal, .ins-sugar, .ins-satfat { border-left-color: var(--clay); } .ins-sodium, .ins-carbs_meal { border-left-color: var(--saffron); }
+.ins-label { color: var(--muted); font-size: .8125rem; }
+.ins-val { font-size: 1rem; line-height: 1.25; }
+.ins-why { color: var(--muted); font-size: .8125rem; line-height: 1.35; margin-top: 4px; }
+.ins-why i { font-style: normal; opacity: .8; white-space: nowrap; }
+.ins-focus { margin: 0; padding-left: 20px; }
+.ins-notes summary { cursor: pointer; font-weight: 600; min-height: 40px; display: flex; align-items: center; }
+.ins-notes ul { margin: 0; padding-left: 20px; color: var(--muted); }
+.ins-btns { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+@media (max-width: 519px) { .ins-stats { grid-template-columns: repeat(2, 1fr); } .ins-aims { grid-template-columns: 1fr 1fr; } }
+.scan-inner { grid-template-columns: minmax(0, 1fr); }
+.scan-dlg { overflow-x: hidden; }
+.ins-chip { max-width: 100%; }
+@media (max-width: 519px) {
+  .ins-why { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .ins-aim { padding: 10px; }
+}
+.fam-edit-acts { display: inline-flex; gap: 4px; }
+.fam-form-h { margin: 0 0 6px; font-weight: 650; font-size: 1.0625rem; }
+.ins-aim { min-width: 0; overflow-wrap: anywhere; }

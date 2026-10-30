@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
-from . import care, dietitian, engine, llm, nutrition, scan
+from . import care, dietitian, engine, insights, llm, nutrition, scan
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("heritage_plate")
@@ -220,6 +220,7 @@ def week(body: WeekIn, request: Request):
 
 app.include_router(care.router)  # Nouri Care: /api/care/*
 app.include_router(scan.router)  # Scan & check: /api/scan
+app.include_router(insights.router)  # Household insights: /api/insights
 
 
 _HOST = re.compile(r"[A-Za-z0-9.-]+(:\d{1,5})?")

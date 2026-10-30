@@ -13,6 +13,7 @@ const FAMILY_MAX = 6;
 const CARE_CONCERN_KEYS = ["acne", "oily", "dry", "sensitive", "dark_spots", "sun", "dandruff", "thinning_hair", "dry_hair", "body_dry"];
 const SKIN_TYPES = ["oily", "dry", "combination", "normal", "sensitive"];
 const PLATE_CONDITIONS = ["diabetes", "bp", "cholesterol"];
+const MEMBER_RELATIONS = ["me", "partner", "mum", "dad", "child", "grandparent", "sibling", "flatmate", "other"];
 const MEMBER_DIETS = ["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan", "halal", "kosher", "jain"];
 const CARE_VERDICTS = ["keep", "care", "stop", "swap"];
 const CARE_EVIDENCE = ["strong", "some", "little", "none"];
@@ -48,6 +49,7 @@ function cleanMember(m) {
     conditions: PLATE_CONDITIONS.filter((c) => Array.isArray(m.conditions) && m.conditions.includes(c)),
     allergies: fStr(m.allergies, 200),
     diet: MEMBER_DIETS.includes(m.diet) ? m.diet : "",
+    relation: MEMBER_RELATIONS.includes(m.relation) ? m.relation : "",
     fromPlate: m.fromPlate === true,
     care: {
       concerns: CARE_CONCERN_KEYS.filter((c) => Array.isArray(care.concerns) && care.concerns.includes(c)).slice(0, 6),
@@ -264,6 +266,7 @@ function upsertMember(m) {
         conditions: [...new Set([...old.conditions, ...clean.conditions])],
         allergies: joinNotes(old.allergies, clean.allergies),
         diet: given("diet") ? clean.diet : old.diet,
+        relation: given("relation") ? clean.relation : old.relation,
         care: { ...old.care, ...newCare },
       });
       f.members[i] = merged;
