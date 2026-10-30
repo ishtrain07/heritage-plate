@@ -2082,6 +2082,8 @@ function renderPlan() {
   const tab = tabs.some(([k]) => k === state.weekTab) ? state.weekTab : "meals";
   const tips = (plan.tips || []).filter((t) => String(t || "").trim());
   const hh = Math.max(1, num(plan.household) || 1);
+  // One household list: a tick here is the same "at home" tick as in the List screen (saved with the household).
+  const atHome = new Set(typeof readFamily === "function" ? readFamily().shopHome : []);
 
   const meals = `
     <div class="day-chips" role="group" aria-label="Choose a day">
@@ -2093,7 +2095,7 @@ function renderPlan() {
       <button type="button" class="btn btn-quiet btn-small" data-copy="shop">Copy list</button></div>
     ${shopGroups(plan).map(([k, items]) => `
       <div class="shop-group"><h3>${esc(SHOP_GROUPS[k])}</h3>
-        <ul class="shop">${items.map((s) => `<li><label><input type="checkbox"><span class="shop-item"><span>${esc(s.item)}</span><span class="shop-qty">${esc(grams(s.grams))}</span></span></label></li>`).join("")}</ul>
+        <ul class="shop">${items.map((s) => `<li><label><input type="checkbox" data-wk-shop="${esc(`wk:${s.item}`)}"${atHome.has(`wk:${s.item}`) ? " checked" : ""}><span class="shop-item"><span>${esc(s.item)}</span><span class="shop-qty">${esc(grams(s.grams))}</span></span></label></li>`).join("")}</ul>
       </div>`).join("")}`;
   const note = hasNote(plan) ? `
     <article class="letter" aria-labelledby="noteTitle">
@@ -2741,6 +2743,11 @@ function onAction(e) {
   else if (act === "close-cookbook") closeCookbook();
 }
 $("readyBar").addEventListener("click", onAction);
+$("planOut").addEventListener("change", (e) => {
+  const key = e.target.dataset?.wkShop;
+  if (!key || typeof updateShopping !== "function") return;
+  updateShopping((f) => { f.shopHome = e.target.checked ? [...new Set([...f.shopHome, key])] : f.shopHome.filter((k) => k !== key); });
+});
 $("cookbookView").addEventListener("click", onAction);
 window.addEventListener("beforeprint", renderCookbookView);
 
