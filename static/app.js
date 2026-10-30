@@ -2366,31 +2366,35 @@ function cookbookHTML() {
     </div>`;
 }
 
-// The book as a short message for WhatsApp, iMessage or email: *bold* titles, one line per idea, no markdown bullets.
+// The book as a short message for WhatsApp, iMessage or email: one line per dish and per day, then the list.
+// Full recipes and methods live in the PDF ("Save as PDF"), so the message stays easy to read for any size of family.
 function cookbookText() {
   const plan = state.plan;
   const L = [`*${cookbookTitle()}*`, coverLine()];
   const cut = (t, n) => { t = String(t || "").trim(); return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t; };
-  state.recipes.forEach((e) => {
-    const r = current(e);
-    L.push("", `*${r.name}* · serves ${r.servings}`);
-    if (e.adapted) L.push(focusLine(r).text);
-    L.push(`Shop: ${(r.ingredients || []).map((g) => `${g.item} ${grams(g.grams)}`).join(", ")}`);
-    const steps = (Array.isArray(r.method) ? r.method : []).filter((x) => String(x || "").trim());
-    steps.forEach((x, i) => L.push(`${i + 1}. ${cut(x, 140)}`));
-    if (r.portion_tip) L.push(`Serve: ${cut(r.portion_tip, 120)}`);
-    if (e.adapted && r.changes?.length) L.push(`Changed: ${r.changes.slice(0, 3).map((c) => cut(c.what, 70)).join("; ")}`);
-  });
+  if (state.recipes.length) {
+    L.push("", "*Our dishes, made lighter*");
+    state.recipes.forEach((e) => {
+      const r = current(e);
+      const f = e.adapted ? focusLine(r) : null;
+      const pct = f?.text.match(/\((\d+% less)\)/)?.[1];
+      const what = f?.text.split(" per serving")[0].split(":")[0].toLowerCase(); // "sugar-raising carbs", "salt (sodium)"
+      L.push(`• ${cut(r.name, 50)}${pct && what ? `: ${pct} ${what}` : ""}`);
+    });
+  }
   if (plan) {
     L.push("", `*This week* · ${targetLine(plan)}`);
-    (plan.days || []).forEach((d) => L.push(`${d.day}: ${(d.meals || []).map((m) => cut(m.name, 40)).join(" · ")}`));
+    (plan.days || []).forEach((d) => L.push(`${d.day}: ${(d.meals || []).map((m) => cut(m.name, 32)).join(" · ")}`));
     const home = new Set([...document.querySelectorAll("#planOut ul.shop input:checked")].map((x) => x.closest("li")?.querySelector(".shop-item span")?.textContent));
     const list = (plan.shopping_list || []).filter((x) => !home.has(x.item));
-    L.push("", `*Shopping list* · for ${people(Math.max(1, num(plan.household) || 1))}`, list.map((x) => `${x.item} ${grams(x.grams)}`).join(", "));
+    L.push("", `*Shopping list* · for ${people(Math.max(1, num(plan.household) || 1))}`);
+    const groups = {};
+    list.forEach((x) => { (groups[x.category in SHOP_GROUPS ? x.category : "other"] ||= []).push(x); });
+    Object.keys(SHOP_GROUPS).filter((k) => groups[k]).forEach((k) => L.push(`${SHOP_GROUPS[k]}: ${groups[k].map((x) => `${x.item} ${grams(x.grams)}`).join(", ")}`));
     if (hasNote(plan)) L.push("", `*${noteLabel(plan)}*`, plan.message_for_parent);
   }
   if (typeof careBookText === "function") { const c = careBookText(); if (c) L.push("", c); }
-  if (state.recipes.length || plan) L.push("", "Numbers from IFCT 2017 and USDA food tables. Not medical advice.");
+  if (state.recipes.length) L.push("", "Full recipes and methods: in the family book PDF.");
   return L.join("\n").trim();
 }
 
