@@ -146,7 +146,7 @@ dates,khajoor|khajur|medjool dates|dried dates,fruit,50,282.0,75.03,8.0,2.45,0.3
 orange,oranges|santra|narangi|naranja,fruit,150,47.0,11.75,2.4,0.94,0.12,0.01,0.0,USDA SR28,09200,"ORANGES,RAW,ALL COMM VAR"
 grapes,angoor|uvas|ubas|grape,fruit,150,69.0,18.1,0.9,0.72,0.16,0.05,2.0,USDA SR28,09132,"GRAPES,RED OR GRN (EURO TYPE,SUCH AS THOMPSON SEEDLESS),RAW"
 pumpkin,kaddu|kalabasa|calabaza|squash,vegetable,300,26.0,6.5,0.5,1.0,0.1,0.05,1.0,USDA SR28,11422,"PUMPKIN,RAW"
-sweet corn,bhutta|elote|corn kernels|makai,vegetable,150,86.0,18.7,2.0,3.27,1.35,0.33,15.0,USDA SR28,11167,"CORN,SWT,YEL,RAW"
+sweet corn,bhutta|elote|corn kernels|makai|corn|maize kernels,vegetable,150,86.0,18.7,2.0,3.27,1.35,0.33,15.0,USDA SR28,11167,"CORN,SWT,YEL,RAW"
 true yam,ube|name root|nyame|suran,vegetable,300,118.0,27.88,4.1,1.53,0.17,0.04,9.0,USDA SR28,11601,"YAM,RAW"
 tapioca pearls,sabudana|sago|tapioca,grain,150,358.0,88.69,0.9,0.19,0.02,0.01,1.0,USDA SR28,20068,"TAPIOCA,PEARL,DRY"
 rice flour,chawal ka atta|harina de arroz|galapong,grain,150,366.0,80.13,2.4,5.95,1.42,0.39,0.0,USDA SR28,20061,"RICE FLR,WHITE,UNENR"

@@ -1,4 +1,4 @@
-"""Heritage Plate API: keep the family's food, fix the numbers."""
+"""Nouri Food API: keep the family's food, fix the numbers."""
 
 from __future__ import annotations
 
@@ -15,11 +15,11 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 
-from . import care, dietitian, engine, llm, nutrition
+from . import care, dietitian, engine, insights, llm, nutrition, scan
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("heritage_plate")
-app = FastAPI(title="Heritage Plate", version="0.2.0")
+app = FastAPI(title="Nouri Food", version="0.2.0")
 
 Condition = Literal["diabetes", "bp", "cholesterol", "everyday"]
 Cuisine = Literal["south_asian", "east_asian", "southeast_asian", "continental", "middle_eastern", "latin_american", "other"]
@@ -65,6 +65,8 @@ class AdaptIn(BaseModel):
     # "Ask about this dish": a family preference to honour, e.g. "Dad hates cauliflower".
     request: str = Field(default="", max_length=200)
     also: list[Condition] = Field(default_factory=list, max_length=3)  # more health issues besides `condition`
+    # With a request: the lighter version the family already has, so an ask can't undo it.
+    current: list[Ingredient] | None = Field(default=None, max_length=40)
 
 
 class PlanIn(BaseModel):
@@ -172,7 +174,9 @@ def parse(body: ParseIn, request: Request):
 def adapt(body: AdaptIn, request: Request):
     _rate_limit(request)
     check_input(body.request, "ask")
-    adapted, trace = _guard(engine.adapt_recipe, body.recipe.build(), body.condition, body.cuisine, body.request.strip(), body.also)
+    current = engine.normalize_ingredients([i.model_dump() for i in body.current]) if body.current and body.request.strip() else None
+    adapted, trace = _guard(engine.adapt_recipe, body.recipe.build(), body.condition, body.cuisine, body.request.strip(), body.also,
+                            current)
     return {"recipe": adapted, "trace": trace}
 
 
@@ -214,7 +218,9 @@ def week(body: WeekIn, request: Request):
     return {"week": result, "trace": trace}
 
 
-app.include_router(care.router)  # Heritage Care: /api/care/*
+app.include_router(care.router)  # Nouri Care: /api/care/*
+app.include_router(scan.router)  # Scan & check: /api/scan
+app.include_router(insights.router)  # Household insights: /api/insights
 
 
 _HOST = re.compile(r"[A-Za-z0-9.-]+(:\d{1,5})?")

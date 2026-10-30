@@ -1,4 +1,4 @@
-// Heritage: the shared family store (this device only). Plate and Care both read and write it.
+// Nouri: the shared family store (this device only). Plate and Care both read and write it.
 // Shape (v2): {v, savedAt, mode, language, country, members[], plate, careBook}
 //   plate    = Plate's saved book (the old hp-cookbook-v1 payload), or null
 //   careBook = {remedies: [saved remedy checks], plan: last saved care plan or null}
@@ -13,6 +13,9 @@ const FAMILY_MAX = 6;
 const CARE_CONCERN_KEYS = ["acne", "oily", "dry", "sensitive", "dark_spots", "sun", "dandruff", "thinning_hair", "dry_hair", "body_dry"];
 const SKIN_TYPES = ["oily", "dry", "combination", "normal", "sensitive"];
 const PLATE_CONDITIONS = ["diabetes", "bp", "cholesterol"];
+const MEMBER_GOALS = ["lose_weight", "build_muscle", "belly_fat", "steady_sugar"];
+const MEMBER_RELATIONS = ["me", "partner", "mum", "dad", "child", "grandparent", "sibling", "flatmate", "other"];
+const MEMBER_DIETS = ["non_veg", "pescatarian", "eggetarian", "vegetarian", "vegan", "halal", "kosher", "jain"];
 const CARE_VERDICTS = ["keep", "care", "stop", "swap"];
 const CARE_EVIDENCE = ["strong", "some", "little", "none"];
 const CARE_COUNTRY_KEYS = ["IN", "US", "GB", "CA", "AU", "PH", "MX", "CN", "AE", "OTHER"];
@@ -29,7 +32,8 @@ function familyId() {
 }
 
 function emptyFamily() {
-  return { v: 2, savedAt: 0, mode: "", language: "English", country: "", members: [], plate: null, careBook: { remedies: [], plan: null } };
+  return { v: 2, savedAt: 0, mode: "", language: "English", country: "", members: [], plate: null, careBook: { remedies: [], plan: null },
+    shopping: [], shopHome: [] };
 }
 
 // Clamped to what /api/care and /api/week accept, so a saved person never causes a 422.
@@ -46,6 +50,11 @@ function cleanMember(m) {
     pregnant: sex !== "male" && m.pregnant === true,
     conditions: PLATE_CONDITIONS.filter((c) => Array.isArray(m.conditions) && m.conditions.includes(c)),
     allergies: fStr(m.allergies, 200),
+    diet: MEMBER_DIETS.includes(m.diet) ? m.diet : "",
+    relation: MEMBER_RELATIONS.includes(m.relation) ? m.relation : "",
+    goals: MEMBER_GOALS.filter((g) => Array.isArray(m.goals) && m.goals.includes(g)),
+    // A small photo, shrunk on this device to a JPEG data URL; never sent anywhere.
+    photo: typeof m.photo === "string" && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(m.photo) && m.photo.length < 60000 ? m.photo : "",
     fromPlate: m.fromPlate === true,
     care: {
       concerns: CARE_CONCERN_KEYS.filter((c) => Array.isArray(care.concerns) && care.concerns.includes(c)).slice(0, 6),
@@ -130,6 +139,14 @@ function cleanFamily(d) {
   const seen = new Set(); // same id twice is a broken save; same name is allowed here (it's only merged when adding)
   out.members = fList(d.members, FAMILY_MAX).map(cleanMember).filter((m) => m && !seen.has(m.id) && seen.add(m.id));
   out.plate = fIsObj(d.plate) && d.plate.v === 1 ? d.plate : null;
+  // The household shopping list: scanned or added items (food and skin & hair), plus which week-plan items are at home.
+  out.shopping = fList(d.shopping, 60).filter(fIsObj).map((x) => ({
+    id: typeof x.id === "string" && /^[\w-]{1,40}$/.test(x.id) ? x.id : familyId(),
+    item: fStr(x.item, 80).trim(), kind: x.kind === "care" ? "care" : "food",
+    for: fList(x.for, 8).map((n) => fStr(n, 30)).filter(Boolean), qty: Math.min(Math.max(Math.round(Number(x.qty) || 1), 1), 20),
+    home: x.home === true,
+  })).filter((x) => x.item);
+  out.shopHome = fList(d.shopHome, 200).map((k) => fStr(k, 80)).filter(Boolean);
   if (d.migratedFrom === 1) out.migratedFrom = 1;
   const cb = fIsObj(d.careBook) ? d.careBook : {};
   out.careBook = {
@@ -261,6 +278,10 @@ function upsertMember(m) {
         pregnant: given("pregnant") ? clean.pregnant : old.pregnant,
         conditions: [...new Set([...old.conditions, ...clean.conditions])],
         allergies: joinNotes(old.allergies, clean.allergies),
+        diet: given("diet") ? clean.diet : old.diet,
+        relation: given("relation") ? clean.relation : old.relation,
+        goals: given("goals") ? clean.goals : old.goals,
+        photo: given("photo") ? clean.photo : old.photo,
         care: { ...old.care, ...newCare },
       });
       f.members[i] = merged;
@@ -308,4 +329,17 @@ function saveCarePlan(plan) {
 function hasCareBook() {
   const cb = readFamily().careBook;
   return Boolean(cb.plan || cb.remedies.length);
+}
+
+function addShopping(item) {
+  const f = readFamily();
+  f.shopping.unshift({ id: familyId(), item: fStr(item.item, 80).trim(), kind: item.kind === "care" ? "care" : "food",
+    for: fList(item.for, 8).map((n) => fStr(n, 30)), qty: item.qty || 1, home: false });
+  f.shopping = f.shopping.slice(0, 60);
+  persistFamily();
+}
+
+function updateShopping(fn) {
+  fn(readFamily());
+  persistFamily();
 }

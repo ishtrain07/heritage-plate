@@ -98,7 +98,7 @@ GROUPS = {
 
 
 WHOLE_WORDS = {"ham", "rum", "sake", "yam", "beet"}  # as prefixes they'd catch rumali roti, hamachi, beetroot (listed separately)
-PLANT_LOOKALIKES = re.compile(r"\beggplants?\b|\bbutternut\b|\bcream of tartar\b|\b(coconut|almond|soy|soya|oat|rice|peanut|cashew|cocoa|shea|nut|seed)s? "
+PLANT_LOOKALIKES = re.compile(r"\beggplants?\b|\bbutternut\b|\bcream of tartar\b|\b(coconut|almond|soy|soya|oat|rice|peanut|cashew|cocoa|shea|mango|kokum|nut|seed)s? "
                               r"(milk|butter|cream|yogurt|yoghurt|cheese|curd)\b|\boyster(?= mushrooms?\b)")
 
 

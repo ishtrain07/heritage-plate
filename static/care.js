@@ -1,4 +1,4 @@
-// Heritage Care: skin & hair, plus the umbrella home and the Plate | Care switch.
+// Nouri Care: skin & hair, plus the umbrella home and the Plate | Care switch.
 // Loads after app.js and reuses its helpers ($, esc, safeUrl, api, busy, toast, announce, ticker, scrollToEl,
 // copyText, shareText, openCookbook, printCookbook, stopListening, SPEECH_LANG, VOICE_FALLBACK, DEFAULT_LANGUAGES, state).
 // Care clicks use data-care-act on Care's own containers, so app.js's data-act handlers never see them.
@@ -312,6 +312,9 @@ function setSide(side) {
   // Both carry it: <html> is set before first paint by the inline script in index.html, <body> by us.
   document.documentElement.dataset.side = side;
   document.body.dataset.side = side;
+  document.querySelectorAll("[data-tab-link]").forEach((a) => {
+    if (a.dataset.tabLink === side) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
   document.querySelectorAll("[data-side-link]").forEach((a) => {
     if (a.dataset.sideLink === side) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
@@ -320,8 +323,74 @@ function setSide(side) {
   return changed;
 }
 
+// ---------- invite link: share the household with another phone, no accounts ----------
+const INVITE_MAX = 8000;
+const INVITE_FIELDS = ["name", "relation", "age", "sex", "pregnant", "conditions", "goals", "allergies", "diet"];
+
+function b64urlEncode(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  bytes.forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function b64urlDecode(text) {
+  const bin = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+}
+
+async function inviteHousehold() {
+  const ms = careMembers();
+  if (!ms.length) { runShortcut("get-started"); toast("Add someone first, then invite the rest of the household."); return; }
+  // "Me" on this phone isn't "me" on theirs; skin & hair notes stay here to keep the link short.
+  const members = ms.map((m) => ({ ...Object.fromEntries(INVITE_FIELDS.map((k) => [k, m[k]])), relation: m.relation === "me" ? "" : m.relation,
+    care: { concerns: m.care?.concerns || [], skin_type: m.care?.skin_type || null } }));
+  const url = `${location.origin}/#join=${b64urlEncode(JSON.stringify({ v: 1, members }))}`;
+  if (url.length - location.origin.length > INVITE_MAX) { toast("Too much to fit in one link. Shorten some allergy notes and try again."); return; }
+  const text = "Join our household on Nouri: meals, one shopping list, and label checks for everyone. (The link includes everyone's health details: share it only with them.)";
+  try {
+    if (navigator.share) { await navigator.share({ title: "Nouri", text, url }); return; }
+  } catch (err) { if (err.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(url); toast("Invite link copied. Send it to your family or flatmates."); }
+  catch { window.prompt("Copy this invite link:", url); }
+}
+
+function readInvite(hash) {
+  try {
+    const raw = hash.slice("join=".length);
+    if (!raw || raw.length > INVITE_MAX) return null;
+    const data = JSON.parse(b64urlDecode(raw));
+    const members = (Array.isArray(data?.members) ? data.members : []).slice(0, FAMILY_MAX).map(cleanMember).filter((m) => m && m.name);
+    return members.length ? members : null;
+  } catch { return null; }
+}
+
+function acceptInvite() {
+  const list = care.pendingJoin || [];
+  care.pendingJoin = null;
+  let added = 0;
+  // Never merge into someone already here (their "Mum" may not be yours): a same name gets a number.
+  const taken = new Set(careMembers().map((m) => m.name.trim().toLowerCase()));
+  for (const m of list) {
+    let name = m.name;
+    for (let n = 2; taken.has(name.trim().toLowerCase()); n++) name = `${m.name.slice(0, 25)} (${n})`;
+    taken.add(name.toLowerCase());
+    if (upsertMember({ ...m, id: undefined, name })) added++;
+  }
+  renderHomeFamily();
+  renderWho();
+  toast(added ? `Added ${list.map((m) => m.name).join(", ")} to this phone.` : "Your household is full (6 people).");
+}
+
 function route(initial = false) {
-  const h = location.hash.replace(/^#/, "");
+  let h = location.hash.replace(/^#/, "");
+  if (h.startsWith("join=")) {
+    care.pendingJoin = readInvite(h);
+    if (!care.pendingJoin) toast("That invite link didn't work. Ask for a new one.");
+    history.replaceState(null, "", "#home");
+    h = "home";
+    initial = true;
+  }
   if (document.body.classList.contains("cb-open") && !initial) {
     document.body.classList.remove("cb-open");
     care.bookFromCare = false;
@@ -343,17 +412,17 @@ function route(initial = false) {
     title.focus({ preventScroll: true });
   }
   if (side === "home") {
-    document.title = "Heritage: family recipes made lighter, home remedies checked";
+    document.title = "Nouri: healthier meals, one shopping list, skin & hair checked";
     if (changed || initial) renderHomeFamily();
   }
-  else if (side === "plate") document.title = "Heritage Plate: your family's recipes, made lighter";
+  else if (side === "plate") document.title = "Nouri Food: your family's recipes, made lighter";
 }
 
 function showCareScreen(screen, focus) {
   care.screen = screen;
   Object.entries(CARE_SCREENS).forEach(([k, id]) => { $(id).hidden = k !== screen; });
-  document.title = screen === "care-plan" ? "Heritage Care: a skin & hair plan for the family"
-    : screen === "care-label" ? "Heritage Care: check a product label" : "Heritage Care: home remedies, checked";
+  document.title = screen === "care-plan" ? "Nouri Care: a skin & hair plan for the family"
+    : screen === "care-label" ? "Nouri Care: check a product label" : "Nouri Care: home remedies, checked";
   if (screen === "care-plan") renderPeople();
   renderWho();
   renderBookLink();
@@ -982,6 +1051,7 @@ function careCloseBook() {
 const ICONS = {
   plate: `<svg class="ic" viewBox="0 0 24 24" focusable="false"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/></svg>`,
   care: `<svg class="ic" viewBox="0 0 24 24" focusable="false"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14Z"/><path d="M5 19 13 11"/></svg>`,
+  people: `<svg class="ic" viewBox="0 0 24 24" focusable="false"><circle cx="9" cy="8" r="3"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9" r="2.5"/><path d="M15.8 14.1a4.5 4.5 0 0 1 4.7 4.9"/></svg>`,
 };
 
 // Change side without a hashchange of our own, so the shortcut's next step (focus, prefill) isn't undone by route().
@@ -991,63 +1061,156 @@ function goTo(hash) {
   route(false);
 }
 
+const GOAL_SHORT = { lose_weight: "losing weight", build_muscle: "building muscle", belly_fat: "smaller waist", steady_sugar: "steady energy" };
+const DIET_SHORT = { vegetarian: "vegetarian", eggetarian: "eggetarian", vegan: "vegan", pescatarian: "pescatarian", jain: "Jain",
+  halal: "halal", kosher: "kosher-style" };
+
 function memberLine(m) {
   return [...(m.conditions || []).map((c) => COND_WORDS[c]), ...(m.care?.concerns || []).map((c) => CONCERN_SHORT[c] || c),
-    ...(m.pregnant ? ["pregnant"] : [])].filter(Boolean);
+    ...(m.pregnant ? ["pregnant"] : []), ...(m.goals || []).map((g) => GOAL_SHORT[g]), DIET_SHORT[m.diet], ...(m.allergies ? [`no ${m.allergies.split(/[,;]/)[0].trim()}`] : [])].filter(Boolean);
 }
 
-function famAddFormHTML() {
+const EXAMPLE_PEOPLE = [["mum", "Mum", "Diabetes"], ["dad", "Dad", "Blood pressure"], ["sam", "Sam", "Flatmate · vegan"]];
+const RELATIONS = [["me", "Me"], ["partner", "Partner"], ["mum", "Mum"], ["dad", "Dad"], ["child", "Child"], ["grandparent", "Grandparent"],
+  ["sibling", "Sibling"], ["flatmate", "Flatmate"], ["other", "Other"]];
+const GOAL_PICK = [["lose_weight", "Lose weight"], ["build_muscle", "Build muscle"], ["belly_fat", "Smaller waist"], ["steady_sugar", "Steady energy"]];
+const DIET_PICK = [["vegetarian", "Vegetarian"], ["eggetarian", "Eggetarian"], ["vegan", "Vegan"], ["pescatarian", "Pescatarian"],
+  ["jain", "Jain"], ["halal", "Halal"], ["kosher", "Kosher-style"]];
+
+// Add someone, or edit them (m given): the same short form, filled in.
+function famAddFormHTML(m = null) {
+  const sel = (on) => (on ? " selected" : "");
+  const chk = (on) => (on ? " checked" : "");
   return `
     <form class="fam-form" data-fam-form novalidate>
-      <label class="field"><span class="field-label">What you call them</span>
-        <input id="famName" type="text" maxlength="30" autocomplete="off" placeholder="Mum, Dad, Nani, me…"></label>
+      <p class="fam-form-h">${m ? `Edit ${esc(m.name)}` : "Add someone"}</p>
+      <div class="fam-photo-row">
+        <span id="famPhotoPrev" class="av av-photo fam-photo-prev" aria-hidden="true"${m?.photo ? ` style="background-image:url(${m.photo})"` : ""}>${m?.photo ? "" : "+"}</span>
+        <label class="btn btn-quiet btn-small fam-photo-btn">${m?.photo ? "Change photo" : "Add a photo"} <span class="opt">optional</span>
+          <input id="famPhoto" type="file" accept="image/*" class="sr-only"></label>
+        ${m?.photo ? `<button type="button" class="btn-link" data-fam-act="photo-clear">Remove photo</button>` : ""}
+      </div>
       <div class="fam-row">
-        <label class="field fam-age-f"><span class="field-label">Age <span class="opt">optional</span></span>
-          <input id="famAge" type="number" inputmode="numeric" min="0" max="120" step="1"></label>
+        <label class="field"><span class="field-label">Name</span>
+          <input id="famName" type="text" maxlength="30" autocomplete="off" placeholder="Priya, Mum, Sam…" value="${esc(m?.name || "")}"></label>
+        <label class="field"><span class="field-label">Relation <span class="opt">optional</span></span>
+          <select id="famRel"><option value="">Choose</option>${RELATIONS.map(([v, l]) => `<option value="${v}"${sel(m?.relation === v)}>${l}</option>`).join("")}</select></label>
+      </div>
+      <div class="fam-row">
+        <label class="field fam-age-f"><span class="field-label">Age</span>
+          <input id="famAge" type="number" inputmode="numeric" min="0" max="120" step="1" value="${m?.age ?? ""}"></label>
         <fieldset class="fam-fs"><legend class="field-label">Sex <span class="opt">optional</span></legend>
-          <div class="pick pick-sm">${[["female", "Female"], ["male", "Male"]].map(([v, l]) => `<label class="pick-opt"><input type="radio" name="famSex" value="${v}"><span>${l}</span></label>`).join("")}</div>
+          <div class="pick pick-sm">${[["female", "Female"], ["male", "Male"]].map(([v, l]) => `<label class="pick-opt"><input type="radio" name="famSex" value="${v}"${chk(m?.sex === v)}><span>${l}</span></label>`).join("")}</div>
         </fieldset>
       </div>
-      <fieldset class="fam-fs"><legend class="field-label">Any of these? <span class="opt">optional</span></legend>
-        <div class="pick pick-sm">${COND_PICK.map(([v, l]) => `<label class="pick-opt"><input type="checkbox" name="famCond" value="${v}"><span>${l}</span></label>`).join("")}</div>
+      <div class="fam-row">
+        <label class="field"><span class="field-label">Diet <span class="opt">optional</span></span>
+          <select id="famDiet"><option value="">Eats everything</option>${DIET_PICK.map(([v, l]) => `<option value="${v}"${sel(m?.diet === v)}>${l}</option>`).join("")}</select></label>
+        <label class="field"><span class="field-label">Allergies <span class="opt">optional</span></span>
+          <input id="famAllergies" type="text" maxlength="200" autocomplete="off" placeholder="peanuts, milk…" value="${esc(m?.allergies || "")}"></label>
+      </div>
+      <fieldset class="fam-fs"><legend class="field-label">Health conditions <span class="opt">pick any</span></legend>
+        <div class="pick pick-sm">${COND_PICK.map(([v, l]) => `<label class="pick-opt"><input type="checkbox" name="famCond" value="${v}"${chk(m?.conditions?.includes(v))}><span>${l}</span></label>`).join("")}</div>
+      </fieldset>
+      <fieldset class="fam-fs"><legend class="field-label">Goals <span class="opt">pick any</span></legend>
+        <div class="pick pick-sm">${GOAL_PICK.map(([v, l]) => `<label class="pick-opt"><input type="checkbox" name="famGoal" value="${v}"${chk(m?.goals?.includes(v))}><span>${l}</span></label>`).join("")}</div>
       </fieldset>
       <p id="famMsg" class="msg" role="status" aria-live="polite"></p>
       <div class="fam-form-btns">
-        <button type="submit" class="btn btn-primary btn-small">Add to the family</button>
+        <button type="submit" class="btn btn-primary btn-small">${m ? "Save" : "Add"}</button>
         <button type="button" class="btn-link" data-fam-act="cancel">Cancel</button>
       </div>
     </form>`;
 }
 
-// Small spot art for empty states: a crop of the home hero photo (turmeric roots and cardamom).
-const SPOT_ART = `<img class="spot-art" src="/static/hero/spices-thumb.jpg" width="240" height="166" alt="" loading="lazy">`;
+// A person's photo if they added one, else their initial.
+function avatarHTML(m, i, name, extra = "") {
+  return m.photo ? `<span class="av av-photo ${extra}" style="background-image:url(${m.photo})" aria-hidden="true"></span>`
+    : `<span class="av fam-${(i % 4) + 1} ${extra}" aria-hidden="true">${esc((name[0] || "?").toUpperCase())}</span>`;
+}
 
+// Shrink a chosen photo to a 160 px square JPEG on this device.
+async function squarePhoto(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, bad) => { const el = new Image(); el.onload = () => ok(el); el.onerror = bad; el.src = url; });
+    const side = Math.min(img.naturalWidth, img.naturalHeight);
+    const c = document.createElement("canvas");
+    c.width = c.height = 160;
+    c.getContext("2d").drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 3, side, side, 0, 0, 160, 160);
+    return c.toDataURL("image/jpeg", 0.8);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function onFamPhoto(e) {
+  if (e.target.id !== "famPhoto") return;
+  const file = e.target.files?.[0];
+  if (!file || !/^image\//.test(file.type)) return;
+  try {
+    care.famPhoto = await squarePhoto(file);
+    const pv = $("famPhotoPrev");
+    pv.style.backgroundImage = `url(${care.famPhoto})`;
+    pv.textContent = "";
+  } catch { toast("That photo couldn't be opened. Try another."); }
+}
+
+// Home's household row: "All", one avatar per person, and "+". Manage opens the full list (remove, meals, skin & hair).
 function renderHomeFamily() {
   const box = $("famBody");
   if (!box) return;
   const ms = careMembers();
+  const manage = document.querySelector('#homeFamily [data-fam-act="manage"]');
+  if (manage) {
+    manage.setAttribute("aria-expanded", String(Boolean(care.famManage)));
+    manage.innerHTML = care.famManage ? "Done" : `Manage <span aria-hidden="true">›</span>`;
+  }
+  const rel = (m) => RELATIONS.find(([v]) => v === m.relation)?.[1] || "";
+  const sub = (m) => { const bits = [rel(m), ...memberLine(m)].filter(Boolean); return bits.length ? bits[0][0].toUpperCase() + bits[0].slice(1) : m.age != null ? `${m.age} years` : "Add details"; };
+  const row = `
+    <ul class="av-row">
+      <li><button type="button" class="av-item" data-go="insights"><span class="av av-all" aria-hidden="true">${ICONS.people}</span><span class="av-name">All</span><span class="av-sub">${ms.length ? "Daily aims" : "No one yet"}</span></button></li>
+      ${ms.map((m, i) => { const name = memberLabel(m, i); return `
+      <li><button type="button" class="av-item" data-fam-go="meals" data-id="${esc(m.id)}">${avatarHTML(m, i, name)}<span class="av-name">${esc(name)}</span><span class="av-sub">${esc(sub(m))}</span></button></li>`; }).join("")}
+      ${ms.length < FAMILY_MAX ? `<li><button type="button" class="av-item" data-fam-act="add"><span class="av av-add" aria-hidden="true">+</span><span class="av-name">Add</span><span class="av-sub">family or flatmate</span></button></li>` : ""}
+    </ul>`;
   const list = ms.map((m, i) => {
     const name = memberLabel(m, i);
     const bits = memberLine(m);
     return `
       <li class="fam-person">
-        <span class="avatar fam-${(i % 4) + 1}" aria-hidden="true">${esc((name[0] || "?").toUpperCase())}</span>
+        ${m.photo ? `<span class="avatar av-photo" style="background-image:url(${m.photo})" aria-hidden="true"></span>` : `<span class="avatar fam-${(i % 4) + 1}" aria-hidden="true">${esc((name[0] || "?").toUpperCase())}</span>`}
         <span class="fam-text">
           <span class="fam-name">${esc(name)}${m.age != null ? `<span class="fam-age">, ${esc(m.age)}</span>` : ""}</span>
           <span class="fam-status">${bits.length ? esc(bits.join(" · ")) : "No details yet"}</span>
         </span>
-        <button type="button" class="fam-remove" data-fam-act="remove" data-id="${esc(m.id)}">Remove<span class="sr-only"> ${esc(name)}</span></button>
+        <span class="fam-edit-acts">
+          <button type="button" class="fam-remove" data-fam-act="edit" data-id="${esc(m.id)}">Edit<span class="sr-only"> ${esc(name)}</span></button>
+          <button type="button" class="fam-remove" data-fam-act="remove" data-id="${esc(m.id)}">Remove<span class="sr-only"> ${esc(name)}</span></button>
+        </span>
         <span class="fam-acts">
           <button type="button" class="fam-go" data-fam-go="meals" data-id="${esc(m.id)}">${ICONS.plate}<span>Meals<span class="sr-only"> for ${esc(name)}</span></span></button>
           <button type="button" class="fam-go care-scope" data-fam-go="care" data-id="${esc(m.id)}">${ICONS.care}<span>Skin &amp; hair<span class="sr-only"> for ${esc(name)}</span></span></button>
         </span>
       </li>`;
   }).join("");
-  const add = ms.length >= FAMILY_MAX ? ""
-    : care.famAdding ? famAddFormHTML()
-    : `<button type="button" class="chip-add fam-add" data-fam-act="add"><span aria-hidden="true">+</span> Add someone</button>`;
-  box.innerHTML = `${ms.length ? `<ul class="fam-list">${list}</ul>`
-    : `<p class="fam-empty">${SPOT_ART}<span><b>Start with one person:</b> Mum, Dad or you.</span></p>`}${add}`;
+  const editing = care.famEditing ? findMember(care.famEditing) : null;
+  const form = editing ? famAddFormHTML(editing) : care.famAdding && ms.length < FAMILY_MAX ? famAddFormHTML() : "";
+  const full = care.famManage && ms.length ? `<ul class="fam-list">${list}</ul>` : "";
+  const empty = !ms.length && !form ? `<p class="fam-hint">Add the people you cook and shop for: family or flatmates. Saved on this device; share it with an invite link.</p>` : "";
+  // Until they add their own people, an example household shows what it looks like (real people get initials).
+  const example = !ms.length ? `
+    <ul class="av-row av-example" aria-label="Example household">
+      ${EXAMPLE_PEOPLE.map(([img, name, sub]) => `
+      <li><button type="button" class="av-item" data-go="get-started"><span class="av av-photo" style="background-image:url(/static/hero/person-${img}.jpg)" aria-hidden="true"></span><span class="av-name">${name}</span><span class="av-sub">${sub}</span></button></li>`).join("")}
+      <li><button type="button" class="av-item" data-go="get-started"><span class="av av-add" aria-hidden="true">+</span><span class="av-name">Add yours</span><span class="av-sub">family or flatmates</span></button></li>
+    </ul>` : "";
+  const join = care.pendingJoin ? `
+    <div class="join-card" role="region" aria-label="Household invite">
+      <p><b>You've been invited to a household:</b> ${esc(care.pendingJoin.map((m) => m.name).join(", "))}.</p>
+      <div class="join-btns"><button type="button" class="btn btn-primary btn-small" data-fam-act="join">Add them to this phone</button>
+      <button type="button" class="btn-link" data-fam-act="join-no">No thanks</button></div>
+    </div>` : "";
+  box.innerHTML = `${join}${ms.length ? row : example}${empty}${full}${form}`;
 }
 
 function famAddSave() {
@@ -1060,21 +1223,43 @@ function famAddSave() {
     return;
   }
   const conditions = [...document.querySelectorAll('#famBody input[name="famCond"]:checked')].map((x) => x.value);
+  const goals = [...document.querySelectorAll('#famBody input[name="famGoal"]:checked')].map((x) => x.value);
   const ageRaw = ($("famAge")?.value || "").trim();
+  if (ageRaw === "" || !(Number(ageRaw) >= 0 && Number(ageRaw) <= 120)) {
+    const msg = $("famMsg");
+    msg.className = "msg warn"; msg.textContent = "Add their age: it keeps portions and skin products safe, especially for children.";
+    $("famAge")?.focus();
+    return;
+  }
   const sex = document.querySelector('#famBody input[name="famSex"]:checked')?.value || null;
-  const m = upsertMember({ name, conditions, age: ageRaw === "" ? null : Number(ageRaw), sex, care: {} });
-  if (!m) { toast("Your family book holds up to 6 people."); return; }
+  const diet = $("famDiet")?.value || "";
+  const allergies = ($("famAllergies")?.value || "").trim();
+  const relation = $("famRel")?.value || "";
+  const photo = care.famPhoto !== undefined ? care.famPhoto : undefined;
+  const fields = { name, relation, conditions, goals, ...(photo !== undefined ? { photo } : {}), age: ageRaw === "" ? null : Number(ageRaw), sex, diet, allergies };
+  const old = care.famEditing ? findMember(care.famEditing) : null;
+  // Editing replaces what they typed here and keeps everything else (skin & hair details, pregnancy).
+  const m = old ? upsertMember({ ...old, ...fields, pregnant: sex === "male" ? false : old.pregnant }) : upsertMember({ ...fields, care: {} });
+  if (!m) { toast("Your household holds up to 6 people."); return; }
   care.famAdding = false;
+  care.famEditing = "";
+  care.famPhoto = undefined;
   renderHomeFamily();
   renderWho();
-  announce(`Added ${name}.`);
+  announce(old ? `Saved ${name}.` : `Added ${name}.`);
   ($("famBody").querySelector(`[data-fam-go="meals"][data-id="${CSS.escape(m.id)}"]`) || $("famBody").querySelector(".fam-add"))?.focus();
 }
 
 function onHomeFamilyClick(e) {
   const act = e.target.closest("[data-fam-act]")?.dataset.famAct;
-  if (act === "add") { care.famAdding = true; renderHomeFamily(); $("famName")?.focus(); return; }
-  if (act === "cancel") { care.famAdding = false; renderHomeFamily(); $("famBody").querySelector(".fam-add")?.focus(); return; }
+  if (act === "photo-clear") { care.famPhoto = ""; const pv = $("famPhotoPrev"); pv.style.backgroundImage = ""; pv.textContent = "+"; return; }
+  if (act === "add") { care.famPhoto = undefined; care.famAdding = true; care.famEditing = ""; renderHomeFamily(); $("famName")?.focus(); return; }
+  if (act === "edit") { care.famPhoto = undefined; care.famEditing = e.target.closest("[data-id]").dataset.id; care.famAdding = false; renderHomeFamily(); $("famName")?.focus(); return; }
+  if (act === "join") { acceptInvite(); return; }
+  if (act === "join-no") { care.pendingJoin = null; renderHomeFamily(); return; }
+  if (act === "manage") { care.famManage = !care.famManage; renderHomeFamily(); return; }
+  if (act === "invite") { if (typeof inviteHousehold === "function") inviteHousehold(); return; }
+  if (act === "cancel") { care.famAdding = false; care.famEditing = ""; renderHomeFamily(); $("famBody").querySelector(".fam-add")?.focus(); return; }
   if (act === "remove") { removeFromHome(e.target.closest("[data-id]").dataset.id); return; }
   const go = e.target.closest("[data-fam-go]");
   if (go) { if (go.dataset.famGo === "meals") goMealsFor(go.dataset.id); else goCareFor(go.dataset.id); }
@@ -1122,7 +1307,28 @@ function goCareFor(id) {
 
 // Home's "what you can do" shortcuts, and the cross-links. Each lands on the right screen, ready to go.
 function runShortcut(kind, id) {
-  if (kind === "plate-dal") {
+  if (kind === "get-started" && !careMembers().length && typeof openSetup === "function") {
+    goTo("home");
+    openSetup();
+  } else if (kind === "get-started" || kind === "get-started-form") {
+    goTo("home");
+    care.famAdding = true;
+    renderHomeFamily();
+    scrollToEl($("homeFamily"));
+    $("famName")?.focus({ preventScroll: true });
+  } else if (kind === "scan") {
+    if (typeof openScan === "function") openScan();
+  } else if (kind === "shop" && typeof openShopList === "function") {
+    openShopList();
+  } else if (kind === "shop") {
+    goTo("plate");
+    if (typeof state !== "undefined" && state.plan) { selectTab("shop"); scrollToEl($("planOut")); }
+    else { openIntake(); toast("Your shopping list is built from the week's meals. Plan the week first: it takes about 45 seconds."); }
+  } else if (kind === "insights") {
+    if (typeof openInsights === "function") openInsights();
+  } else if (kind === "book") {
+    openCookbook();
+  } else if (kind === "plate-dal") {
     goTo("plate");
     setConditions(["diabetes"]);
     scrollToEl($("composer"));
@@ -1258,6 +1464,7 @@ function setupCare() {
   // One family, two sides.
   document.addEventListener("click", onShortcutClick);
   $("homeFamily").addEventListener("click", onHomeFamilyClick);
+  $("homeFamily").addEventListener("change", onFamPhoto);
   $("homeFamily").addEventListener("submit", (e) => { e.preventDefault(); famAddSave(); });
   const plateWho = $("plateWho");
   plateWho.addEventListener("click", (e) => {

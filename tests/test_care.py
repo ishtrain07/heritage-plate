@@ -258,7 +258,8 @@ def test_pool_chlorine_does_not_stop_coconut_oil(client):
 
 
 def test_swallowed_chemical_gets_emergency_advice():
-    assert "poison centre" in care._stop_rule("bleach", "my son accidentally drank some bleach")[1]
+    rule = care._stop_rule("bleach", "my son accidentally drank some bleach")
+    assert "emergency" in rule[0] and "112" in rule[0] and rule[2] is False
     assert not care.PHOTOTOXIC.search("sublime slime")
 
 
@@ -293,7 +294,7 @@ def test_reordered_translation_cannot_move_safety_text(monkeypatch):
     _translator(monkeypatch, reorder)
     res, _ = care.check_remedy("kerosene on lice for my son, he drank some", {"age": 6, "concerns": ["acne"]}, "IN", "Hindi")
     r = res["remedies"][0]
-    assert "poison centre" in r["how_better"] and "Kerosene" in r["why"]  # English always kept beside safety text
+    assert "emergency" in r["why"] and "(If any was swallowed" in r["why"]  # English always kept beside safety text
 
 
 def test_missing_translation_key_keeps_all_english(monkeypatch):

@@ -1,4 +1,4 @@
-// Heritage Plate front end: plain JS, no build step, no external dependencies.
+// Nouri Food front end: plain JS, no build step, no external dependencies.
 "use strict";
 
 // An old page cached by the browser can load these new scripts without family.js: reload once to get the current page.
@@ -51,7 +51,7 @@ const NUTRIENTS = [
   ["sodium_mg", "Salt (sodium)", "mg"],
 ];
 // Shown under the big number for "Everyday lighter", where calories lead.
-const SECONDARY = [["sat_fat_g", "Saturated fat", "g"], ["sodium_mg", "Salt", "mg"]];
+const SECONDARY = [["sat_fat_g", "Saturated fat", "g"], ["sodium_mg", "Sodium", "mg"]];
 
 const DEFAULT_CUISINES = {
   south_asian: "South Asian (Indian, Pakistani, Bangladeshi, Sri Lankan)",
@@ -307,12 +307,23 @@ function readableError(detail, status) {
   if (detail && typeof detail === "object") return detail.msg ? String(detail.msg) : "Something in the request wasn't right.";
   if (typeof detail === "string" && detail) return detail;
   if (status === 502) return "The AI didn't answer properly. Please try again.";
+  if (status === 504) return "That took longer than usual. Please try again.";
+  if (status === 429) return "You've asked a lot in a short time. Please wait a minute and try again.";
   if (status >= 500) return "Something went wrong on our side. Please try again.";
   return `Request failed (${status}).`;
 }
 
 // `signal` lets the person cancel; a cancelled call throws an Error with .cancelled = true.
+// A model hiccup or a cold start (502/503/504) is retried once, quietly, before the person sees an error.
 async function api(path, body, timeoutMs = 120000, signal = null) {
+  try { return await apiOnce(path, body, timeoutMs, signal); }
+  catch (err) {
+    if (!err.retryable || signal?.aborted) throw err;
+    return apiOnce(path, body, timeoutMs, signal);
+  }
+}
+
+async function apiOnce(path, body, timeoutMs, signal) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   const onCancel = () => ctrl.abort();
@@ -335,6 +346,7 @@ async function api(path, body, timeoutMs = 120000, signal = null) {
     const guard = res.status === 422 ? guardOf(data.detail) : null;
     const e = new Error(guard ? guard.message : readableError(data.detail, res.status));
     if (guard) e.guard = guard;
+    if ([502, 503, 504].includes(res.status)) e.retryable = true;
     throw e;
   }
   return data;
@@ -850,6 +862,15 @@ async function loadFamily(id, btn) {
     state.language = fam.language;
     state.parentName = String(fam.parent || "").split(",")[0].trim().slice(0, 20);
     state.saved = null;
+    // The sample's parent joins the household too, so home, Scan and Insights all know about them.
+    if (typeof upsertMember === "function" && state.parentName
+        && !careMembers().some((m) => m.name.trim().toLowerCase() === state.parentName.toLowerCase())) { // never overwrite a real Mum
+      const age = Number((String(fam.parent).match(/,\s*(\d{1,3})/) || [])[1]) || null;
+      const relation = { mum: "mum", dad: "dad", nonna: "grandparent", lola: "grandparent" }[state.parentName.toLowerCase()] || "";
+      const sex = { mum: "female", nonna: "female", lola: "female", dad: "male" }[state.parentName.toLowerCase()] || null;
+      upsertMember({ name: state.parentName, age, sex, relation, conditions: [state.condition], care: {} });
+      if (typeof renderHomeFamily === "function") renderHomeFamily();
+    }
     // A new family means a new person: start their intake fresh, with the family's condition ticked.
     state.profile = defaultProfile(); state.profileSet = false; state.intakeOpen = false;
     // Your own dishes stay; a sample family's dishes replace the previous sample family's.
@@ -1043,8 +1064,11 @@ function askedLine(e) {
     </div>`;
 }
 
+// A dish keeps its own tradition (adobo isn't South Asian), guessed when the recipe is read.
+function dishCuisine(e) { return e?.base?.cuisine || state.cuisine; }
+
 function askBox(e) {
-  const chips = state.cuisine === "south_asian" ? ASK_CHIPS_SOUTH_ASIAN : ASK_CHIPS;
+  const chips = dishCuisine(e) === "south_asian" ? ASK_CHIPS_SOUTH_ASIAN : ASK_CHIPS;
   const dis = e.asking ? " disabled" : "";
   return `
     <form class="ask" data-ask="${esc(e.id)}">
@@ -1109,8 +1133,11 @@ async function runAsks(e, list, draft) {
   const stale = () => findEntry(id) !== e || (e.origin !== "suggested" && condKey() !== key) || e.req !== token;
   try {
     // Always from the original (a suggested dish is its own original), with every ask so far.
-    const body = { recipe: baseFields(e.base), condition, also, cuisine: state.cuisine };
-    if (request) body.request = request;
+    const body = { recipe: baseFields(e.base), condition, also, cuisine: dishCuisine(e) };
+    if (request) {
+      body.request = request;
+      if (e.adapted) body.current = baseFields(e.adapted).ingredients; // an ask can't undo the lighter version
+    }
     const { recipe } = await api("/api/adapt", body);
     if (stale()) return;
     // A server that doesn't echo the request didn't act on it (e.g. the static preview): don't pretend it did.
@@ -1200,12 +1227,12 @@ function dishCard(e, index) {
           <div class="rc-block"><h4 class="rc-h">Ingredients</h4>${ingredientsBlock(r, { compare: false })}</div>
           ${methodBlock({ ...r, original: null })}
           ${portion ? `<div class="portion"><p class="portion-h">Portion</p><p>${esc(portion)}</p></div>` : ""}
-          ${askBox(e)}
           ${factsBlock(r)}
           <div class="rc-more"><details class="sub"><summary>Where the numbers come from</summary>${sourcesBlock({ ...r, original: null })}</details></div>
           ${links}
         </div>
-      </details>`;
+      </details>
+      ${askBox(e)}`;
   } else if (adapted) {
     const why = r.comparable === false
       ? `<p class="small-print">The new version uses something not in our food tables, so we don't claim a "% less".</p>` : "";
@@ -1225,7 +1252,6 @@ function dishCard(e, index) {
           ${changes.length ? `<div class="rc-block"><h4 class="rc-h">Why these changes</h4><ul class="changes">${changes.map((ch) => `
             <li><span class="tick" aria-hidden="true">✓</span><span>${esc(ch.what)}<span class="why">${esc(ch.why)}</span></span></li>`).join("")}</ul></div>` : ""}
           ${why}
-          ${askBox(e)}
           ${factsBlock(r)}
           <div class="rc-more">
             <details class="sub"><summary>Where the numbers come from</summary>${sourcesBlock(r)}</details>
@@ -1238,7 +1264,8 @@ function dishCard(e, index) {
           </div>
           ${links}
         </div>
-      </details>`;
+      </details>
+      ${askBox(e)}`;
   } else if (!isBusy) {
     const unc = n.uncounted?.length ? `<p class="small-print">Not counted yet (not in our tables): ${esc(n.uncounted.join(", "))}.</p>` : "";
     body = `
@@ -1330,7 +1357,7 @@ async function adaptOne(id) {
   renderCard(id);
   const stale = () => findEntry(id) !== e || condKey() !== key || e.req !== token;
   try {
-    const { recipe } = await api("/api/adapt", { recipe: baseFields(e.base), condition, also, cuisine: state.cuisine });
+    const { recipe } = await api("/api/adapt", { recipe: baseFields(e.base), condition, also, cuisine: dishCuisine(e) });
     // Drop the reply if the dish was removed/replaced, the health focus changed, or a newer request started.
     if (stale()) return "stale";
     if (recipe.condition && recipe.condition !== condition) return "stale";
@@ -2083,7 +2110,7 @@ function progressHTML(title, stages) {
       <h3 id="planningTitle" class="planning-title" tabindex="-1">${esc(title)}</h3>
       <ol class="stages">${stages.map((s, i) => `<li data-stage="${i}"><span class="stage-mark" aria-hidden="true"></span><span class="stage-text">${esc(s)}</span><span class="sr-only stage-state"></span></li>`).join("")}</ol>
       <div class="planning-foot">
-        <p class="muted">Usually takes 30–40 seconds <span class="secs" aria-hidden="true"></span></p>
+        <p class="muted">Usually takes about 45 seconds <span class="secs" aria-hidden="true"></span></p>
         <button type="button" class="btn btn-quiet btn-small" data-cancel-plan>Cancel</button>
       </div>
     </div>`;
@@ -2202,7 +2229,7 @@ function homeLink() {
 }
 function withHomeLink(text) {
   const link = homeLink();
-  return link ? `${text}\n\nMade with Heritage: ${link}` : text;
+  return link ? `${text}\n\nMade with Nouri: ${link}` : text;
 }
 
 async function shareText(title, text) {
@@ -2228,7 +2255,7 @@ function cookbookHTML() {
   const stale = Boolean(plan && state.planStale);
   const shareWord = navigator.share ? "Share" : "Copy as text";
   const note = plan && hasNote(plan);
-  const care = typeof careBookHTML === "function" ? careBookHTML() : ""; // Heritage Care's pages (static/care.js)
+  const care = typeof careBookHTML === "function" ? careBookHTML() : ""; // Nouri Care's pages (static/care.js)
   const fromCare = typeof careBookFromCare === "function" && careBookFromCare();
   const dishes = state.recipes.map((e) => {
     const r = current(e);
@@ -2291,7 +2318,7 @@ function cookbookHTML() {
         </div>
       </div>
       <header class="cb-cover">
-        <p class="eyebrow">Heritage</p>
+        <p class="eyebrow">Nouri</p>
         <h2 id="cbTitle" tabindex="-1">${esc(cookbookTitle())}</h2>
         <p class="cb-line">${esc(coverLine())}</p>
       </header>
@@ -2373,7 +2400,7 @@ function loadHtml2pdf() {
 }
 
 function pdfFileName() {
-  const base = cookbookTitle().replace(/[^\p{L}\p{N} '-]+/gu, "").trim().slice(0, 60) || "Heritage family book";
+  const base = cookbookTitle().replace(/[^\p{L}\p{N} '-]+/gu, "").trim().slice(0, 60) || "Nouri family book";
   return `${base}.pdf`;
 }
 

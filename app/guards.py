@@ -36,6 +36,8 @@ NOT_FOOD = re.compile(
     r"\b(poison|rat poison|zeher|zehar|bleach|detergent|pesticide|insecticide|kerosene|petrol|gasoline|diesel|cement|"
     r"cocaine|heroin|meth|lsd)\b",
     re.IGNORECASE)
+# On product labels, "do not swallow" and "contains pesticide" are normal warnings: only first-person signals count there.
+SUPPORT_SELF = re.compile(SUPPORT.pattern.split(r"|\b(eat|eating")[0], re.IGNORECASE)
 FOOD_KINDS = {"recipe", "ask", "wish"}
 EXAMPLES = {"recipe": "Try a family recipe, e.g. “Mum's dal: 1 cup toor dal, 1 onion, 2 tomatoes, 1 tsp ghee”.",
             "ask": "Try a change for this dish, e.g. “Dad hates cauliflower” or “make it less spicy”.",
@@ -65,7 +67,7 @@ def check_input(text: str, kind: str, field: str = "") -> str:
     text = (text or "").strip()
     if not text:
         return text
-    if SUPPORT.search(text):
+    if (SUPPORT_SELF if kind == "label" else SUPPORT).search(text):
         raise support_error()
     if kind in FOOD_KINDS and NOT_FOOD.search(text):
         raise reject("not_food", "That doesn't look like food.", field=field)
