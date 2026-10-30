@@ -66,3 +66,61 @@ def test_bad_inputs_are_friendly_422s():
     assert client.post("/api/scan", json={}).status_code == 422
     assert client.post("/api/scan", json={"image": "data:text/html;base64,PGI+"}).status_code == 422
     assert client.post("/api/scan", json={"text": "I want to kill myself"}).json()["detail"]["code"] == "support"
+
+
+# ---- review findings: allergies must never come back "fine" on ordinary labels ----
+@pytest.mark.parametrize("allergy,label", [
+    ("nuts", "Ingredients: water, almond milk, sugar"),
+    ("tree nuts", "Ingredients: almond milk, oats"),
+    ("cashews", "Ingredients: cashew butter, salt"),
+    ("soya", "Ingredients: soya milk, sugar"),
+    ("soya", "Ingredients: cocoa, emulsifier (soy lecithin)"),
+    ("oat", "Ingredients: oat milk, salt"),
+    ("pea", "Ingredients: pea protein, rice"),
+    ("coeliac", "Ingredients: wheat flour, salt"),
+    ("seafood", "Ingredients: rice noodles, fish sauce"),
+    ("milk", "Ingredients: buttermilk powder, salt"),
+    ("milk", "Ingredients: wheat flour, sodium caseinate"),
+    ("moongphali", "Ingredients: rice, groundnut oil"),
+    ("मूंगफली", "Ingredients: rice, groundnut oil"),
+    ("milk", "Ingredients: wheat flour, sugar\nAllergens: Milk, Soy"),
+    ("milk", "Ingredients:\n\nWheat flour, milk solids"),
+    ("milk", "INGREDIENTS (allergens in bold): Wheat flour, MILK powder"),
+    ("milk", "Ingredients: fruit (35 g per 100 g), milk protein"),
+])
+def test_allergy_is_caught(allergy, label):
+    assert _verdicts(label, [{"name": "A", "allergies": allergy}]) == {"A": "avoid"}
+
+
+def test_milk_allergy_is_fine_with_plant_milk_and_free_from():
+    assert _verdicts("Ingredients: coconut milk, rice", [{"name": "A", "allergies": "milk"}]) == {"A": "fine"}
+    assert _verdicts("Ingredients: rice, salt. Free from: milk", [{"name": "A", "allergies": "milk"}]) == {"A": "fine"}
+
+
+def test_unknown_allergy_note_says_check_not_fine():
+    assert _verdicts("Ingredients: rice, salt", [{"name": "A", "allergies": "quinine"}]) == {"A": "check"}
+
+
+def test_allergy_checked_even_on_skin_products():
+    r = client.post("/api/scan", json={"text": "Aqua, Glycerin, Niacinamide, Prunus Amygdalus Dulcis (Sweet Almond) Oil",
+                                       "members": [{"name": "A", "allergies": "almonds"}]})
+    assert r.json()["result"]["people"][0]["verdict"] == "avoid"
+
+
+def test_vegan_and_vegetarian_catch_hidden_animal_ingredients():
+    got = _verdicts("Ingredients: oats, honey, gelatine", [{"name": "V", "diet": "vegan"}, {"name": "J", "diet": "jain"},
+                                                         {"name": "Veg", "diet": "vegetarian"}])
+    assert got == {"V": "avoid", "J": "avoid", "Veg": "avoid"}
+    assert _verdicts("Ingredients: oats, sugar. May contain milk.", [{"name": "V", "diet": "vegan"}]) == {"V": "fine"}
+
+
+def test_drinks_and_per_serving_tables():
+    assert scan.nutrition_flags("Per 100 ml: sugars 10.6 g")["high_sugar"] is False
+    assert scan.nutrition_flags("Per 100 ml: sugars 12 g")["high_sugar"] is True
+    assert scan.nutrition_flags("Per serving (30 g): sodium 400 mg")["basis"] == "serving"
+    assert scan.nutrition_flags("Per 100 g: sodium 1.2 g")["sodium_mg"] == 1200
+
+
+def test_label_warnings_are_not_crisis_signals():
+    r = client.post("/api/scan", json={"text": "Ingredients: sodium fluoride, sorbitol. Do not swallow, call poison centre."})
+    assert r.status_code == 200

@@ -325,7 +325,7 @@ function setSide(side) {
 
 // ---------- invite link: share the household with another phone, no accounts ----------
 const INVITE_MAX = 8000;
-const INVITE_FIELDS = ["name", "relation", "age", "sex", "pregnant", "conditions", "allergies", "diet", "care"];
+const INVITE_FIELDS = ["name", "relation", "age", "sex", "pregnant", "conditions", "goals", "allergies", "diet"];
 
 function b64urlEncode(text) {
   const bytes = new TextEncoder().encode(text);
@@ -342,9 +342,12 @@ function b64urlDecode(text) {
 async function inviteHousehold() {
   const ms = careMembers();
   if (!ms.length) { runShortcut("get-started"); toast("Add someone first, then invite the rest of the household."); return; }
-  const members = ms.map((m) => Object.fromEntries(INVITE_FIELDS.map((k) => [k, m[k]])));
+  // "Me" on this phone isn't "me" on theirs; skin & hair notes stay here to keep the link short.
+  const members = ms.map((m) => ({ ...Object.fromEntries(INVITE_FIELDS.map((k) => [k, m[k]])), relation: m.relation === "me" ? "" : m.relation,
+    care: { concerns: m.care?.concerns || [], skin_type: m.care?.skin_type || null } }));
   const url = `${location.origin}/#join=${b64urlEncode(JSON.stringify({ v: 1, members }))}`;
-  const text = "Join our household on Nouri: meals, one shopping list, and label checks for everyone.";
+  if (url.length - location.origin.length > INVITE_MAX) { toast("Too much to fit in one link. Shorten some allergy notes and try again."); return; }
+  const text = "Join our household on Nouri: meals, one shopping list, and label checks for everyone. (The link includes everyone's health details: share it only with them.)";
   try {
     if (navigator.share) { await navigator.share({ title: "Nouri", text, url }); return; }
   } catch (err) { if (err.name === "AbortError") return; }
@@ -366,7 +369,14 @@ function acceptInvite() {
   const list = care.pendingJoin || [];
   care.pendingJoin = null;
   let added = 0;
-  for (const m of list) if (upsertMember({ ...m, id: undefined })) added++;
+  // Never merge into someone already here (their "Mum" may not be yours): a same name gets a number.
+  const taken = new Set(careMembers().map((m) => m.name.trim().toLowerCase()));
+  for (const m of list) {
+    let name = m.name;
+    for (let n = 2; taken.has(name.trim().toLowerCase()); n++) name = `${m.name.slice(0, 25)} (${n})`;
+    taken.add(name.toLowerCase());
+    if (upsertMember({ ...m, id: undefined, name })) added++;
+  }
   renderHomeFamily();
   renderWho();
   toast(added ? `Added ${list.map((m) => m.name).join(", ")} to this phone.` : "Your household is full (6 people).");

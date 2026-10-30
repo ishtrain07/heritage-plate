@@ -863,7 +863,8 @@ async function loadFamily(id, btn) {
     state.parentName = String(fam.parent || "").split(",")[0].trim().slice(0, 20);
     state.saved = null;
     // The sample's parent joins the household too, so home, Scan and Insights all know about them.
-    if (typeof upsertMember === "function" && state.parentName) {
+    if (typeof upsertMember === "function" && state.parentName
+        && !careMembers().some((m) => m.name.trim().toLowerCase() === state.parentName.toLowerCase())) { // never overwrite a real Mum
       const age = Number((String(fam.parent).match(/,\s*(\d{1,3})/) || [])[1]) || null;
       const relation = { mum: "mum", dad: "dad", nonna: "grandparent", lola: "grandparent" }[state.parentName.toLowerCase()] || "";
       const sex = { mum: "female", nonna: "female", lola: "female", dad: "male" }[state.parentName.toLowerCase()] || null;

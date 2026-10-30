@@ -3,7 +3,7 @@
 
 const scanState = { busy: false, image: "", read: "", who: null };
 const SCAN_MAX_PX = 1024;
-const VERDICT_WORDS = { fine: "Fine", sometimes: "Now and then", avoid: "Not for them" };
+const VERDICT_WORDS = { fine: "Fine", sometimes: "Now and then", check: "Check the label", avoid: "Not for them" };
 
 function openScan() {
   const dlg = $("scanDlg");
@@ -11,7 +11,7 @@ function openScan() {
   scanState.who = null;
   renderScanWho();
   if (!scanState.read) { $("scanOut").innerHTML = ""; $("scanStatus").textContent = ""; }
-  dlg.querySelector(".scan-drop")?.focus();
+  $("scanFile")?.focus();
 }
 
 function closeScan() { $("scanDlg").close(); }
@@ -65,7 +65,7 @@ async function runScan({ image = "", text = "" }) {
   status.innerHTML = `<span class="spinner" aria-hidden="true"></span> ${image ? "Reading the label…" : "Checking…"}`;
   try {
     // Notes stay in English: the label itself is usually in English, and it keeps the check simple.
-    const data = await api("/api/scan", { image, text, members: scanPeople(), language: "" }, 60000);
+    const data = await api("/api/scan", { image, text, members: scanPeople(), language: "" }, 130000);
     scanState.read = data.read || text;
     status.className = "scan-status";
     status.textContent = "";
@@ -90,6 +90,7 @@ function renderScanResult(r) {
       <p class="scan-kind">${r.kind === "food" ? "Food" : "Skin &amp; hair care"}</p>
       <h3 class="scan-product">${esc(r.product || "This product")}</h3>
       ${r.summary ? `<p class="scan-summary">${esc(r.summary)}</p>` : ""}
+      ${r.partial ? `<p class="scan-partial" role="alert">We could only read part of this label. Check "What we read" below, or take a closer photo.</p>` : ""}
       ${danger ? `<div class="scan-danger" role="alert"><b>Warning</b><ul>${danger}</ul></div>` : ""}
       <ul class="sv-list" aria-label="For each person">${people}</ul>
       ${r.watch?.length ? `<h4 class="scan-h">Worth knowing</h4><ul class="scan-watch">${r.watch.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}
