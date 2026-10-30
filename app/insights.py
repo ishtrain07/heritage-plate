@@ -52,7 +52,12 @@ def person_insights(m: dict) -> dict:
     if age is not None and age < 18:
         out["notes"].append("Daily aims here are for adults. Growing children need regular meals, milk or another calcium "
                             "source, and plenty of fruit and vegetables; ask their doctor about anything specific.")
-        out["aims"].append(_aim("activity", "Activity", "60 min a day", "Active play or sport every day, on average.", "WHO 2020"))
+        if age < 5:
+            out["aims"].append(_aim("activity", "Activity", "180 min a day", "Lots of active play spread through the day.", "WHO 2019"))
+        else:
+            out["aims"].append(_aim("activity", "Activity", "60 min a day", "Active play or sport every day, on average.", "WHO 2020"))
+        if m.get("pregnant"):
+            out["notes"].append("Pregnant under 18: please make sure a doctor or midwife is guiding food and weight gain.")
         return out
 
     kcal, protein, notes = dietitian.calorie_target({**m, "goals": sorted(goals - {"steady_sugar"}) or ["maintain"]})
@@ -79,8 +84,8 @@ def person_insights(m: dict) -> dict:
     else:
         why = "Enough to keep muscle while the goals change the calories." if goals & {"lose_weight", "belly_fat", "build_muscle"} \
             else "Per kg of body weight; a little more over 65 to keep muscle."
-    out["aims"].append(_aim("protein", "Protein", f"{protein} g", why + " Spread it across meals.",
-                            "ICMR-NIN 2020, PROT-AGE" if age and age >= 65 else "ICMR-NIN 2020"))
+    source = "IOM (pregnancy)" if m.get("pregnant") else "ICMR-NIN 2020, PROT-AGE" if age and age >= 65 else "ICMR-NIN 2020"
+    out["aims"].append(_aim("protein", "Protein", f"{protein} g", why + " Spread it across meals.", source))
     if conds & {"diabetes", "bp"} and not any("Kidney" in n for n in out["notes"]):
         out["notes"].append("If kidney function is reduced (common with long-term diabetes or high blood pressure), ask the "
                             "doctor before eating more protein or potassium.")
@@ -115,7 +120,7 @@ def person_insights(m: dict) -> dict:
         out["focus"].append("Pair rice or roti with dal, curd or paneer, space meals evenly, and walk 10 minutes after meals.")
         out["notes"].append("On insulin or tablets like gliclazide? Don't cut carbs without the doctor: it can cause low "
                             "blood sugar.")
-    water = min(round(ref * 0.035, 1), 3.0) if weight else (2.5 if sex == "male" else 2.0)
+    water = 2.3 if m.get("pregnant") else 2.5 if sex == "male" else 2.0
     out["aims"].append(_aim("water", "Water", f"about {water:g} L", "From drinks and food together; more in heat or exercise, "
                             "unless the doctor limits fluids.", "EFSA"))
     act = "150 min a week + strength twice"
