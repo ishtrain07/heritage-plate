@@ -2335,3 +2335,19 @@ html[data-side] .side-switch a[data-side-link][aria-current="page"] { background
 #composer .who-row { display: block; }
 #composer .who-row .chip-row { margin-top: 0; }
 #composer .more-opts { margin: 14px 0 12px; border-radius: 14px; background: var(--surface-warm); padding: 4px 14px; }
+.mic-hint .mic-lang { font-size: inherit; min-height: 32px; padding: 0; }
+html { scroll-padding-top: 140px; }
+/* "Lighter for" is chosen once, on the recipe card */
+#dishesSub .goal-inline { display: none; }
+/* home: the family book */
+.book-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.book-list li { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--surface-warm); }
+.book-ic { font-size: 1.125rem; }
+/* shopping: how much is already at home */
+.shop-have { display: inline-flex; align-items: center; gap: 4px; font-size: .8125rem; color: var(--muted); flex: none; }
+.shop-have input { width: 64px; min-height: 36px; border: 1px solid var(--field-line); border-radius: 10px; padding: 0 6px; font: inherit; background: var(--field); color: var(--ink); }
+
+/* Poison or chemical typed into a food field: firm, with emergency numbers one tap away. */
+.guard-danger { padding: var(--s4) var(--s5); border: 1px solid var(--line); border-left: 4px solid var(--error-ink); background: var(--error-soft); color: var(--ink); }
+.guard-danger .guard-msg { font-weight: 400; line-height: 1.5; }
+.guard-danger .guard-msg b { color: var(--error-ink); }

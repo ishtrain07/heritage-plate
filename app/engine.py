@@ -37,6 +37,7 @@ LANGUAGES = (
     "Arabic", "Farsi", "Spanish", "Portuguese", "Italian", "French", "Polish",
 )
 FOCUS_KEY = {"diabetes": "net_carbs_g", "bp": "sodium_mg", "cholesterol": "sat_fat_g", "everyday": "kcal"}
+FOCUS_WORDS = {"net_carbs_g": "carbs", "sodium_mg": "salt", "sat_fat_g": "saturated fat", "kcal": "calories"}
 DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 BREAKFAST_HINTS = ("paratha", "poha", "upma", "idli", "dosa", "oats", "oatmeal", "chilla", "cheela", "thepla",
                    "congee", "jook", "porridge", "omelette", "omelet", "pancake", "silog", "huevos", "chilaquiles", "toast")
@@ -478,6 +479,13 @@ def adapt_recipe(recipe: dict, condition: str, cuisine: str, request: str = "", 
     if not ingredients:  # unusable reply: keep the dish and don't show changes that weren't applied
         ingredients, data = recipe["ingredients"], {}
     after = nutrition.per_serving(ingredients, recipe["servings"])
+    focus = FOCUS_KEY[condition]
+    if not request and after[focus] > before[focus]:
+        # A "lighter" version must never be heavier on what it's for: keep the dish as cooked, and say it's already light.
+        ingredients, after = recipe["ingredients"], before
+        data = {"changes": [{"what": "Keep it as you cook it", "why": "It's already light on "
+                             f"{FOCUS_WORDS.get(focus, focus.replace('_', ' '))}; enjoy it in a normal portion."}],
+                "method": data.get("method"), "cooking_tip": data.get("cooking_tip")}
     # If the model introduced ingredients we can't count, the comparison would flatter it.
     new_unknowns = sorted(set(after["uncounted"]) - set(before["uncounted"]))
     raw_changes = data.get("changes")

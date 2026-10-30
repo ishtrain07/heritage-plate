@@ -28,13 +28,21 @@ SUPPORT = re.compile(
     r"\b(kill myself|end(ing)? (my life|it all)|want to end it(?! with)|took an overdose|khud ko (khatam|maar)|suicid\w*|want(ed)? to die|wanna die|don'?t want to (live|be alive)|"
     r"self[- ]?harm|(want to|going to) (hurt|harm|cut) myself|(i'?m|i am|i'?ve been|keep|been) (hurting|harming|cutting) myself(?! (while|accidentally|by accident|shaving))|overdose (on|of) (pills|tablets|medicine)|"
     r"(want to|going to) overdose|overdose on purpose|khud ?kushi|aatmahatya|atmahatya|marna chaht[aie]|mar jana chaht[aie]|"
-    r"jeena nahi (hai|chahta|chahti)|quiero morir(me)?|no quiero vivir|matarme)\b|आत्महत्या|मरना चाहत"
+    r"jeena nahi (hai|chahta|chahti)|marna hai|mar jaa?na hai|mar ja[ua]n|mar jaa?unga|mar jaa?ungi|jeene ka (mann|man|dil) nahi|zindagi se (thak|tang)|"
+    r"(no|any) (reason|point) (to|in) (live|living|go on)|better off dead|(want to|gonna|going to) kms|hate my life|can'?t go on( anymore| like this)?|"
+    r"tak(e|ing) my (own )?life|end my life|hang myself|jump off (a|the) (building|bridge|roof)|not worth living|"
+    r"quiero morir(me)?|no quiero vivir|matarme)\b|आत्महत्या|मरना चाहत"
     r"|\b(eat|eating|drink|drinking|swallow|take|taking|khana|peena)\b[^.]{0,20}\b(poison|rat poison|bleach|pesticide|zeher|zehar|veneno)\b"
     r"|\b(poison|bleach|pesticide|zeher|zehar|veneno)\b[^.]{0,20}\b(eat|drink|swallow|khana|khaana|peena|pina|tomar|beber)\b",
     re.IGNORECASE)
 NOT_FOOD = re.compile(
     r"\b(poison|rat poison|zeher|zehar|bleach|detergent|pesticide|insecticide|kerosene|petrol|gasoline|diesel|cement|"
     r"cocaine|heroin|meth|lsd)\b",
+    re.IGNORECASE)
+PROFANITY = re.compile(
+    r"\b(fuck\w*|f+u+c+k+|motherf\w*|shit(s|ty|ting)?|bullshit|bitch\w*|bastards?|assholes?|arseholes?|cunts?|dickheads?|wtf|stfu|"
+    r"chutiy\w*|chootiy\w*|madar ?chod\w*|maa? ?ki ?(chut|aankh)|b[ae]h?e?n ?chod\w*|bhen ?chod\w*|bhosd\w*|gaandu|gandu|randi|harami|"
+    r"kutt?[ei] ?ki ?(aulaad|aulad))\b",
     re.IGNORECASE)
 # On product labels, "do not swallow" and "contains pesticide" are normal warnings: only first-person signals count there.
 SUPPORT_SELF = re.compile(SUPPORT.pattern.split(r"|\b(eat|eating")[0], re.IGNORECASE)
@@ -62,15 +70,36 @@ def support_error() -> HTTPException:
                   "emergency number.", SUPPORT_LINES)
 
 
+POISON_LINES = ["India: emergency 112", "US: poison help 1-800-222-1222, emergency 911", "UK: NHS 111, emergency 999",
+                "Elsewhere: your local emergency number"]
+
+
+def not_food_error(text: str, field: str = "") -> HTTPException:
+    """A poison, chemical or drug in a food field: say so plainly, and how to get help if someone swallowed it."""
+    word = NOT_FOOD.search(text).group(0).lower()
+    return reject("danger", f"“{word.capitalize()}” isn't food, so Nouri won't put it in a dish or a plan. If anyone has "
+                  "swallowed some, call emergency services or a poison centre now; don't wait for symptoms.", POISON_LINES, field)
+
+
+def unsafe_dish(recipe: dict) -> bool:
+    """A saved dish whose name, words or ingredients name a poison or drug never goes into a recipe or a week."""
+    words = " ".join([recipe.get("name") or "", recipe.get("source_text") or "",
+                      *[str(i.get("item") or "") for i in recipe.get("ingredients") or []]])
+    return bool(NOT_FOOD.search(words))
+
+
 def check_input(text: str, kind: str, field: str = "") -> str:
-    """Refuse text that is harmful, not food (for food fields) or gibberish, before it reaches the model."""
+    """Refuse text that is harmful, rude, not food (for food fields) or gibberish, before it reaches the model."""
     text = (text or "").strip()
     if not text:
         return text
     if (SUPPORT_SELF if kind == "label" else SUPPORT).search(text):
         raise support_error()
     if kind in FOOD_KINDS and NOT_FOOD.search(text):
-        raise reject("not_food", "That doesn't look like food.", field=field)
+        raise not_food_error(text, field)
+    if kind != "label" and PROFANITY.search(text):
+        raise reject("rude", "Let's keep it kind: Nouri is for the whole family. Tell us a dish or what you'd like to change.",
+                     field=field)
     letters = [c.lower() for c in text if c.isalpha()]
     if len(letters) < 2 or (len(letters) > 4 and len(set(letters)) < 3) or (len(letters) >= 12 and len(set(letters)) < 5):
         raise reject("gibberish", "We couldn't make sense of that.", field=field)

@@ -32,7 +32,7 @@
       document.documentElement.setAttribute("data-side", s);
     })();
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261122">
+  <link rel="stylesheet" href="/static/styles.css?v=20261128">
 </head>
 <body>
   <a class="skip" href="#main">Skip to the app</a>
@@ -84,7 +84,7 @@
         <ul class="tiles4" aria-label="Quick actions">
           <li><a class="tile" href="#home" data-go="get-started"><span class="tile-ic t-green" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><path d="M18 8v6M15 11h6"/></svg></span><span>Add family or flatmates</span></a></li>
           <li><a class="tile" href="#home" data-go="scan"><span class="tile-ic t-sage" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/></svg></span><span>Scan a food or skin-care label</span></a></li>
-          <li><a class="tile" href="#plate" data-go="plate-week"><span class="tile-ic t-clay" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1.5 10a1.5 1.5 0 0 1-1.5 1.3H7a1.5 1.5 0 0 1-1.5-1.3Z"/><path d="M8.5 9 11 4M15.5 9 13 4M9 13v4M12 13v4M15 13v4"/></svg></span><span>One smart shopping list</span></a></li>
+          <li><a class="tile" href="#home" data-go="shop"><span class="tile-ic t-clay" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 9h16l-1.5 10a1.5 1.5 0 0 1-1.5 1.3H7a1.5 1.5 0 0 1-1.5-1.3Z"/><path d="M8.5 9 11 4M15.5 9 13 4M9 13v4M12 13v4M15 13v4"/></svg></span><span>One smart shopping list</span></a></li>
           <li><a class="tile" href="#plate" data-go="plate-dal"><span class="tile-ic t-sun" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 11h17a8.5 8.5 0 0 1-17 0Z"/><path d="M9 7.5c0-1.6 1.2-2 1.2-3.5M13.5 7.5c0-1.6 1.2-2 1.2-3.5"/></svg></span><span>Make a family dish lighter</span></a></li>
         </ul>
 
@@ -99,12 +99,20 @@
           <div id="famBody" class="fam-body"></div>
         </section>
 
+        <section id="homeBook" class="card2 book2" aria-labelledby="bookTitle" hidden>
+          <div class="sec2-head">
+            <h2 id="bookTitle" class="sec2-title">Your family book</h2>
+            <span class="sec2-acts"><button type="button" class="sec2-link" data-go="book">Open <span aria-hidden="true">›</span></button></span>
+          </div>
+          <ul id="bookList" class="book-list"></ul>
+        </section>
+
         <section class="today2" aria-labelledby="todayTitle">
           <h2 id="todayTitle" class="sec2-title">What would you like to do today?</h2>
           <ul class="today-grid">
             <li><a class="today-card" href="#plate" data-go="plate-suggest"><span class="today-ph ph-cook" aria-hidden="true"></span><span class="today-t"><b>What can we cook?</b><span>One meal for everyone at the table</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
             <li><a class="today-card" href="#home" data-go="scan"><span class="today-ph ph-scan ph-photo" aria-hidden="true"></span><span class="today-t"><b>Can we use this?</b><span>Scan a food or skin-care label</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
-            <li><a class="today-card" href="#plate" data-go="plate-week"><span class="today-ph ph-shop ph-photo" aria-hidden="true"></span><span class="today-t"><b>What should we buy?</b><span>A week of meals, one shopping list</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
+            <li><a class="today-card" href="#home" data-go="shop"><span class="today-ph ph-shop ph-photo" aria-hidden="true"></span><span class="today-t"><b>What should we buy?</b><span>A week of meals, one shopping list</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
             <li><a class="today-card" href="#care" data-go="care-remedy"><span class="today-ph ph-care" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 19c0-8 5-13 14-14-1 9-6 14-14 14Z"/><path d="M5 19 13 11"/></svg></span><span class="today-t"><b>Is Nani's remedy safe?</b><span>Skin &amp; hair, checked honestly</span></span><span class="today-arrow" aria-hidden="true">→</span></a></li>
           </ul>
         </section>
@@ -276,7 +284,6 @@
             <button id="adaptAll" class="btn btn-quiet" type="button" disabled>Make every dish lighter</button>
           </div>
           <div id="cookbook" class="dish-list"></div>
-          <div id="plateXlink" class="xlink-slot"></div>
         </section>
 
         <div id="dishActions" class="dish-actions" hidden>
@@ -459,31 +466,10 @@
                   <div id="careExamples" class="pick chip-row chip-scroll" role="group" aria-labelledby="careExLabel"></div>
                 </div>
                 <fieldset class="card-row card-fs who-row">
-                <legend class="comp-q">Who's eating?</legend>
-                <p class="comp-sub">Choose who to personalise the recipe for.</p>
+                <legend class="sr-only">For whom?</legend>
+                <span class="field-label" aria-hidden="true">For whom?</span>
                 <div id="careWho" class="pick chip-row chip-scroll" data-who-for="remedy"></div>
                 </fieldset>
-                <details id="style" class="style more-opts">
-                <summary><span class="mo-h">Recipe preferences</span> <span id="styleSummary" class="mo-sum">Servings · Cuisine · Language</span><span class="chev" aria-hidden="true"></span></summary>
-                <div class="fields">
-                  <div class="composer-row">
-                    <div class="stepper" role="group" aria-labelledby="servesLabel">
-                      <span id="servesLabel" class="stepper-label">Serves</span>
-                      <button type="button" class="stepper-btn" data-step="-1" aria-label="One fewer serving">−</button>
-                      <input id="servings" type="number" min="1" max="20" value="4" inputmode="numeric" aria-labelledby="servesLabel">
-                      <button type="button" class="stepper-btn" data-step="1" aria-label="One more serving">+</button>
-                    </div>
-                  </div>
-                  <label class="field">
-                    <span class="field-label">Your family's cooking</span>
-                    <select id="cuisine"></select>
-                  </label>
-                  <label class="field">
-                    <span class="field-label">Language you'll speak in</span>
-                    <select id="speechLang"></select>
-                  </label>
-                </div>
-              </details>
               <div class="composer-go">
                   <button id="careGo" class="btn btn-primary btn-wide" type="button" data-care-act="check">Check it</button>
                 </div>
@@ -738,12 +724,12 @@
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js?v=20261122"></script>
-  <script src="/static/app.js?v=20261122"></script>
-  <script src="/static/care.js?v=20261122"></script>
-  <script src="/static/scan.js?v=20261122"></script>
-  <script src="/static/setup.js?v=20261122"></script>
-  <script src="/static/insights.js?v=20261122"></script>
-  <script src="/static/shop.js?v=20261122"></script>
+  <script src="/static/family.js?v=20261128"></script>
+  <script src="/static/app.js?v=20261128"></script>
+  <script src="/static/care.js?v=20261128"></script>
+  <script src="/static/scan.js?v=20261128"></script>
+  <script src="/static/setup.js?v=20261128"></script>
+  <script src="/static/insights.js?v=20261128"></script>
+  <script src="/static/shop.js?v=20261128"></script>
 </body>
 </html>

@@ -318,7 +318,7 @@ function readableError(detail, status) {
 async function api(path, body, timeoutMs = 120000, signal = null) {
   try { return await apiOnce(path, body, timeoutMs, signal); }
   catch (err) {
-    if (!err.retryable || signal?.aborted) throw err;
+    if (!(err.retryable || err.network) || signal?.aborted) throw err;
     return apiOnce(path, body, timeoutMs, signal);
   }
 }
@@ -338,7 +338,9 @@ async function apiOnce(path, body, timeoutMs, signal) {
     });
   } catch (err) {
     if (signal?.aborted) { const e = new Error("Cancelled."); e.cancelled = true; throw e; }
-    throw new Error(err.name === "AbortError" ? "This is taking too long. Please try again." : "Can't reach the server. Check your connection and try again.");
+    const e = new Error(err.name === "AbortError" ? "This is taking too long. Please try again." : "Can't reach the server. Check your connection and try again.");
+    if (err.name !== "AbortError") e.network = true; // a dropped connection gets one quiet retry
+    throw e;
   } finally { clearTimeout(timer); if (signal) signal.removeEventListener("abort", onCancel); }
   if (signal?.aborted) { const e = new Error("Cancelled."); e.cancelled = true; throw e; }
   const data = await res.json().catch(() => ({}));
@@ -356,7 +358,7 @@ async function apiOnce(path, body, timeoutMs, signal) {
 // A 422 whose detail is {code, message, lines?} is the server saying "that isn't something we can work with"
 // (a normal validation 422 has a list as its detail). It's shown inline under the field that was sent, never
 // as a toast, and never with the person's own text echoed back.
-const GUARD_CODES = ["not_food", "off_topic", "gibberish", "support"];
+const GUARD_CODES = ["not_food", "off_topic", "gibberish", "support", "danger", "rude"];
 function guardOf(detail) {
   if (!detail || typeof detail !== "object" || Array.isArray(detail) || !GUARD_CODES.includes(detail.code)) return null;
   const msg = typeof detail.message === "string" ? detail.message.trim() : "";
@@ -380,6 +382,13 @@ function guardHTML(g, ex = "", exLabel = "") {
     return `
       <div class="guard guard-support" role="status">
         <p class="guard-msg">${esc(g.message)}</p>
+        ${g.lines.length ? `<ul class="guard-lines">${g.lines.map((l) => `<li>${supportLine(l)}</li>`).join("")}</ul>` : ""}
+      </div>`;
+  }
+  if (g.code === "danger") {
+    return `
+      <div class="guard guard-danger" role="alert">
+        <p class="guard-msg"><b>Not food.</b> ${esc(g.message)}</p>
         ${g.lines.length ? `<ul class="guard-lines">${g.lines.map((l) => `<li>${supportLine(l)}</li>`).join("")}</ul>` : ""}
       </div>`;
   }
@@ -1647,9 +1656,9 @@ function updateMicHint() {
   const hint = $("micHint");
   if (!voice.rec) { noVoiceHint(hint); return; }
   hint.classList.remove("is-novoice"); hint.closest(".mic-wrap")?.classList.remove("no-voice");
-  hint.textContent = voice.listening
-    ? `Listening in ${state.speechLang}. Tap Done when you've finished.`
-    : `Listens in ${state.speechLang}. Check the words after.`;
+  if (voice.listening) { hint.textContent = `Listening in ${state.speechLang}. Tap Done when you've finished.`; return; }
+  // Many languages are supported; make the choice easy to find (it lives in Recipe preferences).
+  hint.innerHTML = `Listens in ${esc(state.speechLang)}. <button type="button" class="btn-link mic-lang" data-mic-lang>Change language</button>`;
 }
 
 function setListening(on) {
@@ -1847,6 +1856,7 @@ function openIntake() {
   if (state.composerOpen) { stopListening(); resetComposer(); }
   state.intakeOpen = true;
   renderIntake();
+  if (typeof prefillIntakeFromWho === "function") prefillIntakeFromWho(); // who's eating, picked on the recipe card
   refreshButtons();
   scrollToEl($("intake"));
   $("intakeTitle").focus({ preventScroll: true });
@@ -2266,6 +2276,7 @@ async function makePlan() {
     renderPlan();
     saveBook();
     $("weekTitle").focus({ preventScroll: true });
+    if (week.left_out?.length) toast(`Left out ${week.left_out.map((n) => `“${n}”`).join(", ")}: not food. Remove it from your recipes.`);
     announce(`Your week is ready: ${targetLine(week)}. ${hasNote(week) ? "With a shopping list and a note." : "With a shopping list."}`);
   } catch (err) {
     if (state.planCtrl !== ctrl) { clearInterval(timer); return; }
@@ -2473,12 +2484,13 @@ function shoppingText() {
   const plan = state.plan;
   const home = new Set(typeof readFamily === "function" ? readFamily().shopHome : []);
   const L = [`*Shopping list*${plan ? ` · for ${people(Math.max(1, num(plan.household) || 1))}` : ""}`];
+  // The same list as the app: kitchen units, minus what's at home.
+  const items = typeof weekItems === "function" ? weekItems().filter((x) => !home.has(x.key) && x.need > 0) : [];
   const groups = {};
-  (plan?.shopping_list || []).filter((x) => !home.has(`wk:${x.item}`))
-    .forEach((x) => { (groups[x.category in SHOP_GROUPS ? x.category : "other"] ||= []).push(x); });
-  Object.keys(SHOP_GROUPS).filter((k) => groups[k]).forEach((k) => {
-    L.push("", `*${SHOP_GROUPS[k]}*`);
-    groups[k].forEach((x) => L.push(`☐ ${x.item}: ${grams(x.grams)}`));
+  items.forEach((x) => { (groups[x.group] ||= []).push(x); });
+  Object.values(SHOP_GROUPS).filter((g) => groups[g]).forEach((g) => {
+    L.push("", `*${g}*`);
+    groups[g].forEach((x) => L.push(`☐ ${x.item}: ${x.amount}`));
   });
   const extra = typeof readFamily === "function" ? readFamily().shopping.filter((x) => !x.home) : [];
   if (extra.length) {
@@ -2848,6 +2860,12 @@ function onAction(e) {
   else if (act === "close-cookbook") closeCookbook();
 }
 $("readyBar").addEventListener("click", onAction);
+$("micHint").addEventListener("click", (e) => {
+  if (!e.target.closest("[data-mic-lang]")) return;
+  $("style").open = true;
+  $("speechLang").focus();
+  $("speechLang").scrollIntoView({ block: "center", behavior: reduceMotion() ? "auto" : "smooth" });
+});
 $("planOut").addEventListener("click", (e) => {
   const b = e.target.closest("[data-skip]");
   if (b) { e.preventDefault(); toggleSkip(b.dataset.skip); }

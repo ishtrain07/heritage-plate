@@ -39,7 +39,7 @@ def test_not_food_is_refused(client, url, body):
         recipe = client.post("/api/parse", json={"text": "Dal: 1 cup toor dal, 1 onion, 2 tomatoes, 1 tsp ghee"}).json()["recipe"]
         body = {"recipe": recipe, "request": "add some detergent to it"}
     d = _detail(client.post(url, json=body))
-    assert d["code"] == "not_food" and d["message"]
+    assert d["code"] == "danger" and "isn't food" in d["message"] and any("112" in x for x in d["lines"])
 
 
 @pytest.mark.parametrize("text", ["aaaaaaaaaaaa", "!!! 123 ???", "zzzzzzzzzzzzzzzzzzzzzzzzzzzzz"])
@@ -176,3 +176,39 @@ def test_out_of_credit_is_a_clear_503_without_retries(monkeypatch):
     r = TestClient(app).post("/api/care/remedy", json={"text": "coconut oil for dry hair"})
     assert r.status_code == 503 and "short break" in r.json()["detail"]
     assert len(calls) == 1
+
+
+@pytest.mark.parametrize("text", ["Rat poison with masala", "pesticide pulao"])
+def test_poison_dish_gets_emergency_numbers(client, monkeypatch, text):
+    monkeypatch.setattr(llm, "chat_json", lambda *a, **k: pytest.fail("no model call"))
+    d = _detail(client.post("/api/parse", json={"text": text}))
+    assert d["code"] == "danger" and "emergency" in d["message"] and any("911" in x for x in d["lines"])
+
+
+@pytest.mark.parametrize("text", ["fuck this dal", "you are a chutiya", "shit recipe", "bhenchod"])
+def test_swear_words_get_a_kind_reply(client, monkeypatch, text):
+    monkeypatch.setattr(llm, "chat_json", lambda *a, **k: pytest.fail("no model call"))
+    for url, body in [("/api/parse", {"text": text}), ("/api/care/remedy", {"text": text})]:
+        d = _detail(client.post(url, json=body))
+        assert d["code"] == "rude" and "kind" in d["message"]
+
+
+def test_shiitake_and_harissa_are_not_rude(client):
+    assert client.post("/api/parse", json={"text": "Stir fry: 100 g shiitake mushrooms, 1 tsp harissa"}).status_code == 200
+
+
+def test_saved_poison_dish_is_left_out_of_the_week(client):
+    good = {"name": "Dal", "servings": 2, "ingredients": [{"item": "toor dal", "grams": 100}]}
+    bad = {"name": "Rat poison with masala", "servings": 2, "ingredients": [{"item": "garam masala", "grams": 5}]}
+    week = client.post("/api/week", json={"recipes": [good, bad]}).json()["week"]
+    assert week["left_out"] == ["Rat poison with masala"]
+    assert _detail(client.post("/api/week", json={"recipes": [bad]}))["code"] == "danger"
+    assert _detail(client.post("/api/adapt", json={"recipe": bad}))["code"] == "danger"
+
+
+@pytest.mark.parametrize("text", ["mujhe marna hai", "no reason to live", "I hate my life", "i want to kms", "better off dead",
+                                  "I cant go on anymore", "jeene ka mann nahi", "thinking of taking my own life"])
+def test_more_ways_of_saying_it_get_support(client, monkeypatch, text):
+    monkeypatch.setattr(llm, "chat_json", lambda *a, **k: pytest.fail("no model call"))
+    for url, body in [("/api/parse", {"text": text}), ("/api/suggest", {"wish": text}), ("/api/care/remedy", {"text": text})]:
+        assert _detail(client.post(url, json=body))["code"] == "support"
