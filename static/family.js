@@ -1,4 +1,4 @@
-// Heritage: the shared family store (this device only). Plate and Care both read and write it.
+// Nouri: the shared family store (this device only). Plate and Care both read and write it.
 // Shape (v2): {v, savedAt, mode, language, country, members[], plate, careBook}
 //   plate    = Plate's saved book (the old hp-cookbook-v1 payload), or null
 //   careBook = {remedies: [saved remedy checks], plan: last saved care plan or null}

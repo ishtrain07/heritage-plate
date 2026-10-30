@@ -1,4 +1,4 @@
-// Heritage Plate front end: plain JS, no build step, no external dependencies.
+// Nouri Food front end: plain JS, no build step, no external dependencies.
 "use strict";
 
 // An old page cached by the browser can load these new scripts without family.js: reload once to get the current page.
@@ -307,12 +307,23 @@ function readableError(detail, status) {
   if (detail && typeof detail === "object") return detail.msg ? String(detail.msg) : "Something in the request wasn't right.";
   if (typeof detail === "string" && detail) return detail;
   if (status === 502) return "The AI didn't answer properly. Please try again.";
+  if (status === 504) return "That took longer than usual. Please try again.";
+  if (status === 429) return "You've asked a lot in a short time. Please wait a minute and try again.";
   if (status >= 500) return "Something went wrong on our side. Please try again.";
   return `Request failed (${status}).`;
 }
 
 // `signal` lets the person cancel; a cancelled call throws an Error with .cancelled = true.
+// A model hiccup or a cold start (502/503/504) is retried once, quietly, before the person sees an error.
 async function api(path, body, timeoutMs = 120000, signal = null) {
+  try { return await apiOnce(path, body, timeoutMs, signal); }
+  catch (err) {
+    if (!err.retryable || signal?.aborted) throw err;
+    return apiOnce(path, body, timeoutMs, signal);
+  }
+}
+
+async function apiOnce(path, body, timeoutMs, signal) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   const onCancel = () => ctrl.abort();
@@ -335,6 +346,7 @@ async function api(path, body, timeoutMs = 120000, signal = null) {
     const guard = res.status === 422 ? guardOf(data.detail) : null;
     const e = new Error(guard ? guard.message : readableError(data.detail, res.status));
     if (guard) e.guard = guard;
+    if ([502, 503, 504].includes(res.status)) e.retryable = true;
     throw e;
   }
   return data;
@@ -2208,7 +2220,7 @@ function homeLink() {
 }
 function withHomeLink(text) {
   const link = homeLink();
-  return link ? `${text}\n\nMade with Heritage: ${link}` : text;
+  return link ? `${text}\n\nMade with Nouri: ${link}` : text;
 }
 
 async function shareText(title, text) {
@@ -2234,7 +2246,7 @@ function cookbookHTML() {
   const stale = Boolean(plan && state.planStale);
   const shareWord = navigator.share ? "Share" : "Copy as text";
   const note = plan && hasNote(plan);
-  const care = typeof careBookHTML === "function" ? careBookHTML() : ""; // Heritage Care's pages (static/care.js)
+  const care = typeof careBookHTML === "function" ? careBookHTML() : ""; // Nouri Care's pages (static/care.js)
   const fromCare = typeof careBookFromCare === "function" && careBookFromCare();
   const dishes = state.recipes.map((e) => {
     const r = current(e);
@@ -2297,7 +2309,7 @@ function cookbookHTML() {
         </div>
       </div>
       <header class="cb-cover">
-        <p class="eyebrow">Heritage</p>
+        <p class="eyebrow">Nouri</p>
         <h2 id="cbTitle" tabindex="-1">${esc(cookbookTitle())}</h2>
         <p class="cb-line">${esc(coverLine())}</p>
       </header>
@@ -2379,7 +2391,7 @@ function loadHtml2pdf() {
 }
 
 function pdfFileName() {
-  const base = cookbookTitle().replace(/[^\p{L}\p{N} '-]+/gu, "").trim().slice(0, 60) || "Heritage family book";
+  const base = cookbookTitle().replace(/[^\p{L}\p{N} '-]+/gu, "").trim().slice(0, 60) || "Nouri family book";
   return `${base}.pdf`;
 }
 

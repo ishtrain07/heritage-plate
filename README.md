@@ -1,13 +1,13 @@
-# Heritage: Plate + Care
+# Nouri: Plate + Care
 
 **Keep what works from home. Fix what doesn't.**
 
 Two halves, one family:
-- **Heritage Plate** — keep the family's food, fix the numbers (below).
-- **Heritage Care** — skin and hair for the whole family: fact-check the remedies passed down at home, get an
-  ingredient-first routine for each person, and check any product's label (see "Heritage Care" below).
+- **Nouri Food** — keep the family's food, fix the numbers (below).
+- **Nouri Care** — skin and hair for the whole family: fact-check the remedies passed down at home, get an
+  ingredient-first routine for each person, and check any product's label (see "Nouri Care" below).
 
-Heritage Plate turns a family's real recipes, written or spoken the way they're said at home ("3 katori atta, 2 boiled aloo, ghee on top", "2 spoons toyo", "a little queso"), into versions that work for a parent's type 2 diabetes, high blood pressure or high cholesterol. It works for any family cuisine: South Asian, East and Southeast Asian, Continental European, Middle Eastern, Latin American and Caribbean. It doesn't swap the family's food for bland diet food. Then it plans the week and writes a shopping list and a note to the parent in their language.
+Nouri Food turns a family's real recipes, written or spoken the way they're said at home ("3 katori atta, 2 boiled aloo, ghee on top", "2 spoons toyo", "a little queso"), into versions that work for a parent's type 2 diabetes, high blood pressure or high cholesterol. It works for any family cuisine: South Asian, East and Southeast Asian, Continental European, Middle Eastern, Latin American and Caribbean. It doesn't swap the family's food for bland diet food. Then it plans the week and writes a shopping list and a note to the parent in their language.
 
 Built for the **Nebius x NVIDIA Global AI Hackathon** (Best Apps & Agents track).
 
@@ -41,7 +41,7 @@ python scripts/build_foods.py --ifct ifct2017-compositions-*/package/index.csv -
 
 The app's "Under the hood" panel shows which Nemotron tier ran each step, with latency and tokens.
 
-## Heritage Care
+## Nouri Care
 
 | Job | What happens | Powered by |
 |---|---|---|
@@ -90,7 +90,7 @@ python -m pytest -q
 
 ```
 app/main.py        FastAPI routes (/api/health, /api/demo[/{id}], /api/parse, /api/adapt, /api/suggest, /api/week) + validation
-app/care.py        Heritage Care routes (/api/care/remedy, /plan, /label, /library), grounding and safety rules
+app/care.py        Nouri Care routes (/api/care/remedy, /plan, /label, /library), grounding and safety rules
 app/dietitian.py   personal week plan: calorie target, diet rules, portion scaling
 app/guards.py      shared rate limit and model-error handling
 app/engine.py      parse → adapt → plan pipeline (live Nemotron or mock rules)

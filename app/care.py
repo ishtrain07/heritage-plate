@@ -1,4 +1,4 @@
-"""Heritage Care: skin & hair for the whole family, ingredient-first.
+"""Nouri Care: skin & hair for the whole family, ingredient-first.
 
 Nemotron reasons about whatever the family says (any remedy, any concern, any language). The checked
 library in data/care_actives.json grounds those answers: the model may only recommend ingredients that

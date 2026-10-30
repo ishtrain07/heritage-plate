@@ -1,4 +1,4 @@
-// Heritage Care: skin & hair, plus the umbrella home and the Plate | Care switch.
+// Nouri Care: skin & hair, plus the umbrella home and the Plate | Care switch.
 // Loads after app.js and reuses its helpers ($, esc, safeUrl, api, busy, toast, announce, ticker, scrollToEl,
 // copyText, shareText, openCookbook, printCookbook, stopListening, SPEECH_LANG, VOICE_FALLBACK, DEFAULT_LANGUAGES, state).
 // Care clicks use data-care-act on Care's own containers, so app.js's data-act handlers never see them.
@@ -343,17 +343,17 @@ function route(initial = false) {
     title.focus({ preventScroll: true });
   }
   if (side === "home") {
-    document.title = "Heritage: family recipes made lighter, home remedies checked";
+    document.title = "Nouri: healthier meals, one shopping list, skin & hair checked";
     if (changed || initial) renderHomeFamily();
   }
-  else if (side === "plate") document.title = "Heritage Plate: your family's recipes, made lighter";
+  else if (side === "plate") document.title = "Nouri Food: your family's recipes, made lighter";
 }
 
 function showCareScreen(screen, focus) {
   care.screen = screen;
   Object.entries(CARE_SCREENS).forEach(([k, id]) => { $(id).hidden = k !== screen; });
-  document.title = screen === "care-plan" ? "Heritage Care: a skin & hair plan for the family"
-    : screen === "care-label" ? "Heritage Care: check a product label" : "Heritage Care: home remedies, checked";
+  document.title = screen === "care-plan" ? "Nouri Care: a skin & hair plan for the family"
+    : screen === "care-label" ? "Nouri Care: check a product label" : "Nouri Care: home remedies, checked";
   if (screen === "care-plan") renderPeople();
   renderWho();
   renderBookLink();

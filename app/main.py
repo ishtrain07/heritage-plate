@@ -1,4 +1,4 @@
-"""Heritage Plate API: keep the family's food, fix the numbers."""
+"""Nouri Food API: keep the family's food, fix the numbers."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from . import care, dietitian, engine, llm, nutrition
 
 ROOT = Path(__file__).resolve().parent.parent
 log = logging.getLogger("heritage_plate")
-app = FastAPI(title="Heritage Plate", version="0.2.0")
+app = FastAPI(title="Nouri Food", version="0.2.0")
 
 Condition = Literal["diabetes", "bp", "cholesterol", "everyday"]
 Cuisine = Literal["south_asian", "east_asian", "southeast_asian", "continental", "middle_eastern", "latin_american", "other"]
@@ -218,7 +218,7 @@ def week(body: WeekIn, request: Request):
     return {"week": result, "trace": trace}
 
 
-app.include_router(care.router)  # Heritage Care: /api/care/*
+app.include_router(care.router)  # Nouri Care: /api/care/*
 
 
 _HOST = re.compile(r"[A-Za-z0-9.-]+(:\d{1,5})?")

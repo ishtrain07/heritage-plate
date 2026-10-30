@@ -2,7 +2,7 @@
 
 The preview is the real front end (static/) plus a small in-page stand-in for
 the API. All four demo families are precomputed with the real Python engine in
-mock mode: every dish x every health focus. Heritage Care answers the four example
+mock mode: every dish x every health focus. Nouri Care answers the four example
 remedy chips (every country, pregnant or not), the sample family's care plan and the
 example label, all precomputed by the real /api/care routes. Any other label is read in
 the browser by a port of app/care.py check_label (labelCheck in SHIM), from the same data. The week plan and shopping list are
@@ -248,7 +248,7 @@ SHIM = r"""
     });
   }
 
-  // Heritage Care: the four example chips and the sample family; any label (read in code, below).
+  // Nouri Care: the four example chips and the sample family; any label (read in code, below).
   const careMsg = () => reply(503, { detail: "This preview answers the four example remedies and the sample family. Checking your own needs the full app with a live server." });
 
   // The label check is pure code, so the preview runs it in the browser: a direct port of app/care.py
@@ -469,7 +469,7 @@ def build(out: Path, standalone: bool = False) -> None:
     scripts = "\n".join("<script>" + (static / name).read_text(encoding="utf-8").replace("</script", "<\\/script") + "</script>"
                         for name in ("family.js", "app.js", "care.js"))
     page = f"""<meta charset="utf-8">
-<title>Heritage</title>
+<title>Nouri</title>
 <meta name="description" content="Keep what works from home. Fix what doesn't.">
 {boot}
 <style>
