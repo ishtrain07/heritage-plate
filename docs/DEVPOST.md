@@ -114,7 +114,7 @@ usda-food-data, ifct-2017, github, llm, generative-ai, accessibility
 ## Try it out
 
 - Live app: [Vercel production URL]
-- Code: https://github.com/ishtrain07/heritage-plate (only if the repo is public)
+- Code: https://github.com/ishtrain07/nouri (only if the repo is public)
 
 ## Image gallery (3:2, in this order) — files in docs/gallery/
 

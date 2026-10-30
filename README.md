@@ -53,7 +53,7 @@ Every call is traced in **LangSmith** (model, tokens, latency) when `LANGSMITH_T
 ## Run it
 
 ```bash
-git clone https://github.com/ishtrain07/heritage-plate.git && cd heritage-plate
+git clone https://github.com/ishtrain07/nouri.git && cd nouri
 pip install -r requirements.txt
 cp .env.example .env               # add NEBIUS_API_KEY for live mode
 export $(grep -v '^#' .env | xargs)
