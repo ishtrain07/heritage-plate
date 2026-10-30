@@ -32,7 +32,7 @@
       document.documentElement.setAttribute("data-side", s);
     })();
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261111">
+  <link rel="stylesheet" href="/static/styles.css?v=20261113">
 </head>
 <body>
   <a class="skip" href="#main">Skip to the app</a>
@@ -208,11 +208,6 @@
               <p class="composer-skip">No recipe right now? <button id="composerSkip" class="btn-link" type="button">Plan a week of meals instead</button></p>
             </section>
 
-            <nav class="side-more" aria-label="More from Nouri Food">
-              <button id="heroSuggest" class="text-link" type="button">Suggest a healthy dish <span aria-hidden="true">→</span></button>
-              <button id="heroWeek" class="text-link" type="button">Plan a week of meals <span aria-hidden="true">→</span></button>
-              <a id="heroSample" class="text-link" href="#samples">Try a sample family <span aria-hidden="true">↓</span></a>
-            </nav>
           </div>
           <div class="side-aside">
               <!-- Three real examples that take turns (app.js setupRotators). Copied onto home and Care too. -->
@@ -401,6 +396,7 @@
             <p id="intakeMsg" class="msg" role="alert"></p>
             <div class="intake-go">
               <button id="intakeGo" type="submit" class="btn btn-primary btn-wide">Plan my week</button>
+              <button id="intakeSave" type="button" class="btn btn-quiet btn-wide">Save details</button>
               <button id="intakeCancel" type="button" class="btn-link">Not now</button>
             </div>
           </form>
@@ -696,12 +692,12 @@
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js?v=20261111"></script>
-  <script src="/static/app.js?v=20261111"></script>
-  <script src="/static/care.js?v=20261111"></script>
-  <script src="/static/scan.js?v=20261111"></script>
-  <script src="/static/setup.js?v=20261111"></script>
-  <script src="/static/insights.js?v=20261111"></script>
-  <script src="/static/shop.js?v=20261111"></script>
+  <script src="/static/family.js?v=20261113"></script>
+  <script src="/static/app.js?v=20261113"></script>
+  <script src="/static/care.js?v=20261113"></script>
+  <script src="/static/scan.js?v=20261113"></script>
+  <script src="/static/setup.js?v=20261113"></script>
+  <script src="/static/insights.js?v=20261113"></script>
+  <script src="/static/shop.js?v=20261113"></script>
 </body>
 </html>

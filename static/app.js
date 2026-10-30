@@ -563,7 +563,12 @@ function profile() {
 // ---------- saved cookbook (this device only; works without storage) ----------
 function saveBook() {
   try {
-    if (!state.recipes.length && !state.plan && !state.profileSet) { writePlate(null); return; }
+    if (!state.recipes.length && !state.plan && !state.profileSet) {
+      // Nothing new this visit: keep details saved earlier with "Save details" (Start over clears them itself).
+      if (typeof readFamily === "function" && readFamily().plate?.profile) return;
+      writePlate(null);
+      return;
+    }
     const data = {
       v: 1, savedAt: Date.now(),
       condition: state.condition, also: state.also, cuisine: state.cuisine, language: state.language, parentName: state.parentName,
@@ -791,7 +796,7 @@ function setConditions(list) {
     if (e.origin === "suggested") return;
     e.adapted = null; e.prev = null; e.asking = false; e.askError = ""; e.status = "idle"; e.error = ""; e.req = null;
   });
-  if (!state.profileSet && !state.profileTouched) state.profile = defaultProfile();
+  if (!state.profileSet && !state.profileTouched) state.profile = savedOrDefaultProfile();
   $("adaptProgress").hidden = true;
   markCookbookChanged();
   syncControls();
@@ -1822,8 +1827,14 @@ function readIntake() {
   };
 }
 
+// Details saved earlier (Save details) come back, even before the saved book is resumed.
+function savedOrDefaultProfile() {
+  const saved = typeof readFamily === "function" ? readFamily().plate?.profile : null;
+  return saved && typeof saved === "object" ? cleanProfile(saved) : defaultProfile();
+}
+
 function openIntake() {
-  if (!state.profileSet && !state.profileTouched) state.profile = defaultProfile();
+  if (!state.profileSet && !state.profileTouched) state.profile = savedOrDefaultProfile();
   if (state.composerOpen) { stopListening(); resetComposer(); }
   state.intakeOpen = true;
   renderIntake();
@@ -1855,6 +1866,28 @@ function submitIntake() {
   state.household = r.household;
   renderNames();
   makePlan();
+}
+
+// Save their details without planning: the household, Insights and later plans all use them.
+function saveIntake() {
+  const r = readIntake();
+  const msg = $("intakeMsg");
+  if (r.error) {
+    msg.className = "msg error"; msg.textContent = r.error;
+    $(r.field).focus();
+    return;
+  }
+  msg.className = "msg"; msg.textContent = "";
+  state.profile = r.profile;
+  state.parentName = r.name;
+  if (r.name) state.language = r.language;
+  state.household = r.household;
+  state.profileSet = true; state.profileTouched = false;
+  renderNames();
+  saveBook();
+  if (typeof renderHomeFamily === "function") { renderHomeFamily(); renderWho(); }
+  toast(r.name ? `Saved ${r.name}'s details.` : "Saved.");
+  closeIntake();
 }
 
 // ---------- the week ----------
@@ -2456,10 +2489,10 @@ $("goalChips").addEventListener("change", (e) => { if (e.target.name === "goalCh
 $("cuisine").addEventListener("change", (e) => { state.cuisine = e.target.value; syncControls(); saveBook(); });
 $("speechLang").addEventListener("change", (e) => { state.speechLang = e.target.value; updateMicHint(); });
 
-$("heroSuggest").addEventListener("click", () => openComposer({ mode: "suggest" }));
-$("heroWeek").addEventListener("click", openIntake);
+$("heroSuggest")?.addEventListener("click", () => openComposer({ mode: "suggest" }));
+$("heroWeek")?.addEventListener("click", openIntake);
 $("composerSkip").addEventListener("click", openIntake);
-$("heroSample").addEventListener("click", (e) => {
+$("heroSample")?.addEventListener("click", (e) => {
   e.preventDefault();
   scrollToEl($("samples"));
   $("samples").focus({ preventScroll: true });
@@ -2609,6 +2642,7 @@ $("plan").addEventListener("click", () => { if (state.profileSet) makePlan(); el
 // ---------- intake events ----------
 $("intakeForm").addEventListener("submit", (e) => { e.preventDefault(); submitIntake(); });
 $("intakeCancel").addEventListener("click", closeIntake);
+$("intakeSave").addEventListener("click", saveIntake);
 $("intakeForm").addEventListener("input", (e) => {
   state.profileTouched = true;
   const id = e.target.id;
