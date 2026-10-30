@@ -991,11 +991,11 @@ function careBookHTML() {
 function careBookText() {
   const cb = careFamily().careBook;
   if (!cb.plan && !cb.remedies.length) return "";
-  const L = ["== Skin & hair =="];
+  const L = ["*Skin & hair*"];
   const plan = cb.plan;
   if (plan) {
     plan.people.forEach((p) => {
-      L.push("", `-- ${p.name} --`);
+      L.push("", `*${p.name}*`);
       (p.red_flags || []).forEach((f) => L.push(`Worth a doctor's visit first: ${f}`));
       (p.doctor_notes || []).forEach((n) => L.push(`Note: ${n}`));
       [["Morning", "am"], ["Night", "pm"], ["In the shower", "shower"]].forEach(([t, k]) => {
@@ -1004,14 +1004,14 @@ function careBookText() {
         L.push(`${t}:`);
         steps.forEach((s) => {
           const c = (p.ingredients || []).find((x) => x.id === s.active);
-          L.push(`- ${c ? productWith(s.product, c.name, c.strength) : s.product}${s.tip ? `: ${s.tip}` : ""}`);
+          L.push(`· ${c ? productWith(s.product, c.name, c.strength) : s.product}${s.tip ? `: ${s.tip}` : ""}`);
         });
       });
       if (p.summary && ["am", "pm", "shower"].some((k) => (p.routine[k] || []).length)) L.push(p.summary);
     });
   }
   if (cb.remedies.length) {
-    L.push("", "== Home remedies we looked at ==");
+    L.push("", "*Home remedies we checked*");
     cb.remedies.forEach((x) => x.result.remedies.forEach((r) => {
       L.push(`${VERDICTS[r.verdict].word}: "${r.remedy}"${x.who ? ` (for ${x.who})` : ""}`);
       if (r.safety_rule) L.push("Safety rule: we always say stop to this.");
@@ -1020,10 +1020,10 @@ function careBookText() {
     }));
   }
   if (plan && plan.shopping.length) {
-    L.push("", "== Shopping list: skin & hair ==");
-    plan.shopping.forEach((s) => L.push(`- ${productWith(s.products, s.name, s.strength)}: for ${s.for.join(", ")}`));
+    L.push("", "*Shopping list: skin & hair*");
+    plan.shopping.forEach((s) => L.push(`· ${productWith(s.products, s.name, s.strength)}: for ${s.for.join(", ")}`));
   }
-  if (plan && plan.note_for_family) L.push("", "== A note for the family ==", plan.note_for_family);
+  if (plan && plan.note_for_family) L.push("", "*A note for the family*", plan.note_for_family);
   L.push("", CARE_DISCLAIMER);
   return L.join("\n");
 }

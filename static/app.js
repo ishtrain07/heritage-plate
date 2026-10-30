@@ -1786,6 +1786,9 @@ function renderIntake() {
   $("pPregWrap").hidden = p.sex !== "female";
   $("pTarget").open = Boolean(p.sex || p.age || p.height_cm || p.weight_kg || p.ethnicity);
   $("pSnacks").checked = p.snacks;
+  // The list is for everyone at home: start from the household's size unless they've chosen a number.
+  const homeSize = typeof careMembers === "function" ? careMembers().length : 0;
+  if (state.household === 1 && homeSize > 1 && !state.householdChosen) state.household = Math.min(12, homeSize);
   $("pHousehold").value = state.household;
   const msg = $("intakeMsg");
   msg.className = "msg"; msg.textContent = "";
@@ -1824,6 +1827,7 @@ function readIntake() {
     name: $("pName").value.trim().slice(0, 20),
     language: $("pLang").value,
     household: Math.min(12, Math.max(1, Math.round(num($("pHousehold").value)) || 1)),
+    householdChosen: true,
   };
 }
 
@@ -1863,7 +1867,7 @@ function submitIntake() {
   state.profile = r.profile;
   state.parentName = r.name;
   if (r.name) state.language = r.language;
-  state.household = r.household;
+  state.household = r.household; state.householdChosen = true;
   renderNames();
   makePlan();
 }
@@ -1881,7 +1885,7 @@ function saveIntake() {
   state.profile = r.profile;
   state.parentName = r.name;
   if (r.name) state.language = r.language;
-  state.household = r.household;
+  state.household = r.household; state.householdChosen = true;
   state.profileSet = true; state.profileTouched = false;
   renderNames();
   saveBook();
@@ -2362,35 +2366,31 @@ function cookbookHTML() {
     </div>`;
 }
 
+// The book as a short message for WhatsApp, iMessage or email: *bold* titles, one line per idea, no markdown bullets.
 function cookbookText() {
   const plan = state.plan;
-  const L = [cookbookTitle(), coverLine(), ""];
+  const L = [`*${cookbookTitle()}*`, coverLine()];
+  const cut = (t, n) => { t = String(t || "").trim(); return t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t; };
   state.recipes.forEach((e) => {
     const r = current(e);
-    L.push(`== ${r.name} (serves ${r.servings}) ==`);
+    L.push("", `*${r.name}* · serves ${r.servings}`);
     if (e.adapted) L.push(focusLine(r).text);
-    L.push("Ingredients:");
-    (r.ingredients || []).forEach((g) => L.push(`- ${grams(g.grams)} ${g.item}${g.home_measure ? ` (${g.home_measure})` : ""}`));
-    const steps = (Array.isArray(r.method) ? r.method : []).filter((s) => String(s || "").trim());
-    if (steps.length) { L.push("Method:"); steps.forEach((s, i) => L.push(`${i + 1}. ${s}`)); }
-    if (r.portion_tip) L.push(`Portion: ${r.portion_tip}`);
-    if (r.suggested && r.why) L.push(`Why it fits: ${r.why}`);
-    if (e.adapted && r.changes?.length) { L.push("What we changed:"); r.changes.slice(0, 4).forEach((c) => L.push(`- ${c.what}: ${c.why}`)); }
-    L.push("");
+    L.push(`Shop: ${(r.ingredients || []).map((g) => `${g.item} ${grams(g.grams)}`).join(", ")}`);
+    const steps = (Array.isArray(r.method) ? r.method : []).filter((x) => String(x || "").trim());
+    steps.forEach((x, i) => L.push(`${i + 1}. ${cut(x, 140)}`));
+    if (r.portion_tip) L.push(`Serve: ${cut(r.portion_tip, 120)}`);
+    if (e.adapted && r.changes?.length) L.push(`Changed: ${r.changes.slice(0, 3).map((c) => cut(c.what, 70)).join("; ")}`);
   });
   if (plan) {
-    L.push("== This week ==", `${targetLine(plan)} · ${profileWords(plan).join(" · ")}`);
-    if (state.planStale) L.push("Note: your dishes changed since this week was planned. Update the week to include them.");
-    if (bodyLine(plan.target?.body)) L.push(bodyLine(plan.target.body));
-    (plan.days || []).forEach((d) => L.push(`${DAY_NAMES[d.day] || d.day} (${kcal(d.totals?.kcal)} kcal): ${(d.meals || []).map((m) => `${SLOT_NAMES[m.slot] || m.slot} ${m.name}${m.source === "family" ? " (family dish)" : ""}`).join(" · ")}`));
-    (plan.notes || []).forEach((x) => L.push(`Note: ${x}`));
-    L.push("", `== Shopping list (for ${people(Math.max(1, num(plan.household) || 1))}) ==`);
-    (plan.shopping_list || []).forEach((s) => L.push(`- ${s.item}: ${grams(s.grams)}`));
-    if (hasNote(plan)) L.push("", `== ${noteLabel(plan)} ==`, plan.message_for_parent);
-    L.push("");
+    L.push("", `*This week* · ${targetLine(plan)}`);
+    (plan.days || []).forEach((d) => L.push(`${d.day}: ${(d.meals || []).map((m) => cut(m.name, 40)).join(" · ")}`));
+    const home = new Set([...document.querySelectorAll("#planOut ul.shop input:checked")].map((x) => x.closest("li")?.querySelector(".shop-item span")?.textContent));
+    const list = (plan.shopping_list || []).filter((x) => !home.has(x.item));
+    L.push("", `*Shopping list* · for ${people(Math.max(1, num(plan.household) || 1))}`, list.map((x) => `${x.item} ${grams(x.grams)}`).join(", "));
+    if (hasNote(plan)) L.push("", `*${noteLabel(plan)}*`, plan.message_for_parent);
   }
-  if (typeof careBookText === "function") { const c = careBookText(); if (c) L.push(c, ""); }
-  if (state.recipes.length || plan) L.push(SOURCES_LINE); // food numbers only when the book has Plate pages
+  if (typeof careBookText === "function") { const c = careBookText(); if (c) L.push("", c); }
+  if (state.recipes.length || plan) L.push("", "Numbers from IFCT 2017 and USDA food tables. Not medical advice.");
   return L.join("\n").trim();
 }
 
