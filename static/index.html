@@ -32,7 +32,7 @@
       document.documentElement.setAttribute("data-side", s);
     })();
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261123">
+  <link rel="stylesheet" href="/static/styles.css?v=20261124">
 </head>
 <body>
   <a class="skip" href="#main">Skip to the app</a>
@@ -459,31 +459,10 @@
                   <div id="careExamples" class="pick chip-row chip-scroll" role="group" aria-labelledby="careExLabel"></div>
                 </div>
                 <fieldset class="card-row card-fs who-row">
-                <legend class="comp-q">Who's eating?</legend>
-                <p class="comp-sub">Choose who to personalise the recipe for.</p>
+                <legend class="sr-only">For whom?</legend>
+                <span class="field-label" aria-hidden="true">For whom?</span>
                 <div id="careWho" class="pick chip-row chip-scroll" data-who-for="remedy"></div>
                 </fieldset>
-                <details id="style" class="style more-opts">
-                <summary><span class="mo-h">Recipe preferences</span> <span id="styleSummary" class="mo-sum">Servings · Cuisine · Language</span><span class="chev" aria-hidden="true"></span></summary>
-                <div class="fields">
-                  <div class="composer-row">
-                    <div class="stepper" role="group" aria-labelledby="servesLabel">
-                      <span id="servesLabel" class="stepper-label">Serves</span>
-                      <button type="button" class="stepper-btn" data-step="-1" aria-label="One fewer serving">−</button>
-                      <input id="servings" type="number" min="1" max="20" value="4" inputmode="numeric" aria-labelledby="servesLabel">
-                      <button type="button" class="stepper-btn" data-step="1" aria-label="One more serving">+</button>
-                    </div>
-                  </div>
-                  <label class="field">
-                    <span class="field-label">Your family's cooking</span>
-                    <select id="cuisine"></select>
-                  </label>
-                  <label class="field">
-                    <span class="field-label">Language you'll speak in</span>
-                    <select id="speechLang"></select>
-                  </label>
-                </div>
-              </details>
               <div class="composer-go">
                   <button id="careGo" class="btn btn-primary btn-wide" type="button" data-care-act="check">Check it</button>
                 </div>
@@ -738,12 +717,12 @@
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js?v=20261123"></script>
-  <script src="/static/app.js?v=20261123"></script>
-  <script src="/static/care.js?v=20261123"></script>
-  <script src="/static/scan.js?v=20261123"></script>
-  <script src="/static/setup.js?v=20261123"></script>
-  <script src="/static/insights.js?v=20261123"></script>
-  <script src="/static/shop.js?v=20261123"></script>
+  <script src="/static/family.js?v=20261124"></script>
+  <script src="/static/app.js?v=20261124"></script>
+  <script src="/static/care.js?v=20261124"></script>
+  <script src="/static/scan.js?v=20261124"></script>
+  <script src="/static/setup.js?v=20261124"></script>
+  <script src="/static/insights.js?v=20261124"></script>
+  <script src="/static/shop.js?v=20261124"></script>
 </body>
 </html>
