@@ -1070,6 +1070,7 @@ function memberLine(m) {
     ...(m.pregnant ? ["pregnant"] : []), ...(m.goals || []).map((g) => GOAL_SHORT[g]), DIET_SHORT[m.diet], ...(m.allergies ? [`no ${m.allergies.split(/[,;]/)[0].trim()}`] : [])].filter(Boolean);
 }
 
+const EXAMPLE_PEOPLE = [["mum", "Mum", "Diabetes"], ["dad", "Dad", "Blood pressure"], ["sam", "Sam", "Flatmate · vegan"]];
 const RELATIONS = [["me", "Me"], ["partner", "Partner"], ["mum", "Mum"], ["dad", "Dad"], ["child", "Child"], ["grandparent", "Grandparent"],
   ["sibling", "Sibling"], ["flatmate", "Flatmate"], ["other", "Other"]];
 const GOAL_PICK = [["lose_weight", "Lose weight"], ["build_muscle", "Build muscle"], ["belly_fat", "Smaller waist"], ["steady_sugar", "Steady energy"]];
@@ -1159,13 +1160,20 @@ function renderHomeFamily() {
   const form = editing ? famAddFormHTML(editing) : care.famAdding && ms.length < FAMILY_MAX ? famAddFormHTML() : "";
   const full = care.famManage && ms.length ? `<ul class="fam-list">${list}</ul>` : "";
   const empty = !ms.length && !form ? `<p class="fam-hint">Add the people you cook and shop for: family or flatmates. Saved on this device; share it with an invite link.</p>` : "";
+  // Until they add their own people, an example household shows what it looks like (real people get initials).
+  const example = !ms.length ? `
+    <ul class="av-row av-example" aria-label="Example household">
+      ${EXAMPLE_PEOPLE.map(([img, name, sub]) => `
+      <li><button type="button" class="av-item" data-go="get-started"><span class="av av-photo" style="background-image:url(/static/hero/person-${img}.jpg)" aria-hidden="true"></span><span class="av-name">${name}</span><span class="av-sub">${sub}</span></button></li>`).join("")}
+      <li><button type="button" class="av-item" data-go="get-started"><span class="av av-add" aria-hidden="true">+</span><span class="av-name">Add yours</span><span class="av-sub">family or flatmates</span></button></li>
+    </ul>` : "";
   const join = care.pendingJoin ? `
     <div class="join-card" role="region" aria-label="Household invite">
       <p><b>You've been invited to a household:</b> ${esc(care.pendingJoin.map((m) => m.name).join(", "))}.</p>
       <div class="join-btns"><button type="button" class="btn btn-primary btn-small" data-fam-act="join">Add them to this phone</button>
       <button type="button" class="btn-link" data-fam-act="join-no">No thanks</button></div>
     </div>` : "";
-  box.innerHTML = `${join}${row}${empty}${full}${form}`;
+  box.innerHTML = `${join}${ms.length ? row : example}${empty}${full}${form}`;
 }
 
 function famAddSave() {

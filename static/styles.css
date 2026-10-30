@@ -2261,3 +2261,6 @@ html[data-side] .side-switch a[data-side-link][aria-current="page"] { background
 .shop-empty-btns { display: flex; gap: 10px; flex-wrap: wrap; }
 .sv-check .sv-pill { background: var(--warn-soft); color: var(--warn-ink); border: 1px solid var(--warn-ink); }
 .scan-partial { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--warn-soft); color: var(--warn-ink); }
+.av-photo { background-color: var(--chip); background-size: cover; background-position: center; }
+.av-example .av-name::after { content: ""; }
+.av-example { position: relative; }
