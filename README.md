@@ -1,59 +1,52 @@
-# Nouri: Plate + Care
+# Nouri: Keep what works from home
 
-**Keep what works from home. Fix what doesn't.**
+**Good food. Healthier tomorrows.** Nouri is a health helper for a whole household, family or flatmates. It makes Mum's recipes healthier, plans the week with one shopping list, checks any food or skin-care label for everyone at home, and fact-checks Nani's remedies. It works in any language, by voice, text or photo.
 
-Two halves, one family:
-- **Nouri Food** — keep the family's food, fix the numbers (below).
-- **Nouri Care** — skin and hair for the whole family: fact-check the remedies passed down at home, get an
-  ingredient-first routine for each person, and check any product's label (see "Nouri Care" below).
+Built for the **Nebius × NVIDIA Global AI Hackathon** (Best Apps & Agents) with **NVIDIA Nemotron 3 on Nebius Token Factory**.
 
-Nouri Food turns a family's real recipes, written or spoken the way they're said at home ("3 katori atta, 2 boiled aloo, ghee on top", "2 spoons toyo", "a little queso"), into versions that work for a parent's type 2 diabetes, high blood pressure or high cholesterol. It works for any family cuisine: South Asian, East and Southeast Asian, Continental European, Middle Eastern, Latin American and Caribbean. It doesn't swap the family's food for bland diet food. Then it plans the week and writes a shopping list and a note to the parent in their language.
+- Live app: `https://[your nouri domain].vercel.app`
+- Demo video: `[YouTube link]`
+- Screenshots: [`docs/gallery/`](docs/gallery/)
 
-Built for the **Nebius x NVIDIA Global AI Hackathon** (Best Apps & Agents track).
+## What it does
 
-## How it works
+| Feature | What a family gets |
+|---|---|
+| **Household** | Set up once in 3 steps: names, ages, several health conditions and goals per person, diets (vegan, Jain, halal, kosher-style…) and allergies. Share with an invite link, no accounts. |
+| **Food** | Say a recipe the way it's said at home ("1 katori arhar, ghee on top"). Get it lighter for diabetes, blood pressure or cholesterol, with before → after numbers from food tables. |
+| **Week + one shopping list** | A dietitian-style week around the family's own dishes: calorie targets, goals, diets and allergies, a note to the parent in their language, and one consolidated list. |
+| **Scan & check** | Photograph any food or skin-care label. Get an answer for each person (fine / now and then / check the label / not for them), an ingredient breakdown, and "add to list". |
+| **Skin & hair** | Check a home remedy (keep, fine with care, swap or stop, with sources) and get a simple routine per person from a cited ingredient library. |
+| **Insights** | Daily aims per person (calories, protein, fibre, sodium, sugar, carbs per meal, water, activity), each cited to WHO, ICMR-NIN, ADA or EFSA. |
 
-| Step | What happens | Powered by |
+## How NVIDIA Nemotron and Nebius Token Factory are used
+
+Each step goes to the Nemotron model sized for its job. All of them are called through Token Factory's OpenAI-compatible API (`app/llm.py`), so one client serves every model with no GPUs to manage.
+
+| Step | Model on Token Factory | Why this size |
 |---|---|---|
-| Read recipe | Free-text or spoken recipe → structured ingredients in grams | **NVIDIA Nemotron 3 Nano** on Nebius Token Factory |
-| Adapt dish | Up to 4 swaps that keep the dish recognizable (flour mix, less rice/ghee/sugar/salt, more vegetables) | **Nemotron 3 Super** |
-| Plan the week | A personal dietitian week: calorie target from the person's profile (Mifflin-St Jeor), meals around the family's dishes plus suggested meals, a note to the parent in their language | **Nemotron 3 Ultra** (meal library if the call fails) |
-| Ask about a dish / Suggest a dish | Re-adapt around a request ("Dad hates cauliflower"), or invent a new dish for their conditions and diet | **Nemotron 3 Super** |
-| Nutrition and shopping list | kcal, carbs, net carbs, fibre, protein, fat, saturated fat and sodium per serving, before and after; weekly quantities | **Plain code + `data/foods.csv`**, never the LLM |
+| Read a spoken or typed recipe into grams | **Nemotron 3 Nano** (30B-A3B), thinking off | Fast, cheap structured extraction (~2 s) |
+| Make dishes lighter, answer "Dad hates cauliflower", suggest a dish | **Nemotron 3 Super** (120B-A12B), thinking off | Judgement inside strict rules (2–5 s) |
+| Check remedies, care plans, translation, explain scanned labels | **Nemotron 3 Super** | Same: constrained reasoning, multilingual |
+| Plan the whole week and write to the parent | **Nemotron 3 Ultra** (550B-A55B), thinking on | Long-horizon planning across many dishes (~45 s); falls back to Super |
+| Copy the words off a label photo | Gemma 3 27B (vision, on Token Factory) | No Nemotron model on Token Factory takes images yet; it only transcribes, and Nemotron plus code decide |
 
-The focus nutrient follows the condition: **net carbs** for diabetes, **sodium** for blood pressure, **saturated fat** for cholesterol.
+**Where Token Factory helped:**
+- One API key and one client for four models, so routing by task is a one-word change.
+- Per-token pricing let us budget each step. A full household session is about 20 calls and 70k tokens.
+- `chat_template_kwargs` switches Nemotron's thinking off for the fast steps.
 
-### Where the numbers come from
+Every call is traced in **LangSmith** (model, tokens, latency) when `LANGSMITH_TRACING=true`.
 
-`data/foods.csv` (132 foods) is generated by `scripts/build_foods.py` from two published food-composition tables. Every row keeps its source record ID, and the app shows it on each dish ("Where the numbers come from"):
+## Trust: the AI never makes up numbers or safety rules
 
-- **IFCT 2017**: Indian Food Composition Tables, National Institute of Nutrition (via the MIT-licensed `@ifct2017/compositions` package). Used for South Asian staples. Energy is converted from kJ, minerals from g to mg, and total carbs = available carbs + fibre.
-- **USDA SR28**: USDA National Nutrient Database for Standard Reference, Release 28 (public domain). Used for everything else.
-
-`data/ingredients.csv` is the curated list: canonical name, home-language aliases (atta, chawal, toyo, frijoles…), and the source record ID. Ingredient matching is deliberately strict: "peanut butter" is never counted as butter. Anything we can't match is shown as "not counted", and if an adaptation adds uncountable items, the app doesn't claim a "% less". Values are per 100 g raw weight; home measures are estimated, so treat the results as close guides, not lab values.
-
-To rebuild the table:
-
-```bash
-npm pack @ifct2017/compositions fda-nutrient-database && for f in *.tgz; do mkdir -p "${f%.tgz}" && tar -xzf "$f" -C "${f%.tgz}"; done
-python scripts/build_foods.py --ifct ifct2017-compositions-*/package/index.csv --sr28 fda-nutrient-database-*/package/data/ABBREV.txt
-```
-
-The app's "Under the hood" panel shows which Nemotron tier ran each step, with latency and tokens.
-
-## Nouri Care
-
-| Job | What happens | Powered by |
-|---|---|---|
-| Check a home remedy | Typed or spoken the way it's said at home, in any language ("besan haldi ka lep", "nimbu on dark spots"). Verdict (keep / fine with care / stop / swap), the evidence, and the proven ingredient that does the job | **Nemotron 3 Super**, grounded on `data/care_actives.json` |
-| Family care plan | Morning / night / shower routine per person (product type + ingredient + strength + why), one combined shopping list, a note in the family's language | **Nemotron 3 Super**, choosing only from each person's allowed ingredients |
-| Check a label | Paste an ingredient list: helpful actives, irritants (fragrance, drying alcohol, essential oils), fit for the person, pregnancy warnings | Plain code, no AI |
-
-The AI reasons about whatever the family says; the checked library keeps it honest:
-- `data/care_actives.json` lists 22 actives with typical strength, evidence grade (A/B/C), cautions, pregnancy status, regulatory status and sources (NHS, American Academy of Dermatology, National Eczema Society, PubMed).
-- The model may only recommend ids from that list; anything else is dropped in code, and every recommendation carries the library's sources.
-- Safety is applied in code after the model: red flags (sudden or patchy hair loss, cystic acne, changing moles, spreading or blistering skin, burns) go to a doctor first; retinoids and minoxidil are never suggested in pregnancy; prescription-only items become "ask your doctor about…" (per country); allergies are respected; citrus on skin can never be a plain "keep".
-- Remedies the library doesn't cover are still answered, labelled "AI-assessed, not in our checked library".
+- **Nutrition is computed in code** from IFCT 2017 and USDA SR28 (`data/foods.csv`, 205 foods with home-language names). Anything unmatched is shown as "not counted".
+- **Calorie targets** use Mifflin–St Jeor with WHO Asian BMI cut-offs (`app/dietitian.py`).
+- **Safety runs in code after the model answers** (`app/scan.py`, `app/care.py`, `app/dietitian.py`):
+  - allergies, including "may contain", compound words and Hindi/Hinglish names
+  - diets, pregnancy, age limits and prescription-only items
+  - dangerous remedies and ingredients (steroids, mercury, hydroquinone) always get "stop"
+- **Guardrails before the model** (`app/guards.py`): self-harm signals get helplines and never reach it. Non-food text, obscene text, non-label photos and gibberish get a friendly reply.
 
 ## Run it
 
@@ -62,51 +55,71 @@ git clone https://github.com/ishtrain07/heritage-plate.git && cd heritage-plate
 pip install -r requirements.txt
 cp .env.example .env               # add NEBIUS_API_KEY for live mode
 export $(grep -v '^#' .env | xargs)
-uvicorn app.main:app --reload
-# open http://localhost:8000 → pick a family → "Make every dish lighter" → "Plan our week"
+uvicorn app.main:app --reload      # http://localhost:8000
 ```
 
-- **Demo mode** (no key, or `MOCK=1`): deterministic swap rules stand in for the models, so the whole flow works offline. Four demo families are included: Gill (South Asian, diabetes), Chen (East Asian, blood pressure), Rossi (Continental, cholesterol) and Reyes (Latin American, diabetes).
-- **Settings:** `RATE_LIMIT` (model-backed requests per client per 10 minutes, default 200), `MAX_CALLS_PER_HOUR` (all model calls across all users, default 600), `TRUST_PROXY=1` when deployed behind a proxy that sets `X-Forwarded-For`, and `LLM_TIMEOUT_S` (default 30) / `LLM_TIMEOUT_ULTRA_S` (default 60, Ultra reasons first) / `LLM_DEADLINE_S` (default 90).
-- **Live mode:** set `NEBIUS_API_KEY`. Check the base URL and model IDs first:
+- **Demo mode** (no key, or `MOCK=1`): deterministic rules stand in for the models, so every screen works offline.
+- **Live mode:** set `NEBIUS_API_KEY`. `python scripts/check_models.py` verifies the model IDs. `HP_LIVE=1 python scripts/live_run.py` runs the demo live and reports latency and tokens.
+- **Settings:**
+  - `RATE_LIMIT`: requests per client per 10 minutes, default 200
+  - `MAX_CALLS_PER_HOUR`: model calls across all users, default 600
+  - `TRUST_PROXY`
+  - `LLM_TIMEOUT_S`, `LLM_TIMEOUT_ULTRA_S`, `LLM_DEADLINE_S`
+  - `VISION_MODEL`, default `google/gemma-3-27b-it`
+  - `LANGSMITH_TRACING`, `LANGSMITH_ENDPOINT`, `LANGSMITH_PROJECT`, `LANGSMITH_API_KEY`
 
-```bash
-python scripts/check_models.py
-```
-
-Then run the whole demo (4 families + one typed recipe) live and get latency, tokens, cost and whether Ultra fell back:
-
-```bash
-HP_LIVE=1 HP_PRICE_NANO=in,out HP_PRICE_SUPER=in,out HP_PRICE_ULTRA=in,out python scripts/live_run.py   # USD per 1M tokens
-```
+**Deploy:** Vercel, using `vercel.json` (`app/main.py` as a Python function, `maxDuration` 120 s). Set `NEBIUS_API_KEY` (and the LangSmith variables) for Production and Preview. A `Dockerfile` is included for any container host.
 
 ## Tests
 
 ```bash
-python -m pytest -q
+python -m pytest -q    # 251 tests, offline (mock mode)
+ruff check .
 ```
+
+## How we built it with review agents
+
+`.claude/agents/` holds the three Claude Code agents that audited every change before it shipped:
+
+- [`code-reviewer.md`](.claude/agents/code-reviewer.md): correctness and safety. It found allergy false negatives in the scanner, each now a regression test in `tests/test_scan.py`.
+- [`frontend-ux.md`](.claude/agents/frontend-ux.md): design, accessibility, dark mode, phone layouts.
+- [`product-ux-strategist.md`](.claude/agents/product-ux-strategist.md): flow, copy, and nutrition guidance from a dietitian's view.
 
 ## Project layout
 
 ```
-app/main.py        FastAPI routes (/api/health, /api/demo[/{id}], /api/parse, /api/adapt, /api/suggest, /api/week) + validation
-app/care.py        Nouri Care routes (/api/care/remedy, /plan, /label, /library), grounding and safety rules
-app/dietitian.py   personal week plan: calorie target, diet rules, portion scaling
-app/guards.py      shared rate limit and model-error handling
+app/main.py        routes: /api/parse, /api/adapt, /api/suggest, /api/plan, /api/week, /api/demo, /api/health
+app/scan.py        /api/scan: label photo → text → per-person checks (allergies, diet, sugar/salt, skin safety)
+app/insights.py    /api/insights: daily aims per person, pure code
+app/care.py        /api/care/*: remedy check, care plan, label check, cited library, safety rules
+app/dietitian.py   week plan: calorie target, diets, allergies, portions, shopping list
 app/engine.py      parse → adapt → plan pipeline (live Nemotron or mock rules)
-app/llm.py         Token Factory client, JSON parsing, Ultra → Super fallback, trace
-app/prompts.py     system prompts per Nemotron tier
-app/nutrition.py   deterministic nutrition math over data/foods.csv
-data/              ingredients.csv (curated), foods.csv (generated), demo_families.json (fictional),
-                   meals.json, facts.json, care_actives.json (cited skin & hair library)
-scripts/           build_foods.py (rebuild food table), check_models.py (verify Token Factory models), live_run.py (live latency/tokens/cost)
-static/            single-page UI (plain HTML/CSS/JS)
+app/llm.py         Token Factory client, JSON parsing, cache, budget, deadline, Ultra → Super fallback, tracing
+app/prompts.py     system prompts
+app/guards.py      input guardrails, rate limit, model-error handling
+app/nutrition.py   nutrition maths over data/foods.csv
+data/              foods.csv, ingredients.csv, meals.json, care_actives.json, demo_families.json, facts.json
+static/            the app: index.html, styles.css, family.js, app.js, care.js, scan.js, setup.js, insights.js, shop.js
+scripts/           build_foods.py, check_models.py, live_run.py, build_preview.py
+docs/              DEVPOST.md, VIDEO_SCRIPT.md, gallery/, notes/ (specs and review notes)
+tests/             pytest suite
 ```
+
+### Rebuilding the food table
+
+```bash
+npm pack @ifct2017/compositions fda-nutrient-database && for f in *.tgz; do mkdir -p "${f%.tgz}" && tar -xzf "$f" -C "${f%.tgz}"; done
+python scripts/build_foods.py --ifct ifct2017-compositions-*/package/index.csv --sr28 fda-nutrient-database-*/package/data/ABBREV.txt
+```
+
+## Credits
+
+Photos on Unsplash by Anju Ravindranath, Helena Lopes, Omar Abozeid, iKshana Productions, Vije Vijendranath and Jack Lee. Food data: IFCT 2017 (National Institute of Nutrition, India) and USDA SR28.
 
 ## Disclaimer
 
-General healthy-eating guidance, not medical advice. Check changes with a doctor or registered dietitian.
+General guidance, not medical advice. Check changes with a doctor, pharmacist or registered dietitian.
 
 ## License
 
-MIT
+[MIT](LICENSE)

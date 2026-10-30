@@ -112,7 +112,7 @@ def test_a_red_flag_holds_back_products_for_that_concern(client):
     assert person["red_flags"] and "minoxidil" not in used and "ketoconazole" in used
 
 
-# ---------- review fixes (docs/CARE_REVIEW.md) ----------
+# ---------- review fixes (docs/notes/CARE_REVIEW.md) ----------
 
 def test_checked_badge_only_when_the_remedy_itself_has_a_source(client):
     tooth = client.post("/api/care/remedy", json={"text": "toothpaste on a pimple"}).json()["result"]["remedies"][0]
