@@ -1,22 +1,22 @@
-# Heritage — 3-minute demo video script
+# Nouri: 3-minute demo video script (English)
 
-Record on the live site, 1280 px browser window, light mode, sound on. Clear "Your family" first.
-Rehearse once so the live AI calls are warm (cached answers are instant).
+**Three things to land:** the emotional angle (keep Mum's food and Nani's rituals), less fuss (set up the household once; one scan, one list), and time saved (one meal for everyone, buy once).
 
-| Time | Screen | Say (voiceover) |
-|---|---|---|
-| 0:00–0:15 | Home page, slow scroll to the shortcuts | "[YOUR REAL STORY, one line, e.g. who in your family was told to stop eating their food.] Families everywhere get the same message, for food and for the home remedies we grew up with. Heritage keeps what works from home and fixes what doesn't." |
-| 0:15–0:25 | Add "Nidi, 58, female, diabetes" in Your family | "You start with the people you care for." |
-| 0:25–0:55 | Plate: tap mic, say "Mum's dal: one katori arhar dal, one pyaaz, two tamatar, ghee on top"; pick Nidi; Make it lighter | "Say the recipe the way it's said at home, in any language. NVIDIA Nemotron Nano reads it into grams; Super makes it lighter for diabetes with changes that keep it Mum's dal. Every number comes from food tables, not the AI." Point at before/after bar. |
-| 0:55–1:20 | Week plan: About them filled, goals Lose weight + Steady blood sugar, diet Vegetarian; Plan my week | "Then a week of meals, like a dietitian: a calorie target worked out from age, height and weight, several goals at once, any diet, from vegan to halal to Jain. Nemotron Ultra plans the week and writes a note to Nidi in Hindi." Show note and shopping list. |
-| 1:20–1:50 | Care: language Hindi; tap "Nimbu on dark spots" | "Families also pass down remedies. Lemon on dark spots? Heritage answers like a calm pharmacist, in Hindi: it can burn in the sun, here's what actually works, with sources." Show verdict and sunscreen / azelaic acid cards. |
-| 1:50–2:05 | Type "kerosene for head lice" | "Some remedies are dangerous. Those always get a stop, decided in code, whatever the AI says." |
-| 2:05–2:20 | Label check: paste "Aqua, Clobetasol Propionate, Hydroquinone" | "Paste any label: it catches steroids and hydroquinone hidden in fairness creams." |
-| 2:20–2:35 | Plate chip "Chicken adobo" (or a remedy in Spanish) | "And it isn't just Indian food: adobo, pozole, beef stew, in Spanish, Tagalog or English." |
-| 2:35–2:50 | Family book: print view | "Everything saves to one family book you can print or share with the doctor." |
-| 2:50–3:00 | Home page | "Heritage. Built with NVIDIA Nemotron on Nebius. Keep what works from home. Fix what doesn't." |
+**Set-up:** record on the live site on a phone, or in a 390 px browser window. Light mode, sound on. Clear the household first (Manage → Remove), and keep a biscuit or namkeen packet with the ingredient label ready. Rehearse once so the AI calls are warm. If a call is slow, cut the wait in editing, but never fake a result.
 
-## Shot list and tips
-- Keep the browser zoom at 100%; hide bookmarks bar.
-- If a live call is slow, cut the wait in editing; don't fake results.
+| Time | Screen | Say (voiceover) | Selling point |
+|---|---|---|---|
+| 0:00–0:15 | Home: the hero photo | "[Your real line, e.g. 'When Mum was told she had diabetes, the doctor handed her a sheet that said give up your food.'] In every home, the food and the remedies we grew up with carry love. Nouri keeps what works from home and fixes what doesn't." | Emotional |
+| 0:15–0:35 | Get started: 3 steps. Family, 3–4 people; Me 30; Mum 58; Dad 62. Tick diabetes for Mum, blood pressure and lose weight for Dad | "Set up your household once, family or flatmates, in three taps. Several conditions and goals per person. Every feature now works for everyone at once." | Less fuss |
+| 0:35–1:00 | Food: say "Mum's dal: one katori arhar, one pyaaz, two tamatar, ghee on top", then Make it lighter | "Say the recipe the way it's said at home. NVIDIA Nemotron reads it into grams and makes it lighter for Mum's diabetes, and it's still Mum's dal. The numbers come from food tables, not the AI." Point at before → after. | Emotional + trust |
+| 1:00–1:25 | Plan the week, then the Shopping list tab | "One week of meals for the whole household, and one shopping list. No separate meals, no buying twice." | Time saved |
+| 1:25–1:55 | Tap the scan button, photograph the biscuit label | "In the shop: can we use this? One photo. Fine for Dad, high in sugar for Mum, and not for Priya: it has milk and she's vegan. Allergies, diets and conditions are checked in code, per person. Add it to the list." | Less fuss + time |
+| 1:55–2:15 | Skin & Hair: tap "Nimbu on dark spots" | "And Nani's remedies? Lemon on dark spots can burn in the sun. Nouri says so kindly and tells you what actually works, with sources. Dangerous ones always get a stop." | Emotional + safety |
+| 2:15–2:35 | Insights (bottom bar) | "Insights gives everyone their own daily aims: protein, fibre, salt and carbs per meal. Each number is worked out from WHO and ICMR guidance." | Trust |
+| 2:35–2:50 | Household → Invite | "Share the household with an invite link. Dad's phone gets the same family, no accounts." | Less fuss |
+| 2:50–3:00 | Home | "Nouri. Good food, healthier tomorrows. Built with NVIDIA Nemotron on Nebius." | |
+
+## Tips
+- Keep it in English. Optionally mention once that the app answers in Hindi, Spanish and more.
+- For the scan, use a label with milk or nuts so the different answers per person show up.
 - End card: live URL, GitHub link, team names.
