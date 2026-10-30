@@ -153,3 +153,26 @@ def test_diet_compounds_round_two():
     assert not a(["fishcakes"], "vegetarian", set()) and not a(["crabmeat"], "kosher", set()) and not a(["lardons"], "halal", set())
     assert not a(["mayonnaise dressing"], "vegetarian", set())
     assert a(["butternut squash"], "vegan", set()) and a(["chicken", "butternut squash"], "kosher", set())
+
+
+def test_out_of_credit_is_a_clear_503_without_retries(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app import llm
+    from app.main import app
+
+    calls = []
+
+    class PaymentRequired(Exception):
+        status_code = 402
+
+    def fail(*a, **k):
+        calls.append(1)
+        raise PaymentRequired("Payment Required: You have exhausted your budget.")
+
+    monkeypatch.setattr(llm, "is_live", lambda: True)
+    monkeypatch.setattr(llm, "_create", fail)
+    llm._cache.clear()
+    r = TestClient(app).post("/api/care/remedy", json={"text": "coconut oil for dry hair"})
+    assert r.status_code == 503 and "short break" in r.json()["detail"]
+    assert len(calls) == 1

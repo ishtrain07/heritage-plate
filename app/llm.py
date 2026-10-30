@@ -39,6 +39,15 @@ class LLMError(RuntimeError):
     pass
 
 
+class LLMUnavailable(LLMError):
+    """The provider refused for billing or quota: retrying or falling back to another tier can't help."""
+
+
+def _out_of_credit(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return getattr(exc, "status_code", None) == 402 or any(w in text for w in ("insufficient_quota", "credit_balance", "exhausted your budget"))
+
+
 # When the key is a network secret (injected into outbound requests by a proxy),
 # the app never sees it: set HP_LIVE=1 and a placeholder is sent instead.
 PLACEHOLDER_KEY = "injected-by-network-secret"
@@ -191,8 +200,10 @@ def _chat_json(tier: str, system: str, user: str, *, step: str, max_tokens: int 
             _take_budget()
             try:
                 resp = _create(model, messages, max_tokens, current in NO_THINK_TIERS, min(timeout, remaining))
-            except Exception as exc:  # noqa: BLE001 - any API/network error: retry once if brief, else next tier
+            except Exception as exc:  # any API/network error: retry once if brief, else next tier
                 last_error = exc
+                if _out_of_credit(exc):
+                    raise LLMUnavailable(f"{step}: model credit used up") from exc
                 # Ultra has Super behind it; Nano and Super get one quick retry on a transient error.
                 if current != "ultra" and not retried and _transient(exc) and remaining > 5:
                     retried = True

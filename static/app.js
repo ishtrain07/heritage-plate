@@ -346,7 +346,7 @@ async function apiOnce(path, body, timeoutMs, signal) {
     const guard = res.status === 422 ? guardOf(data.detail) : null;
     const e = new Error(guard ? guard.message : readableError(data.detail, res.status));
     if (guard) e.guard = guard;
-    if ([502, 503, 504].includes(res.status)) e.retryable = true;
+    if ([502, 503, 504].includes(res.status) && !/short break/.test(String(data.detail || ""))) e.retryable = true;
     throw e;
   }
   return data;

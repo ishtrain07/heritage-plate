@@ -32,7 +32,7 @@
       document.documentElement.setAttribute("data-side", s);
     })();
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261120">
+  <link rel="stylesheet" href="/static/styles.css?v=20261121">
 </head>
 <body>
   <a class="skip" href="#main">Skip to the app</a>
@@ -695,12 +695,14 @@
       </div>
       <p class="scan-lede">A photo of the ingredient label: food, skin or hair care. We check it for everyone at home.</p>
       <div id="scanPick" class="scan-pick">
-        <label class="scan-drop">
-          <input id="scanFile" type="file" accept="image/*" capture="environment" class="sr-only">
+        <div class="scan-drop">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/></svg>
-          <b>Take or choose a photo</b>
           <span>Food, skin care, hair care</span>
-        </label>
+          <div class="scan-drop-btns">
+            <label class="btn btn-primary btn-small scan-file-btn">Take a photo<input id="scanFile" type="file" accept="image/*" capture="environment" class="sr-only"></label>
+            <label class="btn btn-quiet btn-small scan-file-btn">Choose from photos<input id="scanFileLib" type="file" accept="image/*" class="sr-only"></label>
+          </div>
+        </div>
         <button type="button" class="btn-link" data-scan-act="type">or type the ingredients</button>
       </div>
       <div id="scanWho" class="scan-who"></div>
@@ -712,12 +714,12 @@
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js?v=20261120"></script>
-  <script src="/static/app.js?v=20261120"></script>
-  <script src="/static/care.js?v=20261120"></script>
-  <script src="/static/scan.js?v=20261120"></script>
-  <script src="/static/setup.js?v=20261120"></script>
-  <script src="/static/insights.js?v=20261120"></script>
-  <script src="/static/shop.js?v=20261120"></script>
+  <script src="/static/family.js?v=20261121"></script>
+  <script src="/static/app.js?v=20261121"></script>
+  <script src="/static/care.js?v=20261121"></script>
+  <script src="/static/scan.js?v=20261121"></script>
+  <script src="/static/setup.js?v=20261121"></script>
+  <script src="/static/insights.js?v=20261121"></script>
+  <script src="/static/shop.js?v=20261121"></script>
 </body>
 </html>
