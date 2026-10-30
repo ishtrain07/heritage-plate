@@ -33,7 +33,7 @@ function familyId() {
 
 function emptyFamily() {
   return { v: 2, savedAt: 0, mode: "", language: "English", country: "", members: [], plate: null, careBook: { remedies: [], plan: null },
-    shopping: [], shopHome: [] };
+    shopping: [], shopHome: [], pantry: {} };
 }
 
 // Clamped to what /api/care and /api/week accept, so a saved person never causes a 422.
@@ -147,6 +147,10 @@ function cleanFamily(d) {
     home: x.home === true,
   })).filter((x) => x.item);
   out.shopHome = fList(d.shopHome, 200).map((k) => fStr(k, 80)).filter(Boolean);
+  // What's already at home, in grams per item: the list asks only for the rest.
+  const pantry = fIsObj(d.pantry) ? d.pantry : {};
+  out.pantry = Object.fromEntries(Object.entries(pantry).slice(0, 200)
+    .map(([k, v]) => [fStr(k, 60), Math.min(Math.max(Number(v) || 0, 0), 50000)]).filter(([k, v]) => k && v > 0));
   if (d.migratedFrom === 1) out.migratedFrom = 1;
   const cb = fIsObj(d.careBook) ? d.careBook : {};
   out.careBook = {

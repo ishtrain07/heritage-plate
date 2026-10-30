@@ -419,6 +419,7 @@ function route(initial = false) {
   if (side === "home") {
     document.title = "Nouri: healthier meals, one shopping list, skin & hair checked";
     if (changed || initial) renderHomeFamily();
+    if (typeof renderHomeBook === "function") renderHomeBook();
   }
   else if (side === "plate") document.title = "Nouri Food: your family's recipes, made lighter";
 }

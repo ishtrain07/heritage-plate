@@ -2476,12 +2476,13 @@ function shoppingText() {
   const plan = state.plan;
   const home = new Set(typeof readFamily === "function" ? readFamily().shopHome : []);
   const L = [`*Shopping list*${plan ? ` · for ${people(Math.max(1, num(plan.household) || 1))}` : ""}`];
+  // The same list as the app: kitchen units, minus what's at home.
+  const items = typeof weekItems === "function" ? weekItems().filter((x) => !home.has(x.key) && x.need > 0) : [];
   const groups = {};
-  (plan?.shopping_list || []).filter((x) => !home.has(`wk:${x.item}`))
-    .forEach((x) => { (groups[x.category in SHOP_GROUPS ? x.category : "other"] ||= []).push(x); });
-  Object.keys(SHOP_GROUPS).filter((k) => groups[k]).forEach((k) => {
-    L.push("", `*${SHOP_GROUPS[k]}*`);
-    groups[k].forEach((x) => L.push(`☐ ${x.item}: ${grams(x.grams)}`));
+  items.forEach((x) => { (groups[x.group] ||= []).push(x); });
+  Object.values(SHOP_GROUPS).filter((g) => groups[g]).forEach((g) => {
+    L.push("", `*${g}*`);
+    groups[g].forEach((x) => L.push(`☐ ${x.item}: ${x.amount}`));
   });
   const extra = typeof readFamily === "function" ? readFamily().shopping.filter((x) => !x.home) : [];
   if (extra.length) {
