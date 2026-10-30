@@ -40,7 +40,7 @@ function insPersonCard(p, m, i) {
   return `
     <article class="ins-person">
       <header class="ins-head">
-        <span class="av fam-${(i % 4) + 1}" aria-hidden="true">${esc((p.name[0] || "?").toUpperCase())}</span>
+        ${avatarHTML(m, i, p.name)}
         <span><b class="ins-name">${esc(p.name)}</b><span class="ins-sub">${esc(sub || "No details yet")}</span>${body ? `<span class="ins-sub">${esc(body)}</span>` : ""}</span>
       </header>
       <ul class="ins-aims">${p.aims.map((a) => `

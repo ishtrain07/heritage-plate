@@ -1084,6 +1084,12 @@ function famAddFormHTML(m = null) {
   return `
     <form class="fam-form" data-fam-form novalidate>
       <p class="fam-form-h">${m ? `Edit ${esc(m.name)}` : "Add someone"}</p>
+      <div class="fam-photo-row">
+        <span id="famPhotoPrev" class="av av-photo fam-photo-prev" aria-hidden="true"${m?.photo ? ` style="background-image:url(${m.photo})"` : ""}>${m?.photo ? "" : "+"}</span>
+        <label class="btn btn-quiet btn-small fam-photo-btn">${m?.photo ? "Change photo" : "Add a photo"} <span class="opt">optional</span>
+          <input id="famPhoto" type="file" accept="image/*" class="sr-only"></label>
+        ${m?.photo ? `<button type="button" class="btn-link" data-fam-act="photo-clear">Remove photo</button>` : ""}
+      </div>
       <div class="fam-row">
         <label class="field"><span class="field-label">Name</span>
           <input id="famName" type="text" maxlength="30" autocomplete="off" placeholder="Priya, Mum, Sam…" value="${esc(m?.name || "")}"></label>
@@ -1117,6 +1123,37 @@ function famAddFormHTML(m = null) {
     </form>`;
 }
 
+// A person's photo if they added one, else their initial.
+function avatarHTML(m, i, name, extra = "") {
+  return m.photo ? `<span class="av av-photo ${extra}" style="background-image:url(${m.photo})" aria-hidden="true"></span>`
+    : `<span class="av fam-${(i % 4) + 1} ${extra}" aria-hidden="true">${esc((name[0] || "?").toUpperCase())}</span>`;
+}
+
+// Shrink a chosen photo to a 160 px square JPEG on this device.
+async function squarePhoto(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, bad) => { const el = new Image(); el.onload = () => ok(el); el.onerror = bad; el.src = url; });
+    const side = Math.min(img.naturalWidth, img.naturalHeight);
+    const c = document.createElement("canvas");
+    c.width = c.height = 160;
+    c.getContext("2d").drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 3, side, side, 0, 0, 160, 160);
+    return c.toDataURL("image/jpeg", 0.8);
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function onFamPhoto(e) {
+  if (e.target.id !== "famPhoto") return;
+  const file = e.target.files?.[0];
+  if (!file || !/^image\//.test(file.type)) return;
+  try {
+    care.famPhoto = await squarePhoto(file);
+    const pv = $("famPhotoPrev");
+    pv.style.backgroundImage = `url(${care.famPhoto})`;
+    pv.textContent = "";
+  } catch { toast("That photo couldn't be opened. Try another."); }
+}
+
 // Home's household row: "All", one avatar per person, and "+". Manage opens the full list (remove, meals, skin & hair).
 function renderHomeFamily() {
   const box = $("famBody");
@@ -1133,7 +1170,7 @@ function renderHomeFamily() {
     <ul class="av-row">
       <li><button type="button" class="av-item" data-go="insights"><span class="av av-all" aria-hidden="true">${ICONS.people}</span><span class="av-name">All</span><span class="av-sub">${ms.length ? "Daily aims" : "No one yet"}</span></button></li>
       ${ms.map((m, i) => { const name = memberLabel(m, i); return `
-      <li><button type="button" class="av-item" data-fam-go="meals" data-id="${esc(m.id)}"><span class="av fam-${(i % 4) + 1}" aria-hidden="true">${esc((name[0] || "?").toUpperCase())}</span><span class="av-name">${esc(name)}</span><span class="av-sub">${esc(sub(m))}</span></button></li>`; }).join("")}
+      <li><button type="button" class="av-item" data-fam-go="meals" data-id="${esc(m.id)}">${avatarHTML(m, i, name)}<span class="av-name">${esc(name)}</span><span class="av-sub">${esc(sub(m))}</span></button></li>`; }).join("")}
       ${ms.length < FAMILY_MAX ? `<li><button type="button" class="av-item" data-fam-act="add"><span class="av av-add" aria-hidden="true">+</span><span class="av-name">Add</span><span class="av-sub">family or flatmate</span></button></li>` : ""}
     </ul>`;
   const list = ms.map((m, i) => {
@@ -1141,7 +1178,7 @@ function renderHomeFamily() {
     const bits = memberLine(m);
     return `
       <li class="fam-person">
-        <span class="avatar fam-${(i % 4) + 1}" aria-hidden="true">${esc((name[0] || "?").toUpperCase())}</span>
+        ${m.photo ? `<span class="avatar av-photo" style="background-image:url(${m.photo})" aria-hidden="true"></span>` : `<span class="avatar fam-${(i % 4) + 1}" aria-hidden="true">${esc((name[0] || "?").toUpperCase())}</span>`}
         <span class="fam-text">
           <span class="fam-name">${esc(name)}${m.age != null ? `<span class="fam-age">, ${esc(m.age)}</span>` : ""}</span>
           <span class="fam-status">${bits.length ? esc(bits.join(" · ")) : "No details yet"}</span>
@@ -1198,13 +1235,15 @@ function famAddSave() {
   const diet = $("famDiet")?.value || "";
   const allergies = ($("famAllergies")?.value || "").trim();
   const relation = $("famRel")?.value || "";
-  const fields = { name, relation, conditions, goals, age: ageRaw === "" ? null : Number(ageRaw), sex, diet, allergies };
+  const photo = care.famPhoto !== undefined ? care.famPhoto : undefined;
+  const fields = { name, relation, conditions, goals, ...(photo !== undefined ? { photo } : {}), age: ageRaw === "" ? null : Number(ageRaw), sex, diet, allergies };
   const old = care.famEditing ? findMember(care.famEditing) : null;
   // Editing replaces what they typed here and keeps everything else (skin & hair details, pregnancy).
   const m = old ? upsertMember({ ...old, ...fields, pregnant: sex === "male" ? false : old.pregnant }) : upsertMember({ ...fields, care: {} });
   if (!m) { toast("Your household holds up to 6 people."); return; }
   care.famAdding = false;
   care.famEditing = "";
+  care.famPhoto = undefined;
   renderHomeFamily();
   renderWho();
   announce(old ? `Saved ${name}.` : `Added ${name}.`);
@@ -1213,8 +1252,9 @@ function famAddSave() {
 
 function onHomeFamilyClick(e) {
   const act = e.target.closest("[data-fam-act]")?.dataset.famAct;
-  if (act === "add") { care.famAdding = true; care.famEditing = ""; renderHomeFamily(); $("famName")?.focus(); return; }
-  if (act === "edit") { care.famEditing = e.target.closest("[data-id]").dataset.id; care.famAdding = false; renderHomeFamily(); $("famName")?.focus(); return; }
+  if (act === "photo-clear") { care.famPhoto = ""; const pv = $("famPhotoPrev"); pv.style.backgroundImage = ""; pv.textContent = "+"; return; }
+  if (act === "add") { care.famPhoto = undefined; care.famAdding = true; care.famEditing = ""; renderHomeFamily(); $("famName")?.focus(); return; }
+  if (act === "edit") { care.famPhoto = undefined; care.famEditing = e.target.closest("[data-id]").dataset.id; care.famAdding = false; renderHomeFamily(); $("famName")?.focus(); return; }
   if (act === "join") { acceptInvite(); return; }
   if (act === "join-no") { care.pendingJoin = null; renderHomeFamily(); return; }
   if (act === "manage") { care.famManage = !care.famManage; renderHomeFamily(); return; }
@@ -1424,6 +1464,7 @@ function setupCare() {
   // One family, two sides.
   document.addEventListener("click", onShortcutClick);
   $("homeFamily").addEventListener("click", onHomeFamilyClick);
+  $("homeFamily").addEventListener("change", onFamPhoto);
   $("homeFamily").addEventListener("submit", (e) => { e.preventDefault(); famAddSave(); });
   const plateWho = $("plateWho");
   plateWho.addEventListener("click", (e) => {

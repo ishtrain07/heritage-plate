@@ -53,6 +53,8 @@ function cleanMember(m) {
     diet: MEMBER_DIETS.includes(m.diet) ? m.diet : "",
     relation: MEMBER_RELATIONS.includes(m.relation) ? m.relation : "",
     goals: MEMBER_GOALS.filter((g) => Array.isArray(m.goals) && m.goals.includes(g)),
+    // A small photo, shrunk on this device to a JPEG data URL; never sent anywhere.
+    photo: typeof m.photo === "string" && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(m.photo) && m.photo.length < 60000 ? m.photo : "",
     fromPlate: m.fromPlate === true,
     care: {
       concerns: CARE_CONCERN_KEYS.filter((c) => Array.isArray(care.concerns) && care.concerns.includes(c)).slice(0, 6),
@@ -279,6 +281,7 @@ function upsertMember(m) {
         diet: given("diet") ? clean.diet : old.diet,
         relation: given("relation") ? clean.relation : old.relation,
         goals: given("goals") ? clean.goals : old.goals,
+        photo: given("photo") ? clean.photo : old.photo,
         care: { ...old.care, ...newCare },
       });
       f.members[i] = merged;

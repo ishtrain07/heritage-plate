@@ -2264,3 +2264,8 @@ html[data-side] .side-switch a[data-side-link][aria-current="page"] { background
 .av-photo { background-color: var(--chip); background-size: cover; background-position: center; }
 .av-example .av-name::after { content: ""; }
 .av-example { position: relative; }
+.fam-photo-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.fam-photo-prev { width: 56px; height: 56px; font-size: 1.5rem; color: var(--muted); background-color: var(--chip); }
+.fam-photo-btn { cursor: pointer; }
+.fam-photo-btn:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; }
+.avatar.av-photo { background-size: cover; background-position: center; }
