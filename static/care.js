@@ -323,8 +323,64 @@ function setSide(side) {
   return changed;
 }
 
+// ---------- invite link: share the household with another phone, no accounts ----------
+const INVITE_MAX = 8000;
+const INVITE_FIELDS = ["name", "age", "sex", "pregnant", "conditions", "allergies", "diet", "care"];
+
+function b64urlEncode(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  bytes.forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function b64urlDecode(text) {
+  const bin = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+}
+
+async function inviteHousehold() {
+  const ms = careMembers();
+  if (!ms.length) { runShortcut("get-started"); toast("Add someone first, then invite the rest of the household."); return; }
+  const members = ms.map((m) => Object.fromEntries(INVITE_FIELDS.map((k) => [k, m[k]])));
+  const url = `${location.origin}/#join=${b64urlEncode(JSON.stringify({ v: 1, members }))}`;
+  const text = "Join our household on Nouri: meals, one shopping list, and label checks for everyone.";
+  try {
+    if (navigator.share) { await navigator.share({ title: "Nouri", text, url }); return; }
+  } catch (err) { if (err.name === "AbortError") return; }
+  try { await navigator.clipboard.writeText(url); toast("Invite link copied. Send it to your family or flatmates."); }
+  catch { window.prompt("Copy this invite link:", url); }
+}
+
+function readInvite(hash) {
+  try {
+    const raw = hash.slice("join=".length);
+    if (!raw || raw.length > INVITE_MAX) return null;
+    const data = JSON.parse(b64urlDecode(raw));
+    const members = (Array.isArray(data?.members) ? data.members : []).slice(0, FAMILY_MAX).map(cleanMember).filter((m) => m && m.name);
+    return members.length ? members : null;
+  } catch { return null; }
+}
+
+function acceptInvite() {
+  const list = care.pendingJoin || [];
+  care.pendingJoin = null;
+  let added = 0;
+  for (const m of list) if (upsertMember({ ...m, id: undefined })) added++;
+  renderHomeFamily();
+  renderWho();
+  toast(added ? `Added ${list.map((m) => m.name).join(", ")} to this phone.` : "Your household is full (6 people).");
+}
+
 function route(initial = false) {
-  const h = location.hash.replace(/^#/, "");
+  let h = location.hash.replace(/^#/, "");
+  if (h.startsWith("join=")) {
+    care.pendingJoin = readInvite(h);
+    if (!care.pendingJoin) toast("That invite link didn't work. Ask for a new one.");
+    history.replaceState(null, "", "#home");
+    h = "home";
+    initial = true;
+  }
   if (document.body.classList.contains("cb-open") && !initial) {
     document.body.classList.remove("cb-open");
     care.bookFromCare = false;
@@ -995,9 +1051,12 @@ function goTo(hash) {
   route(false);
 }
 
+const DIET_SHORT = { vegetarian: "vegetarian", eggetarian: "eggetarian", vegan: "vegan", pescatarian: "pescatarian", jain: "Jain",
+  halal: "halal", kosher: "kosher-style" };
+
 function memberLine(m) {
   return [...(m.conditions || []).map((c) => COND_WORDS[c]), ...(m.care?.concerns || []).map((c) => CONCERN_SHORT[c] || c),
-    ...(m.pregnant ? ["pregnant"] : [])].filter(Boolean);
+    ...(m.pregnant ? ["pregnant"] : []), DIET_SHORT[m.diet], ...(m.allergies ? [`no ${m.allergies.split(/[,;]/)[0].trim()}`] : [])].filter(Boolean);
 }
 
 function famAddFormHTML() {
@@ -1067,7 +1126,13 @@ function renderHomeFamily() {
   const form = care.famAdding && ms.length < FAMILY_MAX ? famAddFormHTML() : "";
   const full = care.famManage && ms.length ? `<ul class="fam-list">${list}</ul>` : "";
   const empty = !ms.length && !form ? `<p class="fam-hint">Add the people you cook and shop for: family or flatmates. Saved on this device; share it with an invite link.</p>` : "";
-  box.innerHTML = `${row}${empty}${full}${form}`;
+  const join = care.pendingJoin ? `
+    <div class="join-card" role="region" aria-label="Household invite">
+      <p><b>You've been invited to a household:</b> ${esc(care.pendingJoin.map((m) => m.name).join(", "))}.</p>
+      <div class="join-btns"><button type="button" class="btn btn-primary btn-small" data-fam-act="join">Add them to this phone</button>
+      <button type="button" class="btn-link" data-fam-act="join-no">No thanks</button></div>
+    </div>` : "";
+  box.innerHTML = `${join}${row}${empty}${full}${form}`;
 }
 
 function famAddSave() {
@@ -1096,6 +1161,8 @@ function famAddSave() {
 function onHomeFamilyClick(e) {
   const act = e.target.closest("[data-fam-act]")?.dataset.famAct;
   if (act === "add") { care.famAdding = true; renderHomeFamily(); $("famName")?.focus(); return; }
+  if (act === "join") { acceptInvite(); return; }
+  if (act === "join-no") { care.pendingJoin = null; renderHomeFamily(); return; }
   if (act === "manage") { care.famManage = !care.famManage; renderHomeFamily(); return; }
   if (act === "invite") { if (typeof inviteHousehold === "function") inviteHousehold(); return; }
   if (act === "cancel") { care.famAdding = false; renderHomeFamily(); $("famBody").querySelector(".fam-add")?.focus(); return; }

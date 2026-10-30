@@ -2131,3 +2131,6 @@ body { background: var(--bg); }
 .side-switch { order: 2; }
 @media (min-width: 900px) { .side-switch { order: 1; margin-left: auto; } .top-end { order: 2; margin-left: 0; } }
 @media (max-width: 519px) { .brand-tag { letter-spacing: .12em; font-size: .5625rem; } .top-end .theme-btn, .scan-btn { width: 40px; height: 40px; } }
+.join-card { margin-top: var(--s4); padding: 14px 16px; border-radius: 16px; background: var(--tile-green); color: var(--ink); display: grid; gap: 10px; }
+.join-card p { margin: 0; }
+.join-btns { display: flex; gap: var(--s4); align-items: center; flex-wrap: wrap; }
