@@ -862,6 +862,14 @@ async function loadFamily(id, btn) {
     state.language = fam.language;
     state.parentName = String(fam.parent || "").split(",")[0].trim().slice(0, 20);
     state.saved = null;
+    // The sample's parent joins the household too, so home, Scan and Insights all know about them.
+    if (typeof upsertMember === "function" && state.parentName) {
+      const age = Number((String(fam.parent).match(/,\s*(\d{1,3})/) || [])[1]) || null;
+      const relation = { mum: "mum", dad: "dad", nonna: "grandparent", lola: "grandparent" }[state.parentName.toLowerCase()] || "";
+      const sex = { mum: "female", nonna: "female", lola: "female", dad: "male" }[state.parentName.toLowerCase()] || null;
+      upsertMember({ name: state.parentName, age, sex, relation, conditions: [state.condition], care: {} });
+      if (typeof renderHomeFamily === "function") renderHomeFamily();
+    }
     // A new family means a new person: start their intake fresh, with the family's condition ticked.
     state.profile = defaultProfile(); state.profileSet = false; state.intakeOpen = false;
     // Your own dishes stay; a sample family's dishes replace the previous sample family's.

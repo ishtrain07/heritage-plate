@@ -66,6 +66,9 @@ def person_insights(m: dict) -> dict:
     if kcal:
         out["aims"].append(_aim("kcal", "Calories", f"{kcal:,} kcal", "From age, height, weight and activity, adjusted for the goals.",
                                 "Mifflin-St Jeor"))
+    elif not m.get("pregnant"):
+        out["aims"].append(_aim("kcal", "Calories", "add height & weight", "A personal target needs age, sex, height and weight.",
+                                "Mifflin-St Jeor"))
     if protein is None:
         per_kg = 1.1 if m.get("pregnant") else 1.0 if age and age >= 65 else 0.83
         protein = round(per_kg * ref)
@@ -76,15 +79,21 @@ def person_insights(m: dict) -> dict:
     else:
         why = "Enough to keep muscle while the goals change the calories." if goals & {"lose_weight", "belly_fat", "build_muscle"} \
             else "Per kg of body weight; a little more over 65 to keep muscle."
-    out["aims"].append(_aim("protein", "Protein", f"{protein} g", why + " Spread it across meals.", "ICMR-NIN 2020, PROT-AGE"))
+    out["aims"].append(_aim("protein", "Protein", f"{protein} g", why + " Spread it across meals.",
+                            "ICMR-NIN 2020, PROT-AGE" if age and age >= 65 else "ICMR-NIN 2020"))
+    if conds & {"diabetes", "bp"} and not any("Kidney" in n for n in out["notes"]):
+        out["notes"].append("If kidney function is reduced (common with long-term diabetes or high blood pressure), ask the "
+                            "doctor before eating more protein or potassium.")
 
     fibre = max(25, round(14 * kcal / 1000)) if kcal else (30 if sex == "male" else 25)
     out["aims"].append(_aim("fibre", "Fibre", f"{fibre} g+", "Whole grains, dal, vegetables and fruit; helps blood sugar, "
                             "cholesterol and fullness.", "WHO 2023, IOM"))
     if "bp" in conds:
-        out["aims"].append(_aim("sodium", "Sodium", "under 1,500 mg", "About ⅔ teaspoon of salt a day in total, including "
-                                "pickles, papad and packaged food. Lower sodium lowers blood pressure.", "AHA"))
+        out["aims"].append(_aim("sodium", "Sodium", "under 2,000 mg", "1,500 mg is ideal. Count pickles, papad and packaged "
+                                "food too; less sodium lowers blood pressure.", "WHO, AHA"))
         out["focus"].append("Less salt: taste before salting, more lemon, herbs and spices.")
+        out["focus"].append("More potassium from vegetables, dal, fruit and curd (the DASH pattern), unless the doctor has "
+                            "said otherwise (some BP medicines and kidney problems).")
     else:
         out["aims"].append(_aim("sodium", "Sodium", "under 2,000 mg", "Under 5 g of salt (one level teaspoon) a day.", "WHO"))
     if kcal:
@@ -100,12 +109,15 @@ def person_insights(m: dict) -> dict:
         out["focus"].append("Oats, dal and rajma: soluble fibre helps lower LDL cholesterol.")
     if "steady_sugar" in goals:
         per_meal = "30–45 g" if sex == "female" else "45–60 g" if sex == "male" else "30–60 g"
-        out["aims"].append(_aim("carbs_meal", "Carbs per meal", per_meal, "A steady amount at each meal keeps blood sugar "
-                                "even; half the plate vegetables, a quarter protein, a quarter grains.", "ADA plate method"))
-        out["focus"].append("Pair rice or roti with dal, curd or paneer, and walk 10 minutes after meals.")
-    water = round(ref * 0.035, 1) if weight else (2.5 if sex == "male" else 2.0)
-    out["aims"].append(_aim("water", "Water", f"about {water:g} L", "From drinks and food together; more in heat or exercise.",
-                            "EFSA"))
+        out["aims"].append(_aim("carbs_meal", "Carbs per meal", per_meal, "A starting point: a steady amount at each meal "
+                                "keeps blood sugar even. Half the plate vegetables, a quarter protein, a quarter grains.",
+                                "ADA carb counting"))
+        out["focus"].append("Pair rice or roti with dal, curd or paneer, space meals evenly, and walk 10 minutes after meals.")
+        out["notes"].append("On insulin or tablets like gliclazide? Don't cut carbs without the doctor: it can cause low "
+                            "blood sugar.")
+    water = min(round(ref * 0.035, 1), 3.0) if weight else (2.5 if sex == "male" else 2.0)
+    out["aims"].append(_aim("water", "Water", f"about {water:g} L", "From drinks and food together; more in heat or exercise, "
+                            "unless the doctor limits fluids.", "EFSA"))
     act = "150 min a week + strength twice"
     why = "Brisk walking counts. Strength exercise keeps muscle and helps blood sugar."
     if age and age >= 65:

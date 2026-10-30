@@ -1112,7 +1112,7 @@ function renderHomeFamily() {
   const sub = (m) => { const bits = [rel(m), ...memberLine(m)].filter(Boolean); return bits.length ? bits[0][0].toUpperCase() + bits[0].slice(1) : m.age != null ? `${m.age} years` : "Add details"; };
   const row = `
     <ul class="av-row">
-      <li><button type="button" class="av-item" data-fam-act="manage"><span class="av av-all" aria-hidden="true">${ICONS.people}</span><span class="av-name">All</span><span class="av-sub">${ms.length ? `${ms.length} ${ms.length === 1 ? "person" : "people"}` : "No one yet"}</span></button></li>
+      <li><button type="button" class="av-item" data-go="insights"><span class="av av-all" aria-hidden="true">${ICONS.people}</span><span class="av-name">All</span><span class="av-sub">${ms.length ? "Daily aims" : "No one yet"}</span></button></li>
       ${ms.map((m, i) => { const name = memberLabel(m, i); return `
       <li><button type="button" class="av-item" data-fam-go="meals" data-id="${esc(m.id)}"><span class="av fam-${(i % 4) + 1}" aria-hidden="true">${esc((name[0] || "?").toUpperCase())}</span><span class="av-name">${esc(name)}</span><span class="av-sub">${esc(sub(m))}</span></button></li>`; }).join("")}
       ${ms.length < FAMILY_MAX ? `<li><button type="button" class="av-item" data-fam-act="add"><span class="av av-add" aria-hidden="true">+</span><span class="av-name">Add</span><span class="av-sub">family or flatmate</span></button></li>` : ""}
@@ -1247,7 +1247,8 @@ function runShortcut(kind, id) {
     if (typeof openScan === "function") openScan();
   } else if (kind === "shop") {
     goTo("plate");
-    if (typeof state !== "undefined" && state.plan) { selectTab("shop"); scrollToEl($("planOut")); } else openIntake();
+    if (typeof state !== "undefined" && state.plan) { selectTab("shop"); scrollToEl($("planOut")); }
+    else { openIntake(); toast("Your shopping list is built from the week's meals. Plan the week first: it takes about 45 seconds."); }
   } else if (kind === "insights") {
     if (typeof openInsights === "function") openInsights();
   } else if (kind === "book") {

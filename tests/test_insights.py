@@ -20,7 +20,7 @@ def test_full_profile_gets_calories_and_carbs_per_meal():
 
 def test_blood_pressure_lowers_sodium_and_cholesterol_adds_sat_fat():
     aims = _aims({"name": "Dad", "sex": "male", "age": 67, "conditions": ["bp", "cholesterol"]})
-    assert aims["sodium"] == "under 1,500 mg" and "satfat" in aims and "kcal" not in aims
+    assert aims["sodium"] == "under 2,000 mg" and "satfat" in aims and aims["kcal"] == "add height & weight"
     assert aims["protein"] == "65 g"  # 1.0 g/kg over 65, ICMR reference weight
 
 
