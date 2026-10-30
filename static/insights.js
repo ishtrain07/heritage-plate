@@ -5,12 +5,12 @@ const BMI_WORDS = { low: "below the healthy range", healthy: "in the healthy ran
 
 // The person Plate's week planner knows best gets their height, weight, activity and goals from there.
 function insightMember(m, i) {
-  const base = { name: memberLabel(m, i), sex: m.sex, age: m.age, pregnant: m.pregnant, conditions: m.conditions || [], goals: [] };
+  const base = { name: memberLabel(m, i), sex: m.sex, age: m.age, pregnant: m.pregnant, conditions: m.conditions || [], goals: m.goals || [] };
   const plateMember = typeof plateWhoMember === "function" ? plateWhoMember() : null;
   const p = typeof state !== "undefined" && state.profileSet ? state.profile : null;
   if (p && plateMember && plateMember.id === m.id) {
     Object.assign(base, { height_cm: p.height_cm, weight_kg: p.weight_kg, activity: p.activity, ethnicity: p.ethnicity,
-      goals: (p.goals || []).filter((g) => g !== "maintain"), sex: p.sex || base.sex, age: p.age || base.age });
+      goals: [...new Set([...(m.goals || []), ...(p.goals || []).filter((g) => g !== "maintain")])], sex: p.sex || base.sex, age: p.age || base.age });
   }
   for (const k of Object.keys(base)) if (base[k] === null || base[k] === undefined) delete base[k];
   return base;

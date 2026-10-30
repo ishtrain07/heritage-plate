@@ -94,6 +94,8 @@ function renderScanResult(r) {
       <ul class="sv-list" aria-label="For each person">${people}</ul>
       ${r.watch?.length ? `<h4 class="scan-h">Worth knowing</h4><ul class="scan-watch">${r.watch.map((w) => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}
       ${r.instead ? `<p class="scan-instead"><b>Try instead:</b> ${esc(r.instead)}</p>` : ""}
+      ${ingredientsHTML(r.ingredients || [])}
+      ${addToListHTML(r)}
     </article>
     <details class="scan-read">
       <summary>What we read <span class="opt">fix anything we misread</span></summary>
@@ -104,9 +106,44 @@ function renderScanResult(r) {
     <div class="scan-again"><button type="button" class="btn btn-primary btn-small" data-scan-act="new">Scan another</button></div>`;
 }
 
+const TAG_WORDS = { good: "Good", caution: "Caution", avoid: "Avoid", plain: "" };
+
+function ingredientsHTML(list) {
+  const shown = list.filter((i) => i.tag !== "plain");
+  if (!list.length) return "";
+  const counts = ["good", "caution", "avoid"].map((t) => [t, list.filter((i) => i.tag === t).length]).filter(([, n]) => n);
+  return `
+    <details class="scan-ings" ${shown.some((i) => i.tag === "avoid") ? "open" : ""}>
+      <summary>Ingredients <span class="ing-counts">${counts.map(([t, n]) => `<span class="ing-tag ing-${t}">${n} ${TAG_WORDS[t].toLowerCase()}</span>`).join("")}</span></summary>
+      <ul class="ing-list">${list.map((i) => `
+        <li class="ing-row"><span class="ing-dot ing-${esc(i.tag)}" aria-hidden="true"></span>
+          <span class="ing-t"><b>${esc(i.name)}</b>${i.tag !== "plain" ? ` <span class="ing-tag ing-${esc(i.tag)}">${TAG_WORDS[i.tag]}</span>` : ""}${i.note ? `<span class="ing-note">${esc(i.note)}</span>` : ""}</span></li>`).join("")}</ul>
+    </details>`;
+}
+
+// Add the scanned product to the household list, for the people it suits (they can untick anyone).
+function addToListHTML(r) {
+  const fits = (r.people || []).filter((p) => p.verdict !== "avoid").map((p) => p.name);
+  scanState.last = { item: r.product || "Scanned product", kind: r.kind === "food" ? "food" : "care" };
+  const people = (r.people || []).length > 1 || careMembers().length ? `<div class="pick pick-sm scan-for">${(r.people || []).map((p) => `
+    <label class="pick-opt"><input type="checkbox" name="scanFor" value="${esc(p.name)}" ${fits.includes(p.name) ? "checked" : ""}><span>${esc(p.name)}</span></label>`).join("")}</div>` : "";
+  return `
+    <div class="scan-add">
+      <p class="scan-h">Add to the shopping list for</p>
+      ${people}
+      <button type="button" class="btn btn-primary btn-small" data-scan-act="add">Add to list</button>
+    </div>`;
+}
+
 function onScanClick(e) {
   const act = e.target.closest("[data-scan-act]")?.dataset.scanAct;
   if (act === "close") closeScan();
+  else if (act === "add" && scanState.last) {
+    const who = [...document.querySelectorAll('#scanOut input[name="scanFor"]:checked')].map((x) => x.value);
+    addShopping({ ...scanState.last, for: who });
+    toast(`Added ${scanState.last.item} to the shopping list.`, { label: "View list", run: () => { closeScan(); openShopList(); } });
+    e.target.closest("[data-scan-act]").disabled = true;
+  }
   else if (act === "type") {
     scanState.read = "";
     $("scanOut").innerHTML = `

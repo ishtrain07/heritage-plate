@@ -2224,3 +2224,38 @@ html[data-side] .side-switch a[data-side-link][aria-current="page"] { background
 .av-item { scroll-snap-align: start; }
 @media (min-width: 900px) { .av-row { mask-image: none; -webkit-mask-image: none; } }
 .toast { box-shadow: 0 0 0 1px rgba(255, 255, 255, .15), var(--shadow-lg); }
+/* scan: ingredients and add to list */
+.scan-ings { border-top: 1px solid var(--card-line); padding-top: 6px; }
+.scan-ings summary { cursor: pointer; font-weight: 650; min-height: 44px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ing-counts { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.ing-tag { font-size: .75rem; font-weight: 650; padding: 1px 8px; border-radius: 999px; }
+.ing-tag.ing-good { background: var(--green-soft); color: var(--green-ink); }
+.ing-tag.ing-caution { background: var(--warn-soft); color: var(--warn-ink); }
+.ing-tag.ing-avoid { background: var(--error-soft); color: var(--error-ink); }
+.ing-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+.ing-row { display: grid; grid-template-columns: 12px 1fr; gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid var(--card-line); }
+.ing-row:last-child { border-bottom: 0; }
+.ing-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; background: var(--line-strong); }
+.ing-dot.ing-good { background: var(--green-bar); } .ing-dot.ing-caution { background: var(--saffron); } .ing-dot.ing-avoid { background: var(--error-ink); }
+.ing-t { display: grid; gap: 2px; } .ing-t b { font-weight: 600; text-transform: capitalize; }
+.ing-note { color: var(--muted); font-size: .875rem; }
+.scan-add { border-top: 1px solid var(--card-line); padding-top: 12px; display: grid; gap: 8px; justify-items: start; }
+.scan-add .scan-h { margin: 0; }
+/* household shopping */
+.shop-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 999px; background: var(--chip); }
+.shop-tabs button { border: 0; background: none; border-radius: 999px; min-height: 44px; font: inherit; font-weight: 600; color: var(--muted); cursor: pointer; }
+.shop-tabs button[aria-selected="true"] { background: var(--deep); color: var(--on-deep); }
+.shop-tabs button[aria-selected="true"] .count { background: rgba(255, 255, 255, .2); color: inherit; }
+.shop-body { display: grid; gap: 14px; }
+.shop-gh { margin: 0 0 4px; font-size: .75rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.shop-ul { list-style: none; margin: 0; padding: 0; border: 1px solid var(--card-line); border-radius: 16px; overflow: hidden; }
+.shop-row { display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; border-bottom: 1px solid var(--card-line); }
+.shop-row:last-child { border-bottom: 0; }
+.shop-check { flex: 1; display: flex; gap: 12px; align-items: center; min-height: 56px; cursor: pointer; }
+.shop-check input { width: 22px; height: 22px; accent-color: var(--deep); flex: none; }
+.shop-t { display: grid; } .shop-t b { font-weight: 600; text-transform: capitalize; }
+.shop-sub { color: var(--muted); font-size: .875rem; }
+.shop-x { width: 40px; height: 40px; border: 0; background: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; border-radius: 50%; }
+.shop-x:hover { background: var(--chip); }
+.shop-note { margin: 0; color: var(--muted); }
+.shop-empty-btns { display: flex; gap: 10px; flex-wrap: wrap; }

@@ -651,6 +651,24 @@
     </div>
   </dialog>
 
+  <dialog id="shopDlg" class="scan-dlg shop-dlg" aria-labelledby="shopTitle">
+    <div class="scan-inner">
+      <div class="how-head">
+        <h2 id="shopTitle">Household shopping</h2>
+        <button class="how-x" type="button" data-shop-act="close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <p class="scan-lede">Food and skin &amp; hair, for everyone at home, in one list.</p>
+      <div class="shop-tabs" role="tablist" aria-label="Shopping list">
+        <button type="button" role="tab" data-shop-tab="buy" aria-selected="true">To buy <span class="count">0</span></button>
+        <button type="button" role="tab" data-shop-tab="home" aria-selected="false">At home <span class="count">0</span></button>
+      </div>
+      <div id="shopBody" class="shop-body"></div>
+      <div class="ins-btns"><button id="shopShare" type="button" class="btn btn-primary btn-small">Share the list</button></div>
+    </div>
+  </dialog>
+
   <dialog id="scanDlg" class="scan-dlg" aria-labelledby="scanTitle">
     <div class="scan-inner">
       <div class="how-head">
@@ -684,5 +702,6 @@
   <script src="/static/scan.js?v=20261104"></script>
   <script src="/static/setup.js?v=20261104"></script>
   <script src="/static/insights.js?v=20261104"></script>
+  <script src="/static/shop.js?v=20261104"></script>
 </body>
 </html>

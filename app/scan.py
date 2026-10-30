@@ -196,6 +196,40 @@ def care_person(m: dict, text: str) -> dict:
     return {"name": name, "verdict": verdict, "reasons": reasons or ["Nothing on the label clashes with their details."]}
 
 
+FOOD_CAUTION = re.compile(r"\b(sugar|glucose|corn syrup|invert syrup|maltodextrin|dextrose|maida|refined (wheat )?flour|palm (oil|olein)|"
+                          r"hydrogenated|vanaspati|salt|sodium|msg|monosodium|e621|e635|flavour enhancer|flavor enhancer)\b")
+FOOD_GOOD = re.compile(r"\b(whole ?(wheat|grain)|oats?|millet|ragi|bajra|jowar|lentils?|dal|chickpeas?|besan|nuts?|almonds?|seeds?|"
+                       r"vegetables?|spinach|fruit|yogh?urt|curd|milk|olive oil|mustard oil)\b")
+
+
+def ingredient_notes(kind: str, text: str, parts: list[str], people: list[dict]) -> list[dict]:
+    """Each ingredient tagged good / caution / avoid with one plain line, so people can see why."""
+    out: list[dict] = []
+    if kind == "personal_care":
+        label = care.check_label(text, {})
+        seen = set()
+        for d in label["danger"]:
+            out.append({"name": d["name"], "tag": "avoid", "note": d["why"]})
+            seen.add(d["name"])
+        for i in label["irritants"]:
+            out.append({"name": i["name"], "tag": "caution", "note": i["why"]})
+        for a in label["actives"]:
+            out.append({"name": a["name"], "tag": "good", "note": a["how"]})
+        return out[:20]
+    for p in parts[:24]:
+        clashes = [m.get("name") or "You" for m in people if _allergy_hits([p], m.get("allergies") or "")
+                   or ((m.get("diet") or "non_veg") != "non_veg" and _diet_hits([p], m["diet"]))]
+        if clashes:
+            out.append({"name": p, "tag": "avoid", "note": f"Clashes with {', '.join(clashes[:3])}'s allergy or diet."})
+        elif FOOD_CAUTION.search(p):
+            out.append({"name": p, "tag": "caution", "note": "Sugar, refined flour, salt or processed fat: fine now and then."})
+        elif FOOD_GOOD.search(p):
+            out.append({"name": p, "tag": "good", "note": "A whole food: fibre, protein or good fats."})
+        else:
+            out.append({"name": p, "tag": "plain", "note": ""})
+    return out
+
+
 def check_scan(text: str, members: list[dict], language: str) -> tuple[dict, list[dict]]:
     parts = ingredient_parts(text)
     lang = language or "English"
@@ -221,7 +255,7 @@ def check_scan(text: str, members: list[dict], language: str) -> tuple[dict, lis
     result = {"kind": kind, "product": clean(data.get("product"), 60), "summary": clean(data.get("summary"), 240),
               "watch": [w for w in watch if w], "instead": clean(data.get("instead"), 200), "people": rows,
               "danger": [{"name": d["name"], "why": d["why"]} for d in label["danger"]] if kind == "personal_care" else [],
-              "nutrition": flags}
+              "nutrition": flags, "ingredients": ingredient_notes(kind, text, parts, people)}
     return result, traces
 
 

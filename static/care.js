@@ -1051,16 +1051,18 @@ function goTo(hash) {
   route(false);
 }
 
+const GOAL_SHORT = { lose_weight: "losing weight", build_muscle: "building muscle", belly_fat: "smaller waist", steady_sugar: "steady energy" };
 const DIET_SHORT = { vegetarian: "vegetarian", eggetarian: "eggetarian", vegan: "vegan", pescatarian: "pescatarian", jain: "Jain",
   halal: "halal", kosher: "kosher-style" };
 
 function memberLine(m) {
   return [...(m.conditions || []).map((c) => COND_WORDS[c]), ...(m.care?.concerns || []).map((c) => CONCERN_SHORT[c] || c),
-    ...(m.pregnant ? ["pregnant"] : []), DIET_SHORT[m.diet], ...(m.allergies ? [`no ${m.allergies.split(/[,;]/)[0].trim()}`] : [])].filter(Boolean);
+    ...(m.pregnant ? ["pregnant"] : []), ...(m.goals || []).map((g) => GOAL_SHORT[g]), DIET_SHORT[m.diet], ...(m.allergies ? [`no ${m.allergies.split(/[,;]/)[0].trim()}`] : [])].filter(Boolean);
 }
 
 const RELATIONS = [["me", "Me"], ["partner", "Partner"], ["mum", "Mum"], ["dad", "Dad"], ["child", "Child"], ["grandparent", "Grandparent"],
   ["sibling", "Sibling"], ["flatmate", "Flatmate"], ["other", "Other"]];
+const GOAL_PICK = [["lose_weight", "Lose weight"], ["build_muscle", "Build muscle"], ["belly_fat", "Smaller waist"], ["steady_sugar", "Steady energy"]];
 const DIET_PICK = [["vegetarian", "Vegetarian"], ["eggetarian", "Eggetarian"], ["vegan", "Vegan"], ["pescatarian", "Pescatarian"],
   ["jain", "Jain"], ["halal", "Halal"], ["kosher", "Kosher-style"]];
 
@@ -1078,7 +1080,7 @@ function famAddFormHTML(m = null) {
           <select id="famRel"><option value="">Choose</option>${RELATIONS.map(([v, l]) => `<option value="${v}"${sel(m?.relation === v)}>${l}</option>`).join("")}</select></label>
       </div>
       <div class="fam-row">
-        <label class="field fam-age-f"><span class="field-label">Age <span class="opt">optional</span></span>
+        <label class="field fam-age-f"><span class="field-label">Age</span>
           <input id="famAge" type="number" inputmode="numeric" min="0" max="120" step="1" value="${m?.age ?? ""}"></label>
         <fieldset class="fam-fs"><legend class="field-label">Sex <span class="opt">optional</span></legend>
           <div class="pick pick-sm">${[["female", "Female"], ["male", "Male"]].map(([v, l]) => `<label class="pick-opt"><input type="radio" name="famSex" value="${v}"${chk(m?.sex === v)}><span>${l}</span></label>`).join("")}</div>
@@ -1090,8 +1092,11 @@ function famAddFormHTML(m = null) {
         <label class="field"><span class="field-label">Allergies <span class="opt">optional</span></span>
           <input id="famAllergies" type="text" maxlength="200" autocomplete="off" placeholder="peanuts, milk…" value="${esc(m?.allergies || "")}"></label>
       </div>
-      <fieldset class="fam-fs"><legend class="field-label">Any of these? <span class="opt">optional</span></legend>
+      <fieldset class="fam-fs"><legend class="field-label">Health conditions <span class="opt">pick any</span></legend>
         <div class="pick pick-sm">${COND_PICK.map(([v, l]) => `<label class="pick-opt"><input type="checkbox" name="famCond" value="${v}"${chk(m?.conditions?.includes(v))}><span>${l}</span></label>`).join("")}</div>
+      </fieldset>
+      <fieldset class="fam-fs"><legend class="field-label">Goals <span class="opt">pick any</span></legend>
+        <div class="pick pick-sm">${GOAL_PICK.map(([v, l]) => `<label class="pick-opt"><input type="checkbox" name="famGoal" value="${v}"${chk(m?.goals?.includes(v))}><span>${l}</span></label>`).join("")}</div>
       </fieldset>
       <p id="famMsg" class="msg" role="status" aria-live="polite"></p>
       <div class="fam-form-btns">
@@ -1163,12 +1168,19 @@ function famAddSave() {
     return;
   }
   const conditions = [...document.querySelectorAll('#famBody input[name="famCond"]:checked')].map((x) => x.value);
+  const goals = [...document.querySelectorAll('#famBody input[name="famGoal"]:checked')].map((x) => x.value);
   const ageRaw = ($("famAge")?.value || "").trim();
+  if (ageRaw === "" || !(Number(ageRaw) >= 0 && Number(ageRaw) <= 120)) {
+    const msg = $("famMsg");
+    msg.className = "msg warn"; msg.textContent = "Add their age: it keeps portions and skin products safe, especially for children.";
+    $("famAge")?.focus();
+    return;
+  }
   const sex = document.querySelector('#famBody input[name="famSex"]:checked')?.value || null;
   const diet = $("famDiet")?.value || "";
   const allergies = ($("famAllergies")?.value || "").trim();
   const relation = $("famRel")?.value || "";
-  const fields = { name, relation, conditions, age: ageRaw === "" ? null : Number(ageRaw), sex, diet, allergies };
+  const fields = { name, relation, conditions, goals, age: ageRaw === "" ? null : Number(ageRaw), sex, diet, allergies };
   const old = care.famEditing ? findMember(care.famEditing) : null;
   // Editing replaces what they typed here and keeps everything else (skin & hair details, pregnancy).
   const m = old ? upsertMember({ ...old, ...fields, pregnant: sex === "male" ? false : old.pregnant }) : upsertMember({ ...fields, care: {} });
@@ -1248,6 +1260,8 @@ function runShortcut(kind, id) {
     $("famName")?.focus({ preventScroll: true });
   } else if (kind === "scan") {
     if (typeof openScan === "function") openScan();
+  } else if (kind === "shop" && typeof openShopList === "function") {
+    openShopList();
   } else if (kind === "shop") {
     goTo("plate");
     if (typeof state !== "undefined" && state.plan) { selectTab("shop"); scrollToEl($("planOut")); }

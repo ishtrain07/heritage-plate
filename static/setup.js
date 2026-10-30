@@ -3,7 +3,9 @@
 
 const setup = { step: 1, kind: "family", count: 3, people: [] };
 const SETUP_COUNTS = [[1, "Just me"], [2, "2 people"], [3, "3–4 people"], [5, "5 or more"]];
-const SETUP_GOALS = [["diabetes", "Steady blood sugar"], ["bp", "Lower blood pressure"], ["cholesterol", "Lower cholesterol"]];
+const SETUP_GOALS = [["diabetes", "Diabetes"], ["bp", "Blood pressure"], ["cholesterol", "Cholesterol"],
+  ["lose_weight", "Lose weight"], ["build_muscle", "Build muscle"], ["steady_sugar", "Steady energy"]];
+const SETUP_CONDS = ["diabetes", "bp", "cholesterol"];
 
 function openSetup() {
   Object.assign(setup, { step: 1, kind: "family", count: 3, people: [] });
@@ -31,7 +33,7 @@ function renderSetup() {
     setup.people.length = n;
     body.innerHTML = `
       <h3 class="setup-q">What do you call them?</h3>
-      <p class="setup-sub">Leave a row empty to skip it. Ages help with portions and safe products.</p>
+      <p class="setup-sub">Leave a row empty to skip it. Age is needed for safe portions and skin products, especially for children.</p>
       <div class="setup-people">${setup.people.map((p, i) => `
         <div class="setup-person">
           <label class="field"><span class="field-label">Name</span><input type="text" maxlength="30" data-p="${i}" data-k="name" value="${esc(p.name)}" placeholder="${hints[i]}"></label>
@@ -40,8 +42,8 @@ function renderSetup() {
   } else {
     const named = setup.people.filter((p) => p.name.trim());
     body.innerHTML = `
-      <h3 class="setup-q">Any health goals?</h3>
-      <p class="setup-sub">Pick any for each person, or skip. Meals and scans will take them into account.</p>
+      <h3 class="setup-q">Health conditions and goals</h3>
+      <p class="setup-sub">Pick as many as apply for each person, or skip. Meals, scans and daily aims use them.</p>
       ${named.map((p, i) => `
         <fieldset class="setup-goals"><legend>${esc(p.name.trim())}</legend><div class="pick pick-sm">${SETUP_GOALS.map(([v, l]) => `
           <label class="pick-opt"><input type="checkbox" data-g="${i}" value="${v}"><span>${l}</span></label>`).join("")}</div></fieldset>`).join("")}`;
@@ -61,11 +63,13 @@ function readSetupStep() {
 function finishSetup() {
   const named = setup.people.filter((p) => p.name.trim());
   named.forEach((p, i) => {
-    const conditions = [...document.querySelectorAll(`#setupBody input[data-g="${i}"]:checked`)].map((x) => x.value);
+    const picked = [...document.querySelectorAll(`#setupBody input[data-g="${i}"]:checked`)].map((x) => x.value);
+    const conditions = picked.filter((v) => SETUP_CONDS.includes(v));
+    const goals = picked.filter((v) => !SETUP_CONDS.includes(v));
     const word = p.name.trim().toLowerCase();
     const relation = { me: "me", mum: "mum", mom: "mum", mother: "mum", maa: "mum", dad: "dad", papa: "dad", father: "dad",
       nani: "grandparent", nana: "grandparent", dadi: "grandparent", dada: "grandparent", flatmate: "flatmate", partner: "partner" }[word] || (setup.kind === "flatmates" ? "flatmate" : "");
-    upsertMember({ name: p.name.trim(), relation, age: p.age === "" ? null : Number(p.age), conditions, care: {} });
+    upsertMember({ name: p.name.trim(), relation, age: p.age === "" ? null : Number(p.age), conditions, goals, care: {} });
   });
   $("setupDlg").close();
   care.famAdding = false;
@@ -78,6 +82,13 @@ function finishSetup() {
 function onSetupSubmit(e) {
   e.preventDefault();
   readSetupStep();
+  const noAge = setup.step === 2 ? setup.people.findIndex((p) => p.name.trim() && (p.age === "" || !(Number(p.age) >= 0 && Number(p.age) <= 120))) : -1;
+  if (noAge >= 0) {
+    $("setupMsg").className = "msg warn";
+    $("setupMsg").textContent = `Add ${setup.people[noAge].name.trim()}'s age.`;
+    $("setupBody").querySelector(`input[data-p="${noAge}"][data-k="age"]`)?.focus();
+    return;
+  }
   if (setup.step === 2 && !setup.people.some((p) => p.name.trim())) {
     $("setupMsg").className = "msg warn";
     $("setupMsg").textContent = "Add at least one name, like Me or Mum.";
