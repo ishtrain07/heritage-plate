@@ -206,4 +206,5 @@ async function onScanFile(e) {
   dlg.addEventListener("click", (e) => { if (e.target === dlg) closeScan(); else onScanClick(e); });
   dlg.addEventListener("change", onScanWhoChange);
   $("scanFile").addEventListener("change", onScanFile);
+  $("scanFileLib").addEventListener("change", onScanFile);
 })();

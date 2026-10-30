@@ -32,7 +32,7 @@
       document.documentElement.setAttribute("data-side", s);
     })();
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261120">
+  <link rel="stylesheet" href="/static/styles.css?v=20261122">
 </head>
 <body>
   <a class="skip" href="#main">Skip to the app</a>
@@ -137,19 +137,21 @@
             <!-- The input card (the composer): first-class recipe entry, always here -->
             <section id="composer" class="composer input-card" aria-labelledby="composerTitle">
               <div class="composer-head">
-                <h2 id="composerTitle" class="sec-title" tabindex="-1">Tell us the recipe</h2>
+                <h2 id="composerTitle" class="sec-title" tabindex="-1">Make a recipe work for your family</h2>
                 <button id="composerClose" class="btn-link" type="button" hidden>Cancel</button>
               </div>
+              <p class="composer-sub">Keep the food you love. Adapt it to everyone's needs.</p>
+              <p class="comp-q" aria-hidden="true">What would you like to cook?</p>
 
               <div class="ta-wrap mic-wrap">
                 <label id="recipeTextLabel" class="sr-only" for="recipeText">The recipe: dish name, then what goes in</label>
                 <div class="ta-box">
-                  <textarea id="recipeText" rows="3" maxlength="2000" placeholder="Type, paste or say the recipe: dish name, then what goes in. Home measures are fine."></textarea>
+                  <textarea id="recipeText" rows="3" maxlength="2000" placeholder="Type, speak or paste your family recipe…"></textarea>
                   <button id="mic" class="mic mic-inline" type="button" aria-pressed="false" aria-describedby="micExample">
                     <span class="mic-circle" aria-hidden="true">
                       <svg viewBox="0 0 24 24" focusable="false"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1a7 7 0 0 0 6-6.9h-2Z" fill="currentColor"/></svg>
                     </span>
-                    <span class="mic-label">Say a recipe</span>
+                    <span class="mic-label">Speak</span>
                   </button>
                 </div>
                 <p id="micExample" class="mic-example sr-only"></p>
@@ -163,15 +165,16 @@
               </div>
 
               <fieldset class="card-row card-fs who-row">
-                <legend class="sr-only">For whom?</legend>
-                <span class="field-label" aria-hidden="true">For whom?</span>
+                <legend class="comp-q">Who's eating?</legend>
+                <p class="comp-sub">Choose who to personalise the recipe for.</p>
                 <div id="plateWho" class="pick chip-row chip-scroll" data-who-for="plate"></div>
               </fieldset>
 
               <fieldset class="goal">
-                <legend id="goalLegend" class="goal-legend">Make it lighter for <span class="opt">pick any</span></legend>
+                <legend id="goalLegend" class="goal-legend comp-q">What should we consider? <span class="opt">pick any</span></legend>
+                <p class="comp-sub">Saved family details are applied automatically.</p>
                 <div class="pick goal-pick">
-                  <label class="pick-opt"><input type="checkbox" name="condition" value="everyday" checked><span>Everyday lighter</span></label>
+                  <label class="pick-opt"><input type="checkbox" name="condition" value="everyday" checked><span>Everyday healthy eating</span></label>
                   <label class="pick-opt"><input type="checkbox" name="condition" value="diabetes"><span>Diabetes</span></label>
                   <label class="pick-opt"><input type="checkbox" name="condition" value="bp"><span>Blood pressure</span></label>
                   <label class="pick-opt"><input type="checkbox" name="condition" value="cholesterol"><span>Cholesterol</span></label>
@@ -179,12 +182,8 @@
                 <p id="focusHint" class="focus-hint"></p>
               </fieldset>
 
-              <div class="composer-go">
-                <button id="parse" class="btn btn-primary btn-wide" type="button">Make it lighter</button>
-              </div>
-              <p id="parseMsg" class="msg" role="status" aria-live="polite"></p>
               <details id="style" class="style more-opts">
-                <summary><span class="mo-h">More options</span> <span id="styleSummary" class="mo-sum">Serves 4 · South Asian</span><span class="chev" aria-hidden="true"></span></summary>
+                <summary><span class="mo-h">Recipe preferences</span> <span id="styleSummary" class="mo-sum">Servings · Cuisine · Language</span><span class="chev" aria-hidden="true"></span></summary>
                 <div class="fields">
                   <div class="composer-row">
                     <div class="stepper" role="group" aria-labelledby="servesLabel">
@@ -204,6 +203,10 @@
                   </label>
                 </div>
               </details>
+              <div class="composer-go">
+                <button id="parse" class="btn btn-primary btn-wide" type="button">Adapt this recipe →</button>
+              </div>
+              <p id="parseMsg" class="msg" role="status" aria-live="polite"></p>
 
               <p class="composer-skip">No recipe right now? <button id="composerSkip" class="btn-link" type="button">Plan a week of meals instead</button></p>
             </section>
@@ -456,11 +459,32 @@
                   <div id="careExamples" class="pick chip-row chip-scroll" role="group" aria-labelledby="careExLabel"></div>
                 </div>
                 <fieldset class="card-row card-fs who-row">
-                <legend class="sr-only">For whom?</legend>
-                <span class="field-label" aria-hidden="true">For whom?</span>
+                <legend class="comp-q">Who's eating?</legend>
+                <p class="comp-sub">Choose who to personalise the recipe for.</p>
                 <div id="careWho" class="pick chip-row chip-scroll" data-who-for="remedy"></div>
                 </fieldset>
-                <div class="composer-go">
+                <details id="style" class="style more-opts">
+                <summary><span class="mo-h">Recipe preferences</span> <span id="styleSummary" class="mo-sum">Servings · Cuisine · Language</span><span class="chev" aria-hidden="true"></span></summary>
+                <div class="fields">
+                  <div class="composer-row">
+                    <div class="stepper" role="group" aria-labelledby="servesLabel">
+                      <span id="servesLabel" class="stepper-label">Serves</span>
+                      <button type="button" class="stepper-btn" data-step="-1" aria-label="One fewer serving">−</button>
+                      <input id="servings" type="number" min="1" max="20" value="4" inputmode="numeric" aria-labelledby="servesLabel">
+                      <button type="button" class="stepper-btn" data-step="1" aria-label="One more serving">+</button>
+                    </div>
+                  </div>
+                  <label class="field">
+                    <span class="field-label">Your family's cooking</span>
+                    <select id="cuisine"></select>
+                  </label>
+                  <label class="field">
+                    <span class="field-label">Language you'll speak in</span>
+                    <select id="speechLang"></select>
+                  </label>
+                </div>
+              </details>
+              <div class="composer-go">
                   <button id="careGo" class="btn btn-primary btn-wide" type="button" data-care-act="check">Check it</button>
                 </div>
                 <p id="careMsg" class="msg" role="status" aria-live="polite"></p>
@@ -695,12 +719,14 @@
       </div>
       <p class="scan-lede">A photo of the ingredient label: food, skin or hair care. We check it for everyone at home.</p>
       <div id="scanPick" class="scan-pick">
-        <label class="scan-drop">
-          <input id="scanFile" type="file" accept="image/*" capture="environment" class="sr-only">
+        <div class="scan-drop">
           <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16"/></svg>
-          <b>Take or choose a photo</b>
           <span>Food, skin care, hair care</span>
-        </label>
+          <div class="scan-drop-btns">
+            <label class="btn btn-primary btn-small scan-file-btn">Take a photo<input id="scanFile" type="file" accept="image/*" capture="environment" class="sr-only"></label>
+            <label class="btn btn-quiet btn-small scan-file-btn">Choose from photos<input id="scanFileLib" type="file" accept="image/*" class="sr-only"></label>
+          </div>
+        </div>
         <button type="button" class="btn-link" data-scan-act="type">or type the ingredients</button>
       </div>
       <div id="scanWho" class="scan-who"></div>
@@ -712,12 +738,12 @@
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js?v=20261120"></script>
-  <script src="/static/app.js?v=20261120"></script>
-  <script src="/static/care.js?v=20261120"></script>
-  <script src="/static/scan.js?v=20261120"></script>
-  <script src="/static/setup.js?v=20261120"></script>
-  <script src="/static/insights.js?v=20261120"></script>
-  <script src="/static/shop.js?v=20261120"></script>
+  <script src="/static/family.js?v=20261122"></script>
+  <script src="/static/app.js?v=20261122"></script>
+  <script src="/static/care.js?v=20261122"></script>
+  <script src="/static/scan.js?v=20261122"></script>
+  <script src="/static/setup.js?v=20261122"></script>
+  <script src="/static/insights.js?v=20261122"></script>
+  <script src="/static/shop.js?v=20261122"></script>
 </body>
 </html>

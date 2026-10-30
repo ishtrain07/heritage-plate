@@ -126,6 +126,9 @@ def _guard(fn, *args):
         return fn(*args)
     except OffTopic as exc:
         raise off_topic_error(str(exc)) from exc
+    except llm.LLMUnavailable as exc:
+        log.warning("model unavailable: %s", exc)
+        raise HTTPException(status_code=503, detail="Our AI is taking a short break. Please try again in a few minutes.") from exc
     except llm.LLMError as exc:
         log.warning("model call failed: %s", exc)
         raise HTTPException(status_code=502, detail="The AI model didn't respond properly. Please try again.") from exc
