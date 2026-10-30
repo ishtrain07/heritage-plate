@@ -1107,7 +1107,10 @@ function renderHomeFamily() {
   if (!box) return;
   const ms = careMembers();
   const manage = document.querySelector('#homeFamily [data-fam-act="manage"]');
-  if (manage) manage.setAttribute("aria-expanded", String(Boolean(care.famManage)));
+  if (manage) {
+    manage.setAttribute("aria-expanded", String(Boolean(care.famManage)));
+    manage.innerHTML = care.famManage ? "Done" : `Manage <span aria-hidden="true">›</span>`;
+  }
   const rel = (m) => RELATIONS.find(([v]) => v === m.relation)?.[1] || "";
   const sub = (m) => { const bits = [rel(m), ...memberLine(m)].filter(Boolean); return bits.length ? bits[0][0].toUpperCase() + bits[0].slice(1) : m.age != null ? `${m.age} years` : "Add details"; };
   const row = `

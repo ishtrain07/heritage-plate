@@ -61,8 +61,10 @@ async function openInsights() {
   if (!dlg.open) dlg.showModal();
   const ms = careMembers();
   const body = $("insBody");
+  document.querySelector("#insightsDlg .ins-btns").hidden = !ms.length;
   if (!ms.length) {
-    body.innerHTML = `<p class="scan-hint">Add the people at home to see their daily aims. <button type="button" class="btn-link" data-ins-act="setup">Set up your household</button></p>`;
+    body.innerHTML = `<p class="scan-hint">Add the people at home to see their daily aims.</p>
+      <button type="button" class="btn btn-primary" data-ins-act="setup">Set up your household</button>`;
     return;
   }
   body.innerHTML = `<p class="scan-status busy"><span class="spinner" aria-hidden="true"></span> Working out everyone's aims…</p>`;
