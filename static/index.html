@@ -32,7 +32,7 @@
       document.documentElement.setAttribute("data-side", s);
     })();
   </script>
-  <link rel="stylesheet" href="/static/styles.css?v=20261117">
+  <link rel="stylesheet" href="/static/styles.css?v=20261119">
 </head>
 <body>
   <a class="skip" href="#main">Skip to the app</a>
@@ -647,6 +647,26 @@
     </div>
   </dialog>
 
+  <dialog id="shareDlg" class="scan-dlg share-dlg" aria-labelledby="shareTitle">
+    <form class="scan-inner" id="shareForm">
+      <div class="how-head">
+        <h2 id="shareTitle">Share the family plan</h2>
+        <button class="how-x" type="button" data-share-act="close" aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="share-opts" role="radiogroup" aria-label="What to share">
+        <label class="share-opt"><input type="radio" name="shareKind" value="summary" checked>
+          <span><b>Quick summary</b><span>Dishes made lighter, the week at a glance and the shopping list. Ideal for WhatsApp.</span></span></label>
+        <label class="share-opt"><input type="radio" name="shareKind" value="list">
+          <span><b>Shopping list only</b><span>One list for the household by aisle, with amounts. For whoever does the shopping.</span></span></label>
+        <label class="share-opt"><input type="radio" name="shareKind" value="pdf">
+          <span><b>Complete family plan</b><span>Every recipe, the full week, nutrition and notes, as a PDF.</span></span></label>
+      </div>
+      <button type="submit" class="btn btn-primary btn-wide">Share <span aria-hidden="true">→</span></button>
+    </form>
+  </dialog>
+
   <dialog id="shopDlg" class="scan-dlg shop-dlg" aria-labelledby="shopTitle">
     <div class="scan-inner">
       <div class="how-head">
@@ -692,12 +712,12 @@
 
   <div id="announce" class="sr-only" aria-live="polite"></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/static/family.js?v=20261117"></script>
-  <script src="/static/app.js?v=20261117"></script>
-  <script src="/static/care.js?v=20261117"></script>
-  <script src="/static/scan.js?v=20261117"></script>
-  <script src="/static/setup.js?v=20261117"></script>
-  <script src="/static/insights.js?v=20261117"></script>
-  <script src="/static/shop.js?v=20261117"></script>
+  <script src="/static/family.js?v=20261119"></script>
+  <script src="/static/app.js?v=20261119"></script>
+  <script src="/static/care.js?v=20261119"></script>
+  <script src="/static/scan.js?v=20261119"></script>
+  <script src="/static/setup.js?v=20261119"></script>
+  <script src="/static/insights.js?v=20261119"></script>
+  <script src="/static/shop.js?v=20261119"></script>
 </body>
 </html>
