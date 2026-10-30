@@ -2335,3 +2335,4 @@ html[data-side] .side-switch a[data-side-link][aria-current="page"] { background
 #composer .who-row { display: block; }
 #composer .who-row .chip-row { margin-top: 0; }
 #composer .more-opts { margin: 14px 0 12px; border-radius: 14px; background: var(--surface-warm); padding: 4px 14px; }
+.mic-hint .mic-lang { font-size: inherit; min-height: 32px; padding: 0; }

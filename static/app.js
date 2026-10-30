@@ -1647,9 +1647,9 @@ function updateMicHint() {
   const hint = $("micHint");
   if (!voice.rec) { noVoiceHint(hint); return; }
   hint.classList.remove("is-novoice"); hint.closest(".mic-wrap")?.classList.remove("no-voice");
-  hint.textContent = voice.listening
-    ? `Listening in ${state.speechLang}. Tap Done when you've finished.`
-    : `Listens in ${state.speechLang}. Check the words after.`;
+  if (voice.listening) { hint.textContent = `Listening in ${state.speechLang}. Tap Done when you've finished.`; return; }
+  // Many languages are supported; make the choice easy to find (it lives in Recipe preferences).
+  hint.innerHTML = `Listens in ${esc(state.speechLang)}. <button type="button" class="btn-link mic-lang" data-mic-lang>Change language</button>`;
 }
 
 function setListening(on) {
@@ -2848,6 +2848,12 @@ function onAction(e) {
   else if (act === "close-cookbook") closeCookbook();
 }
 $("readyBar").addEventListener("click", onAction);
+$("micHint").addEventListener("click", (e) => {
+  if (!e.target.closest("[data-mic-lang]")) return;
+  $("style").open = true;
+  $("speechLang").focus();
+  $("speechLang").scrollIntoView({ block: "center", behavior: reduceMotion() ? "auto" : "smooth" });
+});
 $("planOut").addEventListener("click", (e) => {
   const b = e.target.closest("[data-skip]");
   if (b) { e.preventDefault(); toggleSkip(b.dataset.skip); }
