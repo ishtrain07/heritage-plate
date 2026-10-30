@@ -214,7 +214,7 @@ function micFor({ btn, box, hint, msg, idle }) {
 function whoChipsHTML(name, selected) {
   const ms = careMembers();
   const opt = (v, l) => `<label class="pick-opt"><input type="radio" name="${name}" value="${esc(v)}"${v === selected ? " checked" : ""}><span>${esc(l)}</span></label>`;
-  return [opt("", "Anyone"), ...ms.map((m, i) => opt(m.id, memberLabel(m, i)))].join("")
+  return [opt("", "Everyone"), ...ms.map((m, i) => opt(m.id, memberLabel(m, i)))].join("")
     + (ms.length < FAMILY_MAX ? `<button type="button" class="chip-add" data-care-act="quick-add" data-for="${esc(name)}"><span aria-hidden="true">+</span> Add</button>` : "");
 }
 function renderWho() {

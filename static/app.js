@@ -1459,7 +1459,7 @@ function runPlateExample(text) {
   $("recipeText").value = text;
   submitComposer($("parse"));
 }
-function micIdleLabel() { return state.composerMode === "suggest" ? "Say what you'd like" : "Say a recipe"; }
+function micIdleLabel() { return state.composerMode === "suggest" ? "Say what you'd like" : "Speak"; }
 
 // The composer has two jobs: a family recipe to make lighter, or a wish for a new dish ("suggest").
 function setComposerMode(mode) {
@@ -1469,9 +1469,9 @@ function setComposerMode(mode) {
   const box = $("recipeText");
   box.maxLength = suggest ? 300 : 2000;
   box.rows = 3;
-  box.placeholder = suggest ? `e.g. ${SUGGEST_EXAMPLE}` : "Type, paste or say the recipe: dish name, then what goes in. Home measures are fine.";
+  box.placeholder = suggest ? `e.g. ${SUGGEST_EXAMPLE}` : "Type, speak or paste your family recipe…";
   $("recipeTextLabel").textContent = suggest ? "What would you like to eat?" : "The recipe: dish name, then what goes in";
-  $("goalLegend").firstChild.textContent = suggest ? "Suggest it for " : "Make it lighter for ";
+  $("goalLegend").firstChild.textContent = suggest ? "Suggest it for " : "What should we consider? ";
   $("composer").classList.toggle("is-suggest", suggest);
   syncControls();
   if (!voice.listening) $("mic").querySelector(".mic-label").textContent = micIdleLabel();
@@ -1485,8 +1485,8 @@ function composerChrome() {
   const alt = editing || suggest;
   $("composer").classList.toggle("is-alt", alt);
   $("composerClose").hidden = !alt;
-  $("composerTitle").textContent = editing ? "Edit the recipe" : suggest ? "What would you like?" : "Tell us the recipe";
-  if (!$("parse").hasAttribute("aria-busy")) $("parse").textContent = editing ? "Update and make it lighter" : suggest ? "Suggest a dish" : "Make it lighter";
+  $("composerTitle").textContent = editing ? "Edit the recipe" : suggest ? "What would you like?" : "Make a recipe work for your family";
+  if (!$("parse").hasAttribute("aria-busy")) $("parse").textContent = editing ? "Update and make it lighter" : suggest ? "Suggest a dish" : "Adapt this recipe →";
 }
 
 // Back to the card's usual job (a family recipe to make lighter), e.g. after a dish was added.

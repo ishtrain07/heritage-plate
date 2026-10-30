@@ -2325,3 +2325,13 @@ html[data-side] .side-switch a[data-side-link][aria-current="page"] { background
 /* the top bar stays put while scrolling */
 .top { position: sticky; top: 0; z-index: 30; background: var(--bg); }
 .scan-drop:focus-within { outline: none; }
+/* recipe card, co-founder layout: title, question labels, preferences, one action */
+#composer:not(.is-alt) .composer-head { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; white-space: normal; }
+#composer .composer-head .sec-title { font-size: 1.5rem; }
+.composer-sub { margin: 4px 0 14px; color: var(--muted); }
+#composer.is-alt .composer-sub, #composer.is-alt > .comp-q { display: none; }
+.comp-q { margin: 12px 0 6px; font-weight: 700; font-size: 1.0625rem; color: var(--ink); padding: 0; }
+.comp-sub { margin: -2px 0 8px; color: var(--muted); font-size: .875rem; }
+#composer .who-row { display: block; }
+#composer .who-row .chip-row { margin-top: 0; }
+#composer .more-opts { margin: 14px 0 12px; border-radius: 14px; background: var(--surface-warm); padding: 4px 14px; }
