@@ -2284,3 +2284,10 @@ html[data-side] .side-switch a[data-side-link][aria-current="page"] { background
   .ph-photo.ph-shop { background-image: image-set(url(/static/hero/card-shop.webp) type("image/webp"), url(/static/hero/card-shop.jpg) type("image/jpeg")); }
 }
 :root[data-theme="dark"] .ph-photo.ph-scan, :root[data-theme="dark"] .ph-photo.ph-shop { filter: brightness(.9); }
+/* the card photos win over the dark-mode placeholder gradients */
+:root .today-ph.ph-photo.ph-scan, :root[data-theme="dark"] .today-ph.ph-photo.ph-scan { background: center / cover no-repeat url(/static/hero/card-scan.jpg); }
+:root .today-ph.ph-photo.ph-shop, :root[data-theme="dark"] .today-ph.ph-photo.ph-shop { background: center / cover no-repeat url(/static/hero/card-shop.jpg); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .today-ph.ph-photo.ph-scan { background: center / cover no-repeat url(/static/hero/card-scan.jpg); }
+  :root:not([data-theme="light"]) .today-ph.ph-photo.ph-shop { background: center / cover no-repeat url(/static/hero/card-shop.jpg); }
+}
