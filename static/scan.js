@@ -70,6 +70,7 @@ async function runScan({ image = "", text = "" }) {
     status.className = "scan-status";
     status.textContent = "";
     renderScanResult(data.result);
+    loadNews(data.result.product);
     announce(`${data.result.product || "Label"} checked.`);
   } catch (err) {
     status.className = "scan-status err";
@@ -134,6 +135,20 @@ function addToListHTML(r) {
       ${people}
       <button type="button" class="btn btn-primary btn-small" data-scan-act="add">Add to list</button>
     </div>`;
+}
+
+// "In the news": web results on recalls or recipe changes for this product (Tavily). Never part of the verdict;
+// if the search is off, slow or empty, nothing shows.
+async function loadNews(product) {
+  if (!product || product.length < 3 || /^scanned product$/i.test(product)) return;
+  try {
+    const { items } = await api("/api/scan/news", { product }, 9000);
+    if (!items?.length || !$("scanOut").querySelector(".scan-card")) return;
+    $("scanOut").querySelector(".scan-card").insertAdjacentHTML("beforeend", `
+      <div class="scan-news"><h4 class="scan-h">In the news</h4>
+        <ul>${items.map((x) => `<li><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a></li>`).join("")}</ul>
+        <p class="scan-news-src">Web search by Tavily; check the source.</p></div>`);
+  } catch { /* the scan answer stands on its own */ }
 }
 
 function onScanClick(e) {

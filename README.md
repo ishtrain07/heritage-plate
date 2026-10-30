@@ -36,6 +36,8 @@ Each step goes to the Nemotron model sized for its job. All of them are called t
 - Per-token pricing let us budget each step. A full household session is about 20 calls and 70k tokens.
 - `chat_template_kwargs` switches Nemotron's thinking off for the fast steps.
 
+After a scan, an optional **Tavily** web search (`/api/scan/news`, on when `TAVILY_API_KEY` is set) shows up to 3 recent links on recalls or recipe changes for that product. It never affects a verdict, and only the product name is sent.
+
 Every call is traced in **LangSmith** (model, tokens, latency) when `LANGSMITH_TRACING=true`.
 
 ## Trust: the AI never makes up numbers or safety rules
@@ -66,6 +68,7 @@ uvicorn app.main:app --reload      # http://localhost:8000
   - `TRUST_PROXY`
   - `LLM_TIMEOUT_S`, `LLM_TIMEOUT_ULTRA_S`, `LLM_DEADLINE_S`
   - `VISION_MODEL`, default `google/gemma-3-27b-it`
+  - `TAVILY_API_KEY` (optional): turns on "In the news" after a scan
   - `LANGSMITH_TRACING`, `LANGSMITH_ENDPOINT`, `LANGSMITH_PROJECT`, `LANGSMITH_API_KEY`
 
 **Deploy:** Vercel, using `vercel.json` (`app/main.py` as a Python function, `maxDuration` 120 s). Set `NEBIUS_API_KEY` (and the LangSmith variables) for Production and Preview. A `Dockerfile` is included for any container host.
@@ -73,7 +76,7 @@ uvicorn app.main:app --reload      # http://localhost:8000
 ## Tests
 
 ```bash
-python -m pytest -q    # 251 tests, offline (mock mode)
+python -m pytest -q    # 254 tests, offline (mock mode)
 ruff check .
 ```
 

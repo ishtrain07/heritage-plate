@@ -2304,3 +2304,7 @@ html[data-side] .side-switch a[data-side-link][aria-current="page"] { background
   .side-switch a .ic { display: none; }
   .brand-tag { letter-spacing: .1em; }
 }
+.scan-news { border-top: 1px solid var(--card-line); padding-top: 10px; }
+.scan-news ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; }
+.scan-news a { color: var(--deep); }
+.scan-news-src { margin: 6px 0 0; font-size: .8125rem; color: var(--muted); }
