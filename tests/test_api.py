@@ -318,3 +318,15 @@ def test_an_ask_cannot_undo_the_lighter_version(client, monkeypatch):
     r = client.post("/api/adapt", json={"recipe": recipe, "condition": "diabetes", "request": "Dad hates cauliflower",
                                         "current": lighter}).json()["recipe"]
     assert len(calls) == 2 and r["changes"][0]["what"] == "Kept the lighter amounts"
+
+
+def test_lighter_version_is_never_heavier(client, monkeypatch):
+    """Mitti ki roti came back 0.2 -> 0.3 g saturated fat; a lighter version must keep the dish as it was instead."""
+    from app import engine
+    heavier = lambda r, conds: {"ingredients": [*r["ingredients"], {"item": "ghee", "grams": 5}],
+                                "changes": [{"what": "Add ghee", "why": "taste"}]}
+    monkeypatch.setattr(engine, "_mock_adapt_all", heavier)
+    recipe = {"name": "Mitti ki roti", "servings": 4, "ingredients": [{"item": "bajra flour", "grams": 200}]}
+    out = client.post("/api/adapt", json={"recipe": recipe, "condition": "cholesterol"}).json()["recipe"]
+    assert out["nutrition"]["sat_fat_g"] == out["original"]["nutrition"]["sat_fat_g"]
+    assert out["delta"]["sat_fat_g"] == 0 and "already light" in out["changes"][0]["why"]

@@ -48,7 +48,7 @@ Every call is traced in **LangSmith** (model, tokens, latency) when `LANGSMITH_T
   - allergies, including "may contain", compound words and Hindi/Hinglish names
   - diets, pregnancy, age limits and prescription-only items
   - dangerous remedies and ingredients (steroids, mercury, hydroquinone) always get "stop"
-- **Guardrails before the model** (`app/guards.py`): self-harm signals get helplines and never reach it. Non-food text, obscene text, non-label photos and gibberish get a friendly reply.
+- **Guardrails before the model** (`app/guards.py`): self-harm signals get helplines and never reach it. Poisons or chemicals typed as food get a firm "not food" with emergency numbers; swear words, non-label photos and gibberish get a friendly reply.
 
 ## Run it
 
@@ -76,7 +76,7 @@ uvicorn app.main:app --reload      # http://localhost:8000
 ## Tests
 
 ```bash
-python -m pytest -q    # 254 tests, offline (mock mode)
+python -m pytest -q    # 272 tests, offline (mock mode)
 ruff check .
 ```
 

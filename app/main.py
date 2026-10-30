@@ -118,7 +118,9 @@ from .guards import (  # noqa: F401
     _guard,
     _rate_limit,
     check_input,
+    not_food_error,
     reject,
+    unsafe_dish,
 )
 
 
@@ -174,6 +176,8 @@ def parse(body: ParseIn, request: Request):
 def adapt(body: AdaptIn, request: Request):
     _rate_limit(request)
     check_input(body.request, "ask")
+    if unsafe_dish(body.recipe.model_dump()):
+        raise not_food_error(" ".join([body.recipe.name, *[i.item for i in body.recipe.ingredients]]))
     current = engine.normalize_ingredients([i.model_dump() for i in body.current]) if body.current and body.request.strip() else None
     adapted, trace = _guard(engine.adapt_recipe, body.recipe.build(), body.condition, body.cuisine, body.request.strip(), body.also,
                             current)
@@ -183,7 +187,9 @@ def adapt(body: AdaptIn, request: Request):
 @app.post("/api/plan")
 def plan(body: PlanIn, request: Request):
     _rate_limit(request)
-    recipes = [r.build() for r in body.recipes]
+    recipes = [r.build() for r in body.recipes if not unsafe_dish(r.model_dump())]
+    if not recipes:
+        raise not_food_error(" ".join(r.name for r in body.recipes))
     result, trace = _guard(engine.make_plan, recipes, body.condition, body.language, body.week)
     return {"plan": result, "trace": trace}
 
@@ -213,8 +219,14 @@ def week(body: WeekIn, request: Request):
     """Personal dietitian week: calorie target from the profile, meals around the family's dishes."""
     _rate_limit(request, cost=5)  # one week plan is a long call, so it counts as several requests
     check_input(body.profile.dislikes, "dislikes", field="dislikes")
-    recipes = [r.build() for r in body.recipes]
+    # A saved dish that names a poison or drug is left out of the week, and the reply says which one.
+    left_out = [r.name for r in body.recipes if unsafe_dish(r.model_dump())]
+    recipes = [r.build() for r in body.recipes if r.name not in left_out]
+    if left_out and not recipes:
+        raise not_food_error(" ".join(left_out))
     result, trace = _guard(dietitian.plan_week, recipes, body.profile.model_dump(), body.language, body.week, body.household)
+    if left_out:
+        result = {**result, "left_out": left_out}
     return {"week": result, "trace": trace}
 
 

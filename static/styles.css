@@ -2346,3 +2346,8 @@ html { scroll-padding-top: 140px; }
 /* shopping: how much is already at home */
 .shop-have { display: inline-flex; align-items: center; gap: 4px; font-size: .8125rem; color: var(--muted); flex: none; }
 .shop-have input { width: 64px; min-height: 36px; border: 1px solid var(--field-line); border-radius: 10px; padding: 0 6px; font: inherit; background: var(--field); color: var(--ink); }
+
+/* Poison or chemical typed into a food field: firm, with emergency numbers one tap away. */
+.guard-danger { padding: var(--s4) var(--s5); border: 1px solid var(--line); border-left: 4px solid var(--error-ink); background: var(--error-soft); color: var(--ink); }
+.guard-danger .guard-msg { font-weight: 400; line-height: 1.5; }
+.guard-danger .guard-msg b { color: var(--error-ink); }

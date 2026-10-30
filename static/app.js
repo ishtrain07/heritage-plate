@@ -358,7 +358,7 @@ async function apiOnce(path, body, timeoutMs, signal) {
 // A 422 whose detail is {code, message, lines?} is the server saying "that isn't something we can work with"
 // (a normal validation 422 has a list as its detail). It's shown inline under the field that was sent, never
 // as a toast, and never with the person's own text echoed back.
-const GUARD_CODES = ["not_food", "off_topic", "gibberish", "support"];
+const GUARD_CODES = ["not_food", "off_topic", "gibberish", "support", "danger", "rude"];
 function guardOf(detail) {
   if (!detail || typeof detail !== "object" || Array.isArray(detail) || !GUARD_CODES.includes(detail.code)) return null;
   const msg = typeof detail.message === "string" ? detail.message.trim() : "";
@@ -382,6 +382,13 @@ function guardHTML(g, ex = "", exLabel = "") {
     return `
       <div class="guard guard-support" role="status">
         <p class="guard-msg">${esc(g.message)}</p>
+        ${g.lines.length ? `<ul class="guard-lines">${g.lines.map((l) => `<li>${supportLine(l)}</li>`).join("")}</ul>` : ""}
+      </div>`;
+  }
+  if (g.code === "danger") {
+    return `
+      <div class="guard guard-danger" role="alert">
+        <p class="guard-msg"><b>Not food.</b> ${esc(g.message)}</p>
         ${g.lines.length ? `<ul class="guard-lines">${g.lines.map((l) => `<li>${supportLine(l)}</li>`).join("")}</ul>` : ""}
       </div>`;
   }
@@ -2269,6 +2276,7 @@ async function makePlan() {
     renderPlan();
     saveBook();
     $("weekTitle").focus({ preventScroll: true });
+    if (week.left_out?.length) toast(`Left out ${week.left_out.map((n) => `“${n}”`).join(", ")}: not food. Remove it from your recipes.`);
     announce(`Your week is ready: ${targetLine(week)}. ${hasNote(week) ? "With a shopping list and a note." : "With a shopping list."}`);
   } catch (err) {
     if (state.planCtrl !== ctrl) { clearInterval(timer); return; }
