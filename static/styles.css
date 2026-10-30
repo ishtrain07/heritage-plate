@@ -2277,3 +2277,10 @@ html[data-side] .side-switch a[data-side-link][aria-current="page"] { background
 .ph-care { background: radial-gradient(circle at 70% 30%, var(--tile-clay), transparent 60%), linear-gradient(135deg, var(--surface-warm), var(--tile-clay)); }
 :root[data-theme="dark"] .ph-scan, :root[data-theme="dark"] .ph-shop, :root[data-theme="dark"] .ph-care { background: linear-gradient(135deg, var(--surface-warm), var(--tile-green)); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ph-scan, :root:not([data-theme="light"]) .ph-shop, :root:not([data-theme="light"]) .ph-care { background: linear-gradient(135deg, var(--surface-warm), var(--tile-green)); } }
+.ph-photo.ph-scan { background: center / cover no-repeat url(/static/hero/card-scan.jpg); }
+.ph-photo.ph-shop { background: center / cover no-repeat url(/static/hero/card-shop.jpg); }
+@supports (background-image: url(x.webp)) {
+  .ph-photo.ph-scan { background-image: image-set(url(/static/hero/card-scan.webp) type("image/webp"), url(/static/hero/card-scan.jpg) type("image/jpeg")); }
+  .ph-photo.ph-shop { background-image: image-set(url(/static/hero/card-shop.webp) type("image/webp"), url(/static/hero/card-shop.jpg) type("image/jpeg")); }
+}
+:root[data-theme="dark"] .ph-photo.ph-scan, :root[data-theme="dark"] .ph-photo.ph-shop { filter: brightness(.9); }
